@@ -71,8 +71,10 @@ describe('Security Dashboards Table hooks', () => {
 
   describe('useSecurityDashboardsTableItems', () => {
     it('should request when renders', async () => {
-      await renderUseSecurityDashboardsTableItems();
-      expect(getDashboardsByTagIds).toHaveBeenCalledTimes(1);
+      renderHook(() => useSecurityDashboardsTableItems(), {
+        wrapper: DashboardContextProvider,
+      });
+      await waitFor(() => expect(getDashboardsByTagIds).toHaveBeenCalledTimes(1));
     });
 
     it('should not request again when rerendered', async () => {

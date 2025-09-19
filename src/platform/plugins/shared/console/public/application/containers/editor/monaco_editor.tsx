@@ -9,7 +9,7 @@
 
 import type { CSSProperties } from 'react';
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { EuiFlexGroup, EuiFlexItem, EuiButtonIcon, EuiToolTip } from '@elastic/eui';
+import { EuiFlexGroup, EuiFlexItem, EuiButtonIcon, EuiToolTip, useEuiTheme } from '@elastic/eui';
 import { css } from '@emotion/react';
 import { CodeEditor } from '@kbn/code-editor';
 import type { ESQLCallbacks, monaco } from '@kbn/monaco';
@@ -36,6 +36,34 @@ import {
 } from '../../contexts';
 import { ContextMenu } from './components';
 import { useSetInputEditor } from '../../hooks';
+
+const useMonacoEditorStyles = () => {
+  const { euiTheme } = useEuiTheme();
+
+  return {
+    editorActions: css`
+      position: absolute;
+      z-index: ${euiTheme.levels.header};
+      top: 0;
+      // Adjust for possible scrollbars
+      right: ${euiTheme.size.base};
+      height: ${euiTheme.size.l};
+      background-color: ${euiTheme.colors.lightestShade};
+      border-radius: ${euiTheme.size.xs};
+      box-shadow: 0 0 calc(${euiTheme.size.xs} * 0.5) calc(${euiTheme.size.xs} * 0.5)
+        ${euiTheme.colors.lightShade};
+      padding-top: calc(${euiTheme.base} * 0.1);
+      overflow-y: auto;
+      // For IE11
+      min-width: calc(${euiTheme.size.l} * 2);
+
+      button {
+        height: calc(${euiTheme.base} * 1.1);
+        width: calc(${euiTheme.base} * 1.1);
+      }
+    `,
+  };
+};
 
 export interface EditorProps {
   localStorageValue: string | undefined;
@@ -77,6 +105,7 @@ export const MonacoEditor = ({ localStorageValue, value, setValue }: EditorProps
   const [editorActionsCss, setEditorActionsCss] = useState<CSSProperties>({});
 
   const setInputEditor = useSetInputEditor();
+  const monacoEditorStyles = useMonacoEditorStyles();
 
   const getRequestsCallback = useCallback(async (): Promise<EditorRequest[]> => {
     const requests = await actionsProvider.current?.getRequests();
@@ -216,7 +245,7 @@ export const MonacoEditor = ({ localStorageValue, value, setValue }: EditorProps
       data-test-subj="consoleMonacoEditorContainer"
     >
       <EuiFlexGroup
-        className="conApp__editorActions"
+        css={monacoEditorStyles.editorActions}
         id="ConAppEditorActions"
         gutterSize="xs"
         responsive={false}

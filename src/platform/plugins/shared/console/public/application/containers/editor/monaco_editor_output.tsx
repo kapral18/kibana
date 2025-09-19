@@ -20,6 +20,7 @@ import {
   EuiFlexItem,
   EuiButtonIcon,
   EuiToolTip,
+  useEuiTheme,
 } from '@elastic/eui';
 import type { monaco } from '@kbn/monaco';
 import { CONSOLE_OUTPUT_THEME_ID, CONSOLE_OUTPUT_LANG_ID } from '@kbn/monaco';
@@ -35,6 +36,34 @@ import { useEditorReadContext, useRequestReadContext, useServicesContext } from 
 import { MonacoEditorOutputActionsProvider } from './monaco_editor_output_actions_provider';
 import { useResizeCheckerUtils } from './hooks';
 
+const useMonacoEditorOutputStyles = () => {
+  const { euiTheme } = useEuiTheme();
+
+  return {
+    outputActions: css`
+      position: absolute;
+      z-index: ${euiTheme.levels.header};
+      top: 0;
+      // Adjust for possible scrollbars
+      right: ${euiTheme.size.base};
+      height: ${euiTheme.size.l};
+      background-color: ${euiTheme.colors.lightestShade};
+      border-radius: ${euiTheme.size.xs};
+      box-shadow: 0 0 calc(${euiTheme.size.xs} * 0.5) calc(${euiTheme.size.xs} * 0.5)
+        ${euiTheme.colors.lightShade};
+      padding-top: calc(${euiTheme.base} * 0.1);
+      overflow-y: auto;
+      // For IE11
+      min-width: ${euiTheme.size.l};
+
+      button {
+        height: calc(${euiTheme.base} * 1.1);
+        width: calc(${euiTheme.base} * 1.1);
+      }
+    `,
+  };
+};
+
 export const MonacoEditorOutput: FunctionComponent = () => {
   const context = useServicesContext();
   const {
@@ -48,6 +77,7 @@ export const MonacoEditorOutput: FunctionComponent = () => {
   const [mode, setMode] = useState('text');
   const divRef = useRef<HTMLDivElement | null>(null);
   const { setupResizeChecker, destroyResizeChecker } = useResizeCheckerUtils();
+  const monacoEditorOutputStyles = useMonacoEditorOutputStyles();
   const lineDecorations = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
   const actionsProvider = useRef<MonacoEditorOutputActionsProvider | null>(null);
@@ -143,7 +173,7 @@ export const MonacoEditorOutput: FunctionComponent = () => {
       ref={divRef}
     >
       <EuiFlexGroup
-        className="conApp__outputActions"
+        css={monacoEditorOutputStyles.outputActions}
         responsive={false}
         style={editorActionsCss}
         justifyContent="center"

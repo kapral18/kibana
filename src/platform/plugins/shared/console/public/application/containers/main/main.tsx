@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import '../../../index.scss';
 import React, { useEffect, useState } from 'react';
 import {
   EuiFlexGroup,
@@ -59,6 +58,75 @@ import {
   EXPORT_FILE_NAME,
 } from './constants';
 
+const useMainStyles = () => {
+  const { euiTheme } = useEuiTheme();
+
+  return {
+    consoleRoot: css`
+      display: flex;
+      flex: 1 1 auto;
+      // Make sure the editor actions don't create scrollbars on this container
+      // SASSTODO: Uncomment when tooltips are EUI-ified (inside portals)
+      overflow: hidden;
+    `,
+
+    consoleContainer: css`
+      padding: ${euiTheme.size.m};
+      gap: 0;
+    `,
+
+    consoleContainerEmbeddable: css`
+      padding: 0;
+      gap: 0;
+    `,
+
+    consoleTabs: css`
+      padding: 0 ${euiTheme.size.s};
+    `,
+
+    // We need to hide the file input element to prevent the default browser styles
+    importFileInput: css`
+      opacity: 0;
+      position: absolute;
+      z-index: -1;
+    `,
+
+    // Combined container styles for different contexts
+    consoleRootWithContainer: css`
+      display: flex;
+      flex: 1 1 auto;
+      // Make sure the editor actions don't create scrollbars on this container
+      // SASSTODO: Uncomment when tooltips are EUI-ified (inside portals)
+      overflow: hidden;
+      padding: ${euiTheme.size.m};
+      gap: 0;
+    `,
+
+    consoleRootWithContainerEmbeddable: css`
+      display: flex;
+      flex: 1 1 auto;
+      // Make sure the editor actions don't create scrollbars on this container
+      // SASSTODO: Uncomment when tooltips are EUI-ified (inside portals)
+      overflow: hidden;
+      padding: 0;
+      gap: 0;
+    `,
+
+    // Scrollable panel with body background
+    scrollablePanelWithBackground: css`
+      ${useEuiOverflowScroll('y', false)}
+      background-color: ${euiTheme.colors.body};
+    `,
+
+    // Expandable cell content has a padded panel inside
+    variablesTable: css`
+      .euiTableRow-isExpandedRow .euiTableCellContent {
+        padding: 0;
+      }
+    `,
+  };
+};
+
 interface MainProps {
   currentTabProp?: string;
   isEmbeddable?: boolean;
@@ -76,7 +144,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFullscreenOpen, setIsFullScreen] = useState(false);
   const [isConfirmImportOpen, setIsConfirmImportOpen] = useState<string | null>(null);
-  const { euiTheme } = useEuiTheme();
+  const mainStyles = useMainStyles();
 
   const {
     docLinks,
@@ -168,10 +236,6 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
     }
   };
 
-  const scrollablePanelStyle = css`
-    ${useEuiOverflowScroll('y', false)}
-  `;
-
   if (error) {
     return (
       <EuiPageTemplate.EmptyPrompt color="danger">
@@ -203,12 +267,19 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
   );
 
   return (
-    <div id="consoleRoot" className={`consoleContainer${isEmbeddable ? '--embeddable' : ''}`}>
+    <div
+      id="consoleRoot"
+      css={
+        isEmbeddable
+          ? mainStyles.consoleRootWithContainerEmbeddable
+          : mainStyles.consoleRootWithContainer
+      }
+    >
       <EuiScreenReaderOnly>
         <h1>{MAIN_PANEL_LABELS.consolePageHeading}</h1>
       </EuiScreenReaderOnly>
       <EuiSplitPanel.Outer grow={true} borderRadius={isEmbeddable ? 'none' : 'm'}>
-        <EuiSplitPanel.Inner grow={false} className="consoleTabs">
+        <EuiSplitPanel.Inner grow={false} css={mainStyles.consoleTabs}>
           <EuiFlexGroup direction="row" alignItems="center" gutterSize="s" responsive={false}>
             <EuiFlexItem>
               <TopNavMenu
@@ -235,6 +306,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
                       }
                       size="xs"
                       data-test-subj="consoleExportButton"
+                      aria-label={MAIN_PANEL_LABELS.exportButtonTooltip}
                     >
                       {MAIN_PANEL_LABELS.exportButton}
                     </EuiButtonEmpty>
@@ -246,6 +318,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
                         onClick={() => document.getElementById('importConsoleFile')?.click()}
                         size="xs"
                         data-test-subj="consoleImportButton"
+                        aria-label={MAIN_PANEL_LABELS.importButtonTooltip}
                       >
                         {MAIN_PANEL_LABELS.importButton}
                       </EuiButtonEmpty>
@@ -257,6 +330,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
                       multiple={false}
                       name="consoleSnippets"
                       id="importConsoleFile"
+                      css={mainStyles.importFileInput}
                       onChange={onFileChange}
                     />
                   </>
@@ -306,7 +380,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
         <EuiHorizontalRule margin="none" />
         <EuiSplitPanel.Inner
           paddingSize="none"
-          css={[scrollablePanelStyle, { backgroundColor: euiTheme.colors.body }]}
+          css={mainStyles.scrollablePanelWithBackground}
           data-test-subj="consolePanel"
         >
           {currentTab === SHELL_TAB_ID && (
@@ -323,7 +397,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
         <EuiSplitPanel.Inner
           paddingSize="xs"
           grow={false}
-          className="consoleVariablesBottomBar"
+          data-test-subj="console-variables-bottom-bar"
           color="plain"
         >
           <EuiButtonEmpty
@@ -331,6 +405,7 @@ export function Main({ currentTabProp, isEmbeddable = false }: MainProps) {
             iconType="editorCodeBlock"
             size="xs"
             color="text"
+            aria-label={MAIN_PANEL_LABELS.variablesButton}
           >
             {MAIN_PANEL_LABELS.variablesButton}
           </EuiButtonEmpty>

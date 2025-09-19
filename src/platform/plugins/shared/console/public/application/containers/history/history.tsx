@@ -28,6 +28,7 @@ import {
   EuiResizableContainer,
   useIsWithinBreakpoints,
 } from '@elastic/eui';
+import { css } from '@emotion/react';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { SHELL_TAB_ID } from '../main';
@@ -41,6 +42,37 @@ import type { ESRequest } from '../../../types';
 import { RestoreMethod } from '../../../types';
 
 const CHILD_ELEMENT_PREFIX = 'historyReq';
+
+const useHistoryStyles = () => {
+  const { euiTheme } = useEuiTheme();
+
+  return {
+    fullHeightPanel: css`
+      height: 100%;
+    `,
+
+    // Panel with padding and full height
+    paddedFullHeightPanel: css`
+      height: 100%;
+      padding-right: ${euiTheme.size.s};
+    `,
+
+    // Column layout with full height
+    fullHeightColumnGroup: css`
+      height: 100%;
+    `,
+
+    // Content area with top padding
+    paddedTopContainer: css`
+      padding-top: ${euiTheme.size.l};
+    `,
+
+    // Sticky positioned element
+    stickyTopElement: css`
+      top: 0;
+    `,
+  };
+};
 
 interface HistoryProps {
   data: string;
@@ -82,9 +114,9 @@ const CheckeableCardLabel = ({ historyItem }: { historyItem: HistoryProps }) => 
 };
 
 export function History() {
-  const { euiTheme } = useEuiTheme();
+  const historyStyles = useHistoryStyles();
   const {
-    services: { history, routeHistory },
+    services: { history, storage },
   } = useServicesContext();
   const dispatch = useEditorActionContext();
 
@@ -157,11 +189,11 @@ export function History() {
       paddingSize="none"
       hasShadow={false}
       borderRadius="none"
-      css={{ height: '100%' }}
+      css={historyStyles.fullHeightPanel}
       data-test-subj="consoleHistoryPanel"
     >
       <EuiResizableContainer
-        css={{ height: '100%' }}
+        css={historyStyles.fullHeightPanel}
         direction={isVerticalLayout ? 'vertical' : 'horizontal'}
       >
         {(EuiResizablePanel, EuiResizableButton) => (
@@ -174,16 +206,13 @@ export function History() {
               hasShadow={false}
               paddingSize="none"
             >
-              <EuiSplitPanel.Outer
-                grow
-                color="subdued"
-                css={{
-                  height: '100%',
-                  paddingRight: euiTheme.size.s,
-                }}
-              >
+              <EuiSplitPanel.Outer grow color="subdued" css={historyStyles.paddedFullHeightPanel}>
                 <EuiSplitPanel.Inner paddingSize="m">
-                  <EuiFlexGroup direction="column" gutterSize="none" css={{ height: '100%' }}>
+                  <EuiFlexGroup
+                    direction="column"
+                    gutterSize="none"
+                    css={historyStyles.fullHeightColumnGroup}
+                  >
                     <EuiFlexItem grow={false}>
                       <EuiSpacer size="s" />
                       <EuiTitle>
@@ -206,7 +235,7 @@ export function History() {
                       <EuiSpacer size="l" />
                     </EuiFlexItem>
 
-                    <EuiFlexItem grow={true} css={{ height: '100%' }}>
+                    <EuiFlexItem grow={true} css={historyStyles.fullHeightPanel}>
                       {requests.length === 0 && <HistoryEmptyPrompt />}
 
                       {requests.length > 0 && (
@@ -231,7 +260,7 @@ export function History() {
                   grow={false}
                   color="subdued"
                   paddingSize="s"
-                  css={{ paddingTop: euiTheme.size.l }}
+                  css={historyStyles.paddedTopContainer}
                 >
                   <EuiText>
                     <EuiButtonEmpty
@@ -255,13 +284,13 @@ export function History() {
             <EuiResizablePanel initialSize={50} minSize="15%" tabIndex={0} paddingSize="none">
               <EuiSplitPanel.Outer
                 color="subdued"
-                css={{ height: '100%' }}
+                css={historyStyles.fullHeightPanel}
                 borderRadius="none"
                 hasShadow={false}
               >
                 <EuiSplitPanel.Inner
                   paddingSize="none"
-                  css={{ top: 0 }}
+                  css={historyStyles.stickyTopElement}
                   className="consoleEditorPanel"
                 >
                   <HistoryViewer settings={readOnlySettings} req={viewingReq} />

@@ -8,7 +8,6 @@
  */
 
 import React, { useReducer, useEffect, useState } from 'react';
-import classNames from 'classnames';
 import useObservable from 'react-use/lib/useObservable';
 import type { EuiThemeComputed } from '@elastic/eui';
 import {
@@ -30,8 +29,8 @@ import { EmbeddableConsoleView } from '../../../types/embeddable_console';
 
 import * as store from '../../stores/embeddable_console';
 import { setLoadFromParameter, removeLoadFromParameter } from '../../lib/load_from';
+import { useEmbeddableConsoleStyles } from './embeddable_console.styles';
 
-import './_index.scss';
 import { EmbeddedConsoleResizeButton, getCurrentConsoleMaxSize } from './console_resize_button';
 
 const KBN_BODY_CONSOLE_CLASS = 'kbnBody--hasEmbeddableConsole';
@@ -77,6 +76,7 @@ export const EmbeddableConsole = ({
 }: EmbeddableConsoleDependencies) => {
   const { euiTheme } = useEuiTheme();
   const { setGlobalCSSVariables } = useEuiThemeCSSVariables();
+  const embeddableConsoleStyles = useEmbeddableConsoleStyles();
   const [consoleHeight, setConsoleHeightState] = useState<number>(
     getInitialConsoleHeight(getConsoleHeight, euiTheme)
   );
@@ -141,20 +141,21 @@ export const EmbeddableConsole = ({
     }
   };
 
-  const classes = classNames('embeddableConsole', {
-    'embeddableConsole-isOpen': isOpen,
-    'embeddableConsole--classicChrome': chromeStyle === 'classic',
-    'embeddableConsole--projectChrome': chromeStyle === 'project',
-    'embeddableConsole--unknownChrome': chromeStyle === undefined,
-    'embeddableConsole--fixed': true,
-  });
+  const embeddableConsoleClasses = [
+    embeddableConsoleStyles.container,
+    embeddableConsoleStyles.containerFixed,
+    isOpen && embeddableConsoleStyles.containerOpen,
+    chromeStyle === 'classic' && embeddableConsoleStyles.containerClassicChrome,
+    chromeStyle === 'project' && embeddableConsoleStyles.containerProjectChrome,
+    chromeStyle === undefined && embeddableConsoleStyles.containerUnknownChrome,
+  ].filter(Boolean);
 
   return (
     <EuiPortal>
       <EuiFocusTrap onClickOutside={toggleConsole} disabled={!isOpen}>
         <section
           aria-label={landmarkHeading}
-          className={classes}
+          css={embeddableConsoleClasses}
           data-test-subj="consoleEmbeddedSection"
         >
           <EuiScreenReaderOnly>
@@ -169,21 +170,24 @@ export const EmbeddableConsole = ({
                 />
               )}
 
-              <div className="embeddableConsole__controls">
+              <div css={embeddableConsoleStyles.controls}>
                 <EuiButtonEmpty
                   color="text"
                   iconType={isOpen ? 'arrowUp' : 'arrowDown'}
                   onClick={toggleConsole}
-                  className="embeddableConsole__controls--button"
+                  css={embeddableConsoleStyles.controlsButton}
                   data-test-subj="consoleEmbeddedControlBar"
                   data-telemetry-id="console-embedded-controlbar-button"
+                  aria-label={i18n.translate('console.embeddableConsole.toggleButtonAriaLabel', {
+                    defaultMessage: 'Toggle console',
+                  })}
                 >
                   {i18n.translate('console.embeddableConsole.title', {
                     defaultMessage: 'Console',
                   })}
                 </EuiButtonEmpty>
                 {alternateView && (
-                  <div className="embeddableConsole__controls--altViewButton-container">
+                  <div css={embeddableConsoleStyles.controlsAltViewButtonContainer}>
                     <alternateView.ActivationButton
                       activeView={showAlternateView}
                       onClick={clickAlternateViewActivateButton}
@@ -206,7 +210,7 @@ export const EmbeddableConsole = ({
             />
           ) : null}
           {showAlternateView ? (
-            <div className="embeddableConsole__content" data-test-subj="consoleEmbeddedBody">
+            <div css={embeddableConsoleStyles.content} data-test-subj="consoleEmbeddedBody">
               <EuiWindowEvent event="keydown" handler={onKeyDown} />
               <alternateView.ViewContent />
             </div>

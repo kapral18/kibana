@@ -8,6 +8,7 @@
  */
 
 import React, { useCallback, memo, useEffect, useState } from 'react';
+import { css } from '@emotion/react';
 import { debounce } from 'lodash';
 import {
   EuiProgress,
@@ -44,6 +45,110 @@ const INITIAL_PANEL_SIZE = 50;
 const PANEL_MIN_SIZE = '20%';
 const DEBOUNCE_DELAY = 500;
 
+const useEditorStyles = () => {
+  const { euiTheme } = useEuiTheme();
+
+  return {
+    consoleEditorPanel: css`
+      display: flex;
+      flex: 1 1 auto;
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      overflow: hidden;
+    `,
+
+    editorContainer: css`
+      width: 100%;
+      display: flex;
+      flex: 0 0 auto;
+      position: relative;
+    `,
+
+    editorSpinner: css`
+      width: 100%;
+      background-color: ${euiTheme.colors.lightestShade};
+    `,
+
+    outputContainer: css`
+      height: 100%;
+      display: flex;
+      flex: 1 1 1px;
+    `,
+
+    editorContent: css`
+      height: 100%;
+      flex: 1 1 1px;
+    `,
+
+    outputContent: css`
+      height: 100%;
+      flex: 1 1 1px;
+    `,
+
+    requestProgressBarContainer: css`
+      position: relative;
+      z-index: ${euiTheme.levels.menu};
+    `,
+
+    resizerButton: css`
+      // Give the aria selection border priority when the divider is selected on IE11 and Chrome
+      z-index: ${euiTheme.levels.header};
+      background-color: ${euiTheme.colors.lightestShade};
+      // The margin ensures that the resizer doesn't cover the top border of the selected request
+      // in the output panel, when in vertical layout
+      margin-bottom: 1px;
+      // The margin ensures that the resizer doesn't cover the first Monaco editor's ruler
+      margin-inline: 0;
+    `,
+
+    // Consolidated styles for editor panels with positioning
+    editorPanelPositioned: css`
+      display: flex;
+      flex: 1 1 auto;
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      overflow: hidden;
+      top: 0;
+      height: calc(100% - 40px);
+    `,
+
+    // Output panel with centering and positioning
+    outputPanelCentered: css`
+      display: flex;
+      flex: 1 1 auto;
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      overflow: hidden;
+      align-content: center;
+      top: 0;
+      height: calc(100% - 40px);
+    `,
+
+    // Panel with background color for actions
+    actionsPanelWithBackground: css`
+      display: flex;
+      flex: 1 1 auto;
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      overflow: hidden;
+      background-color: ${euiTheme.colors.backgroundBasePlain};
+    `,
+
+    // Full height panel
+    fullHeightPanel: css`
+      height: 100%;
+    `,
+  };
+};
+
 interface Props {
   loading: boolean;
   inputEditorValue: string;
@@ -54,7 +159,7 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
   const {
     services: { storage, objectStorageClient },
   } = useServicesContext();
-  const { euiTheme } = useEuiTheme();
+  const editorStyles = useEditorStyles();
 
   const { currentTextObject } = useEditorReadContext();
 
@@ -131,12 +236,12 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
   return (
     <>
       {fetchingAutocompleteEntities ? (
-        <div className="conApp__requestProgressBarContainer">
+        <div css={editorStyles.requestProgressBarContainer}>
           <EuiProgress size="xs" color="accent" position="absolute" />
         </div>
       ) : null}
       <EuiResizableContainer
-        css={{ height: '100%' }}
+        css={editorStyles.fullHeightPanel}
         direction={isVerticalLayout ? 'vertical' : 'horizontal'}
         onPanelWidthChange={(sizes) => onPanelSizeChange(sizes)}
         data-test-subj="consoleEditorContainer"
@@ -153,13 +258,12 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
                 grow={true}
                 borderRadius="none"
                 hasShadow={false}
-                css={{ height: '100%' }}
+                css={editorStyles.fullHeightPanel}
               >
                 <EuiSplitPanel.Inner
                   paddingSize="none"
                   grow={true}
-                  className="consoleEditorPanel"
-                  css={{ top: 0, height: 'calc(100% - 40px)' }}
+                  css={editorStyles.editorPanelPositioned}
                 >
                   {loading ? (
                     <EditorContentSpinner />
@@ -177,7 +281,7 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
                     grow={false}
                     paddingSize="s"
                     color="subdued"
-                    className="consoleEditorPanel"
+                    css={editorStyles.consoleEditorPanel}
                   >
                     <EuiButtonEmpty
                       size="xs"
@@ -186,6 +290,9 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
                       onClick={() => {
                         setInputEditorValue('');
                       }}
+                      aria-label={i18n.translate('console.editor.clearInputButtonAriaLabel', {
+                        defaultMessage: 'Clear console input',
+                      })}
                     >
                       {i18n.translate('console.editor.clearConsoleInputButton', {
                         defaultMessage: 'Clear this input',
@@ -197,7 +304,7 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
             </EuiResizablePanel>
 
             <EuiResizableButton
-              className="conApp__resizerButton"
+              css={editorStyles.resizerButton}
               aria-label={i18n.translate('console.editor.adjustPanelSizeAriaLabel', {
                 defaultMessage: "Press left/right to adjust panels' sizes",
               })}
@@ -209,12 +316,12 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
               tabIndex={0}
               paddingSize="none"
             >
-              <EuiSplitPanel.Outer borderRadius="none" hasShadow={false} css={{ height: '100%' }}>
-                <EuiSplitPanel.Inner
-                  paddingSize="none"
-                  css={{ alignContent: 'center', top: 0, height: 'calc(100% - 40px)' }}
-                  className="consoleEditorPanel"
-                >
+              <EuiSplitPanel.Outer
+                borderRadius="none"
+                hasShadow={false}
+                css={editorStyles.fullHeightPanel}
+              >
+                <EuiSplitPanel.Inner paddingSize="none" css={editorStyles.outputPanelCentered}>
                   {data ? (
                     <MonacoEditorOutput />
                   ) : isLoading ? (
@@ -228,10 +335,7 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
                   <EuiSplitPanel.Inner
                     grow={false}
                     paddingSize="s"
-                    css={{
-                      backgroundColor: euiTheme.colors.backgroundBasePlain,
-                    }}
-                    className="consoleEditorPanel"
+                    css={editorStyles.actionsPanelWithBackground}
                   >
                     <EuiFlexGroup gutterSize="none" responsive={false}>
                       <EuiFlexItem grow={false}>
@@ -240,6 +344,12 @@ export const Editor = memo(({ loading, inputEditorValue, setInputEditorValue }: 
                           color="primary"
                           data-test-subj="clearConsoleOutput"
                           onClick={() => dispatch({ type: 'cleanRequest', payload: undefined })}
+                          aria-label={i18n.translate(
+                            'console.editor.clearConsoleOutputButtonAriaLabel',
+                            {
+                              defaultMessage: 'Clear console output',
+                            }
+                          )}
                         >
                           {i18n.translate('console.editor.clearConsoleOutputButton', {
                             defaultMessage: 'Clear this output',

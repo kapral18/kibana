@@ -28,6 +28,7 @@ import { loadActiveApi } from '../../../lib/kb';
 import type { AutocompleteInfo, History, Settings, Storage } from '../../../services';
 import { getAutocompleteInfo, createHistory, createSettings, getStorage } from '../../../services';
 import { createUsageTracker } from '../../../services/tracker';
+import { useEmbeddableConsoleStyles } from './embeddable_console.styles';
 import type {
   MetricsTracker,
   EmbeddableConsoleDependencies,
@@ -113,6 +114,7 @@ interface ConsoleWrapperProps
 export const ConsoleWrapper = (props: ConsoleWrapperProps) => {
   const [dependencies, setDependencies] = useState<ConsoleDependencies | null>(null);
   const { core, dataViews, data, licensing, usageCollection, onKeyDown, isDevMode, isOpen } = props;
+  const embeddableConsoleStyles = useEmbeddableConsoleStyles();
 
   useEffect(() => {
     if (dependencies === null && isOpen) {
@@ -174,7 +176,7 @@ export const ConsoleWrapper = (props: ConsoleWrapperProps) => {
         <RequestContextProvider>
           <EditorContextProvider settings={settings.toJSON()}>
             {isOpen ? (
-              <div className="embeddableConsole__content" data-test-subj="consoleEmbeddedBody">
+              <div css={embeddableConsoleStyles.content} data-test-subj="consoleEmbeddedBody">
                 <EuiWindowEvent event="keydown" handler={onKeyDown} />
                 <Main isEmbeddable={true} />
               </div>

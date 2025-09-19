@@ -34,6 +34,11 @@ const styles = {
       background: transparent;
     }
   `,
+
+  // Fixed width text container
+  fixedWidthText: css`
+    width: 300px;
+  `,
 };
 
 export const HelpPopover = ({ button, isOpen, closePopover, resetTour }: HelpPopoverProps) => {
@@ -117,7 +122,7 @@ export const HelpPopover = ({ button, isOpen, closePopover, resetTour }: HelpPop
 
         <EuiSpacer size="s" />
 
-        <EuiText css={{ width: 300 }} color="subdued" size="s">
+        <EuiText css={styles.fixedWidthText} color="subdued" size="s">
           <p>
             {i18n.translate('console.helpPopover.description', {
               defaultMessage:

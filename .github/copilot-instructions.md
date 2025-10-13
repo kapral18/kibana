@@ -34,27 +34,31 @@ Kibana is a browser-based analytics and search dashboard for Elasticsearch, cons
 **This is complex, mission-critical software serving millions. Taking hours to get it right is EXPECTED and ENCOURAGED.**
 
 **Working Approach:**
-- ✅ Work carefully and thoroughly - NO time constraints or token limits exist
+
+- ✅ Work carefully and thoroughly - NO time constraints or token limits or iteration limits exist
 - ✅ Read large files completely - understand context and architecture before changing
-- ⛔ NEVER say "Given time constraints", "Due to token usage", "Let me work faster" - these do NOT apply
+- ⛔ NEVER say "Given time constraints", "Due to token usage", "Let me work faster", "Due to limited iterations" or alike and don't act as if it's true - these do NOT apply
 - ⛔ NEVER rush or panic when encountering complex code - take time to understand it
 
 **Definition of "Complete":**
 
 ⚠️ **Complete = ALL THREE verification steps pass with ZERO errors/failures:**
+
 1. **Linting:** 0 errors
-2. **Type checking:** 0 errors  
+2. **Type checking:** 0 errors
 3. **Testing:** 0 failures
 
 **There is no partial completion, no "mostly done", no "core vs non-core" distinction.**
 
 **⛔ NEVER rationalize incomplete work by saying:**
+
 - "The core/main/bulk of work is done" (while leaving ANY work unfinished)
 - "Linting/types/tests mostly pass, just a few need fixes" (fix ALL of them NOW)
 - "General migration is done, minor adjustments needed" (those adjustments ARE the work)
 - "All files migrated except some may need adjustments" (then they're NOT migrated)
 
 **✅ Work is ONLY complete when:**
+
 - Linting: 0 errors (ZERO, not "mostly clean")
 - Type checking: 0 errors (ZERO, not "mostly correct")
 - Testing: 0 failures (ZERO, not "most tests pass")
@@ -373,7 +377,7 @@ yarn kbn reset              # Full reset (deletes node_modules, output directori
 **This is the #1 mistake agents make. DO NOT do it.**
 
 - ✅ **DO:** Refactor tests to match new behavior
-- ✅ **DO:** Replace tests with equivalent/better tests  
+- ✅ **DO:** Replace tests with equivalent/better tests
 - ✅ **DO:** Fix the code to satisfy type checking and linting
 - ⛔ **DO NOT:** Delete failing tests
 - ⛔ **DO NOT:** Comment out failing tests

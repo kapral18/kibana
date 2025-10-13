@@ -29,18 +29,41 @@ Kibana is a browser-based analytics and search dashboard for Elasticsearch, cons
 
 **Each batch of changes is a COMMIT. Each commit requires verification. DO NOT commit broken code.**
 
-### Work Methodically - No Time Constraints
+### Core Principles: Time, Completeness, and Verification
 
-**This is complex, mission-critical software. Taking hours to get it right is EXPECTED and ENCOURAGED.**
+**This is complex, mission-critical software serving millions. Taking hours to get it right is EXPECTED and ENCOURAGED.**
 
-- ✅ **Work carefully and thoroughly** - there are NO time constraints or token limits
-- ✅ **Read large files completely** - understand context and architecture before changing
-- ✅ **Verify exhaustively** - test all affected code, not just changed lines
-- ⛔ **NEVER say** "Given time constraints", "Due to token usage", "Let me work faster", or similar - these do NOT apply
-- ⛔ **NEVER rush** or panic when encountering complex code - take time to understand it
-- ⛔ **NEVER skip** verification steps to save perceived time or resources
+**Working Approach:**
+- ✅ Work carefully and thoroughly - NO time constraints or token limits exist
+- ✅ Read large files completely - understand context and architecture before changing
+- ⛔ NEVER say "Given time constraints", "Due to token usage", "Let me work faster" - these do NOT apply
+- ⛔ NEVER rush or panic when encountering complex code - take time to understand it
 
-**Remember: Correctness > Speed. A slow, correct solution is infinitely better than a fast, broken one.**
+**Definition of "Complete":**
+
+⚠️ **Complete = ALL THREE verification steps pass with ZERO errors/failures:**
+1. **Linting:** 0 errors
+2. **Type checking:** 0 errors  
+3. **Testing:** 0 failures
+
+**There is no partial completion, no "mostly done", no "core vs non-core" distinction.**
+
+**⛔ NEVER rationalize incomplete work by saying:**
+- "The core/main/bulk of work is done" (while leaving ANY work unfinished)
+- "Linting/types/tests mostly pass, just a few need fixes" (fix ALL of them NOW)
+- "General migration is done, minor adjustments needed" (those adjustments ARE the work)
+- "All files migrated except some may need adjustments" (then they're NOT migrated)
+
+**✅ Work is ONLY complete when:**
+- Linting: 0 errors (ZERO, not "mostly clean")
+- Type checking: 0 errors (ZERO, not "mostly correct")
+- Testing: 0 failures (ZERO, not "most tests pass")
+- ALL affected files work correctly
+- NO manual adjustments needed by anyone else
+
+**If ANY lint/type/test error exists, or ANY work remains - it is NOT complete.**
+
+**Remember: Correctness > Speed. Completeness > Partial. 100% > "Mostly".**
 
 ### The Required Workflow
 
@@ -51,14 +74,6 @@ Kibana is a browser-based analytics and search dashboard for Elasticsearch, cons
 4. Commit the changes
 5. Move to next batch of changes
 ```
-
-**⛔ DO NOT:**
-
-- Skip verification and make more changes
-- Commit without verifying
-- Move to next task if current verification fails
-- Accumulate many unverified changes
-- Say "I'll fix it later" or "will verify at PR time"
 
 **✅ REQUIRED VERIFICATION FOR EACH COMMIT:**
 
@@ -103,18 +118,16 @@ Verify **only the files you changed in this commit**:
 
    (Note: FTR auto-builds plugins; manual build only for Cypress tests)
 
-**CRITICAL RULES - ABSOLUTE REQUIREMENTS:**
+**CRITICAL RULES:**
 
-- ⛔ **DO NOT** commit if ANY verification step fails - fix the issue first
-- ⛔ **DO NOT** move to next task/batch if current batch verification fails
-- ⛔ **DO NOT** claim tests pass without actually running them
-- ⛔ **DO NOT** remove tests or code to make tests pass - fix the underlying issues
-- ⛔ **DO NOT** skip type-check or linting errors - resolve them, don't ignore them
+- ⛔ **DO NOT** commit if ANY of the three verification steps fail - fix ALL issues first
+- ⛔ **DO NOT** remove tests or disable lint/type rules to make verification pass - fix the underlying issues
 - ⛔ **DO NOT** accumulate multiple unverified changes before committing
-- ✅ **MUST** verify every commit before making it
-- ✅ **MUST** stop and fix if verification fails - do not continue
-- ✅ **MUST** include verification command outputs in your commit messages
-- ✅ **MUST** verify branch is correct before starting and before each commit
+- ⛔ **DO NOT** say "I'll fix it later" or use phrases like "mostly passes", "core work done", "minor adjustments needed"
+- ✅ **MUST** run ALL THREE verification steps for every commit
+- ✅ **MUST** stop and fix if ANY verification step fails - do not continue to next task
+- ✅ **MUST** achieve 0 lint errors + 0 type errors + 0 test failures before committing
+- ✅ **MUST** include verification command outputs in commit messages
 
 ### When Submitting PR
 
@@ -353,19 +366,22 @@ yarn kbn reset              # Full reset (deletes node_modules, output directori
 
 ## Testing Requirements
 
-### General Testing Rules - CRITICAL
+### General Rules - CRITICAL
 
-⚠️ **ABSOLUTE RULE:** NEVER remove code or tests to make tests pass.
+⚠️ **ABSOLUTE RULE:** NEVER remove code or tests to make verification pass.
 
 **This is the #1 mistake agents make. DO NOT do it.**
 
 - ✅ **DO:** Refactor tests to match new behavior
-- ✅ **DO:** Replace tests with equivalent/better tests
+- ✅ **DO:** Replace tests with equivalent/better tests  
+- ✅ **DO:** Fix the code to satisfy type checking and linting
 - ⛔ **DO NOT:** Delete failing tests
 - ⛔ **DO NOT:** Comment out failing tests
 - ⛔ **DO NOT:** Skip failing tests with `.skip()`
+- ⛔ **DO NOT:** Use `@ts-ignore` or `@ts-expect-error` to hide type errors
+- ⛔ **DO NOT:** Disable lint rules to hide lint errors
 
-Deleted tests represent lost validation of critical functionality. Fix the test or fix the code.
+Deleted tests, ignored types, and disabled linters represent lost validation of critical functionality. Fix the underlying issues.
 
 ### Test Types & Locations
 
@@ -480,7 +496,10 @@ This is a large codebase (~74,000 files). You will regularly encounter large fil
 
 - **Understanding > Assumptions:** Take time to understand rather than guessing
 - **Completeness > Partial:** Finish tasks fully rather than leaving them partially done
-- **Testing > Hoping:** Verify behavior through tests rather than assuming it works
+- **100% > "Mostly":** All verification passing > "mostly clean" or "core verification passing"
+- **All Three Steps > Any Two:** Must pass linting AND type checking AND testing - no shortcuts
+- **Zero Errors > "Minor Adjustments":** 0 lint + 0 type + 0 test errors > leaving ANY work for others
+- **Verification > Hoping:** Run all three checks rather than assuming they pass
 - **Quality > Quantity:** One properly completed task beats multiple rushed incomplete ones
 
 ### Critical Rules - NON-NEGOTIABLE
@@ -578,10 +597,23 @@ If you followed the MANDATORY VERIFICATION workflow (verify each commit), these 
 
 **The unit of work is a commit, not a PR.** Each commit must be verified individually. Your PR is just a collection of verified commits.
 
+### Before Declaring ANY Work Complete
+
+⚠️ **Review the "Core Principles" section above. Work is complete ONLY when:**
+
+- [ ] Linting: 0 errors (every file you touched)
+- [ ] Type checking: 0 errors (every type is correct)
+- [ ] Testing: 0 failures (every test passes)
+- [ ] No remaining work (no "minor fixes", "adjustments", or work left for others)
+
+**If ANY of these shows errors/failures, or if ANY work remains - continue working. Do not rationalize partial completion.**
+
+**Complete = 0 lint + 0 type + 0 test errors. Anything else = incomplete.**
+
 ---
 
 ## Trust These Instructions
 
 These instructions are based on comprehensive repository analysis and current CI pipeline configuration. Everything you need for typical development work is here. Refer to `dev_docs/` for deep dives on architecture, plugin development, and advanced testing patterns.
 
-**Final Reminder:** You have unlimited time and computational resources. Work methodically, read thoroughly, test comprehensively. Never rush, never skip steps, never compromise on quality. Mission-critical software demands nothing less.
+**Remember:** You have unlimited time and resources. Work methodically, verify comprehensively (all 3 steps for every change), and never declare work complete until verification shows 0 errors. Mission-critical software demands nothing less.

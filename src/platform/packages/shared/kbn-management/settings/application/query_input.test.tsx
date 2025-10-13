@@ -10,7 +10,6 @@
 import React from 'react';
 import { Query } from '@elastic/eui';
 import { act, waitFor, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { getSettingsMock } from '@kbn/management-settings-utilities/mocks/settings.mock';

@@ -1,5 +1,7 @@
 # Kibana Development Guide for Coding Agents
 
+> **Mission-Critical Software:** This codebase serves millions of users. Quality and correctness are paramount. You have unlimited time and resources - work methodically and thoroughly. **NEVER rush, skip verification, or compromise on quality.**
+
 ## Repository Overview
 
 Kibana is a browser-based analytics and search dashboard for Elasticsearch, consisting of approximately 74,000 TypeScript/JavaScript files. This is a large, complex monorepo with strict build requirements and extensive CI validation.
@@ -26,6 +28,19 @@ Kibana is a browser-based analytics and search dashboard for Elasticsearch, cons
 ⚠️ **CRITICAL - YOUR WORKFLOW MUST BE: CHANGE → VERIFY → COMMIT → REPEAT** ⚠️
 
 **Each batch of changes is a COMMIT. Each commit requires verification. DO NOT commit broken code.**
+
+### Work Methodically - No Time Constraints
+
+**This is complex, mission-critical software. Taking hours to get it right is EXPECTED and ENCOURAGED.**
+
+- ✅ **Work carefully and thoroughly** - there are NO time constraints or token limits
+- ✅ **Read large files completely** - understand context and architecture before changing
+- ✅ **Verify exhaustively** - test all affected code, not just changed lines
+- ⛔ **NEVER say** "Given time constraints", "Due to token usage", "Let me work faster", or similar - these do NOT apply
+- ⛔ **NEVER rush** or panic when encountering complex code - take time to understand it
+- ⛔ **NEVER skip** verification steps to save perceived time or resources
+
+**Remember: Correctness > Speed. A slow, correct solution is infinitely better than a fast, broken one.**
 
 ### The Required Workflow
 
@@ -64,12 +79,8 @@ Verify **only the files you changed in this commit**:
 4. **Type checking (scoped):** Check types only for affected project(s) - MUST pass with 0 errors
 
    ```bash
-   # Check specific project (find closest tsconfig.json to your changes)
-   node scripts/type_check --project path/to/affected/tsconfig.json
-
-   # Examples:
-   node scripts/type_check --project x-pack/platform/plugins/your_plugin/tsconfig.json
-   node scripts/type_check --project packages/your-package/tsconfig.json
+   # Pass closest tsconfig.json file to your changed tests/helpers
+   node scripts/type_check --project path/to/closest/tsconfig.json
    ```
 
 5. **Unit tests (scoped):** Run tests only for affected code - MUST pass with 0 failures
@@ -452,6 +463,26 @@ yarn test:jest           # Run all tests (very slow)
 
 ## Development Best Practices
 
+### Working with Large Files & Complex Changes
+
+This is a large codebase (~74,000 files). You will regularly encounter large files (1000+ lines) and complex architectural patterns. **This is normal and expected.**
+
+**When working with large or complex code:**
+
+1. **READ COMPLETELY:** Read entire files to understand context, patterns, and architecture
+2. **ANALYZE PATTERNS:** Identify existing conventions, naming patterns, and code organization
+3. **UNDERSTAND DEPENDENCIES:** Trace imports, exports, and relationships before changing
+4. **PLAN THOROUGHLY:** Think through implications across the codebase, consider edge cases
+5. **MAKE PRECISE EDITS:** Preserve existing patterns and style, avoid unnecessary changes
+6. **VERIFY COMPREHENSIVELY:** Test all affected code paths, not just the changed lines
+
+**Decision Framework:**
+
+- **Understanding > Assumptions:** Take time to understand rather than guessing
+- **Completeness > Partial:** Finish tasks fully rather than leaving them partially done
+- **Testing > Hoping:** Verify behavior through tests rather than assuming it works
+- **Quality > Quantity:** One properly completed task beats multiple rushed incomplete ones
+
 ### Critical Rules - NON-NEGOTIABLE
 
 - ⚠️ **REQUIRED:** Use TypeScript for all new code (no JavaScript for new files)
@@ -552,3 +583,5 @@ If you followed the MANDATORY VERIFICATION workflow (verify each commit), these 
 ## Trust These Instructions
 
 These instructions are based on comprehensive repository analysis and current CI pipeline configuration. Everything you need for typical development work is here. Refer to `dev_docs/` for deep dives on architecture, plugin development, and advanced testing patterns.
+
+**Final Reminder:** You have unlimited time and computational resources. Work methodically, read thoroughly, test comprehensively. Never rush, never skip steps, never compromise on quality. Mission-critical software demands nothing less.

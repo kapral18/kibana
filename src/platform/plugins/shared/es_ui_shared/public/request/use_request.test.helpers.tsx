@@ -8,9 +8,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { act } from 'react-dom/test-utils';
-import type { ReactWrapper } from 'enzyme';
-import { mount } from 'enzyme';
+import { act } from '@testing-library/react';
+import type { RenderResult } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import sinon from 'sinon';
 
 import type { HttpSetup, HttpFetchOptions } from '@kbn/core/public';
@@ -73,7 +73,7 @@ export const createUseRequestHelpers = (): UseRequestHelpers => {
     });
   };
 
-  let element: ReactWrapper;
+  let renderResult: RenderResult;
   // We'll use this object to observe the state of the hook and access its callback(s).
   const hookResult = {} as UseRequestResponse;
   const sendRequestSpy = sinon.stub();
@@ -120,7 +120,7 @@ export const createUseRequestHelpers = (): UseRequestHelpers => {
     };
 
     act(() => {
-      element = mount(<TestComponent requestConfig={config} />);
+      renderResult = render(<TestComponent requestConfig={config} />);
     });
   };
 
@@ -156,7 +156,42 @@ export const createUseRequestHelpers = (): UseRequestHelpers => {
   });
   // We'll use this to change a success response to an error response, to test how the state changes.
   const setErrorResponse = (overrides = {}) => {
-    element.setProps({ requestConfig: { ...errorRequest, ...overrides } });
+    renderResult.rerender(
+      (() => {
+        const TestComponent = ({ requestConfig }: { requestConfig: UseRequestConfig }) => {
+          const { isInitialRequest, isLoading, error, data, resendRequest } = useRequest(
+            {
+              post: (path: string, options: HttpFetchOptions) => {
+                return new Promise((resolve, reject) => {
+                  setTimeout(() => {
+                    try {
+                      resolve(sendRequestSpy(path, options));
+                    } catch (e) {
+                      reject(e);
+                    }
+                  }, REQUEST_TIME);
+                });
+              },
+            } as HttpSetup,
+            requestConfig
+          );
+
+          const [, setState] = useState(false);
+          useEffect(() => {
+            setState(true);
+          }, []);
+
+          hookResult.isInitialRequest = isInitialRequest;
+          hookResult.isLoading = isLoading;
+          hookResult.error = error;
+          hookResult.data = data;
+          hookResult.resendRequest = resendRequest;
+
+          return null;
+        };
+        return <TestComponent requestConfig={{ ...errorRequest, ...overrides }} />;
+      })()
+    );
   };
 
   // Set up failed request helpers with the alternative error shape.

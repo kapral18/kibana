@@ -5,7 +5,12 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Provider } from 'react-redux';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
+
 import { getJob } from '../../../../../fixtures';
 import { rollupJobsStore } from '../../../store';
 import { DetailPanel } from './detail_panel';
@@ -15,7 +20,6 @@ import {
   JOB_DETAILS_TAB_HISTOGRAM,
   JOB_DETAILS_TAB_METRICS,
   JOB_DETAILS_TAB_JSON,
-  tabToHumanizedMap,
 } from '../../components';
 
 jest.mock('../../../../kibana_services', () => {
@@ -25,6 +29,20 @@ jest.mock('../../../../kibana_services', () => {
     trackUiMetric: jest.fn(),
   };
 });
+
+beforeAll(() => {
+  jest.useFakeTimers();
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
 const defaultJob = getJob();
 
@@ -38,81 +56,91 @@ const defaultProps = {
   openDetailPanel: jest.fn(),
 };
 
-const initTestBed = registerTestBed(DetailPanel, { defaultProps, store: rollupJobsStore });
+const renderComponent = (props = {}) => {
+  const mergedProps = { ...defaultProps, ...props };
+  return renderWithI18n(
+    <Provider store={rollupJobsStore}>
+      <DetailPanel {...mergedProps} />
+    </Provider>
+  );
+};
 
 describe('<DetailPanel />', () => {
   describe('layout', () => {
-    let component;
-    let find;
-    let exists;
-
-    beforeEach(() => {
-      ({ component, find } = initTestBed());
-    });
-
     it('should have the title set to the current Job "id"', () => {
+      renderComponent();
       const { job } = defaultProps;
-      const title = find('rollupJobDetailsFlyoutTitle');
-      expect(title.length).toBe(1);
-      expect(title.text()).toEqual(job.id);
+      const title = screen.getByTestId('rollupJobDetailsFlyoutTitle');
+      expect(title).toBeInTheDocument();
+      expect(title).toHaveTextContent(job.id);
     });
 
     it("should have children if it's open", () => {
-      expect(component.find('DetailPanel').children().length).toBeTruthy();
+      const { container } = renderComponent();
+      // When open, the flyout should have visible content
+      expect(
+        container.querySelector('[data-test-subj="rollupJobDetailsFlyoutTitle"]')
+      ).toBeInTheDocument();
     });
 
     it('should *not* have children if its closed', () => {
-      ({ component } = initTestBed({ isOpen: false }));
-      expect(component.find('DetailPanel').children().length).toBeFalsy();
+      const { container } = renderComponent({ isOpen: false });
+      // When closed, the flyout title should not be visible
+      expect(
+        container.querySelector('[data-test-subj="rollupJobDetailsFlyoutTitle"]')
+      ).not.toBeInTheDocument();
     });
 
     it('should show a loading when the job is loading', () => {
-      ({ component, find, exists } = initTestBed({ isLoading: true }));
-      const loading = find('rollupJobDetailLoading');
-      expect(loading.length).toBeTruthy();
-      expect(loading.text()).toEqual('Loading rollup job…');
+      renderComponent({ isLoading: true });
+      const loading = screen.getByTestId('rollupJobDetailLoading');
+      expect(loading).toBeInTheDocument();
+      expect(loading).toHaveTextContent('Loading rollup job…');
 
       // Make sure the title and the tabs are visible
-      expect(exists('detailPanelTabSelected')).toBeTruthy();
-      expect(exists('rollupJobDetailsFlyoutTitle')).toBeTruthy();
+      expect(screen.getByTestId('detailPanelTabSelected')).toBeInTheDocument();
+      expect(screen.getByTestId('rollupJobDetailsFlyoutTitle')).toBeInTheDocument();
     });
 
     it('should display a message when no job is provided', () => {
-      ({ component, find } = initTestBed({ job: undefined }));
-      expect(find('rollupJobDetailJobNotFound').text()).toEqual('Rollup job not found');
+      renderComponent({ job: undefined });
+      const notFound = screen.getByTestId('rollupJobDetailJobNotFound');
+      expect(notFound).toHaveTextContent('Rollup job not found');
     });
   });
 
   describe('tabs', () => {
-    const tabActive = JOB_DETAILS_TAB_SUMMARY;
-    const { component } = initTestBed({ panelType: tabActive });
-    const tabs = component.find('EuiTab');
-    const getTab = (id) => {
-      const found = tabs.findWhere((tab) => {
-        return tab.text() === tabToHumanizedMap[id].props.defaultMessage;
-      });
-      return found.first();
+    const getTabByText = (text) => {
+      return screen.getByRole('tab', { name: text });
     };
 
     it('should have 5 tabs visible', () => {
-      const tabsLabel = tabs.map((tab) => tab.text());
+      renderComponent({ panelType: JOB_DETAILS_TAB_SUMMARY });
 
-      expect(tabsLabel).toEqual(['Summary', 'Terms', 'Histogram', 'Metrics', 'JSON']);
+      expect(getTabByText('Summary')).toBeInTheDocument();
+      expect(getTabByText('Terms')).toBeInTheDocument();
+      expect(getTabByText('Histogram')).toBeInTheDocument();
+      expect(getTabByText('Metrics')).toBeInTheDocument();
+      expect(getTabByText('JSON')).toBeInTheDocument();
     });
 
     it('should set default selected tab to the "panelType" prop provided', () => {
-      const tab = getTab(tabActive);
-      expect(tab.props().isSelected).toEqual(true);
+      renderComponent({ panelType: JOB_DETAILS_TAB_SUMMARY });
+      const summaryTab = getTabByText('Summary');
+      expect(summaryTab).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('should select the tab when clicking on it', () => {
-      const { job, openDetailPanel } = defaultProps;
-      const termsTab = getTab(JOB_DETAILS_TAB_TERMS);
+    it('should select the tab when clicking on it', async () => {
+      const openDetailPanel = jest.fn();
+      renderComponent({ openDetailPanel });
 
-      termsTab.simulate('click');
+      const { job } = defaultProps;
+      const termsTab = getTabByText('Terms');
 
-      expect(openDetailPanel.mock.calls.length).toBe(1);
-      expect(openDetailPanel.mock.calls[0][0]).toEqual({
+      await user.click(termsTab);
+
+      expect(openDetailPanel).toHaveBeenCalledTimes(1);
+      expect(openDetailPanel).toHaveBeenCalledWith({
         jobId: job.id,
         panelType: JOB_DETAILS_TAB_TERMS,
       });
@@ -121,56 +149,49 @@ describe('<DetailPanel />', () => {
 
   describe('job detail', () => {
     describe('summary tab content', () => {
-      // Init testBed on the SUMMARY tab
-      const panelType = JOB_DETAILS_TAB_SUMMARY;
-      const { find } = initTestBed({ panelType });
+      beforeEach(() => {
+        renderComponent({ panelType: JOB_DETAILS_TAB_SUMMARY });
+      });
 
       it('should have a "Logistics", "Date histogram" and "Stats" section', () => {
-        const expectedSections = ['Logistics', 'DateHistogram', 'Stats'];
-        const sectionsFound = expectedSections.reduce((sectionsFound, section) => {
-          if (find(`rollupJobDetailSummary${section}Section`).length) {
-            sectionsFound.push(section);
-          }
-          return sectionsFound;
-        }, []);
-
-        expect(sectionsFound).toEqual(expectedSections);
+        expect(screen.getByTestId('rollupJobDetailSummaryLogisticsSection')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('rollupJobDetailSummaryDateHistogramSection')
+        ).toBeInTheDocument();
+        expect(screen.getByTestId('rollupJobDetailSummaryStatsSection')).toBeInTheDocument();
       });
 
       describe('Logistics section', () => {
         const LOGISTICS_SUBSECTIONS = ['IndexPattern', 'RollupIndex', 'Cron', 'Delay'];
 
         it('should have "Index pattern", "Rollup index", "Cron" and "Delay" subsections', () => {
-          const logisticsSubsectionsTitles = LOGISTICS_SUBSECTIONS.reduce(
-            (subSections, subSection) => {
-              if (find(`rollupJobDetailLogistics${subSection}Title`)) {
-                subSections.push(subSection);
-              }
-              return subSections;
-            },
-            []
-          );
-          expect(logisticsSubsectionsTitles).toEqual(LOGISTICS_SUBSECTIONS);
+          // Check for the description elements which have data-test-subj
+          LOGISTICS_SUBSECTIONS.forEach((subSection) => {
+            expect(
+              screen.getByTestId(`rollupJobDetailLogistics${subSection}Description`)
+            ).toBeInTheDocument();
+          });
         });
 
         it('should set the correct job value for each of the subsection', () => {
           LOGISTICS_SUBSECTIONS.forEach((subSection) => {
-            const wrapper = find(`rollupJobDetailLogistics${subSection}Description`);
-            expect(wrapper.length).toBe(1);
-            const description = wrapper.text();
+            const description = screen.getByTestId(
+              `rollupJobDetailLogistics${subSection}Description`
+            );
+            expect(description).toBeInTheDocument();
 
             switch (subSection) {
               case 'IndexPattern':
-                expect(description).toEqual(defaultJob.indexPattern);
+                expect(description).toHaveTextContent(defaultJob.indexPattern);
                 break;
               case 'Cron':
-                expect(description).toEqual(defaultJob.rollupCron);
+                expect(description).toHaveTextContent(defaultJob.rollupCron);
                 break;
               case 'Delay':
-                expect(description).toEqual(defaultJob.rollupDelay);
+                expect(description).toHaveTextContent(defaultJob.rollupDelay);
                 break;
               case 'RollupIndex':
-                expect(description).toEqual(defaultJob.rollupIndex);
+                expect(description).toHaveTextContent(defaultJob.rollupIndex);
                 break;
               default:
                 // Should never get here... if it does a section is missing in the constant
@@ -186,33 +207,30 @@ describe('<DetailPanel />', () => {
         const DATE_HISTOGRAMS_SUBSECTIONS = ['TimeField', 'Timezone', 'Interval'];
 
         it('should have "Time field", "Timezone", "Interval" subsections', () => {
-          const dateHistogramSubsections = DATE_HISTOGRAMS_SUBSECTIONS.reduce(
-            (subSections, subSection) => {
-              if (find(`rollupJobDetailDateHistogram${subSection}Title`)) {
-                subSections.push(subSection);
-              }
-              return subSections;
-            },
-            []
-          );
-          expect(dateHistogramSubsections).toEqual(DATE_HISTOGRAMS_SUBSECTIONS);
+          // Check for the description elements which have data-test-subj
+          DATE_HISTOGRAMS_SUBSECTIONS.forEach((subSection) => {
+            expect(
+              screen.getByTestId(`rollupJobDetailDateHistogram${subSection}Description`)
+            ).toBeInTheDocument();
+          });
         });
 
         it('should set the correct job value for each of the subsection', () => {
           DATE_HISTOGRAMS_SUBSECTIONS.forEach((subSection) => {
-            const wrapper = find(`rollupJobDetailDateHistogram${subSection}Description`);
-            expect(wrapper.length).toBe(1);
-            const description = wrapper.text();
+            const description = screen.getByTestId(
+              `rollupJobDetailDateHistogram${subSection}Description`
+            );
+            expect(description).toBeInTheDocument();
 
             switch (subSection) {
               case 'TimeField':
-                expect(description).toEqual(defaultJob.dateHistogramField);
+                expect(description).toHaveTextContent(defaultJob.dateHistogramField);
                 break;
               case 'Interval':
-                expect(description).toEqual(defaultJob.dateHistogramInterval);
+                expect(description).toHaveTextContent(defaultJob.dateHistogramInterval);
                 break;
               case 'Timezone':
-                expect(description).toEqual(defaultJob.dateHistogramTimeZone);
+                expect(description).toHaveTextContent(defaultJob.dateHistogramTimeZone);
                 break;
               default:
                 // Should never get here... if it does a section is missing in the constant
@@ -233,33 +251,31 @@ describe('<DetailPanel />', () => {
         ];
 
         it('should have "Documents processed", "Pages processed", "Rollups indexed" and "Trigger count" subsections', () => {
-          const statsSubSections = STATS_SUBSECTIONS.reduce((subSections, subSection) => {
-            if (find(`rollupJobDetailStats${subSection}Title`)) {
-              subSections.push(subSection);
-            }
-            return subSections;
-          }, []);
-          expect(statsSubSections).toEqual(STATS_SUBSECTIONS);
+          // Check for the description elements which have data-test-subj
+          STATS_SUBSECTIONS.forEach((subSection) => {
+            expect(
+              screen.getByTestId(`rollupJobDetailStats${subSection}Description`)
+            ).toBeInTheDocument();
+          });
         });
 
         it('should set the correct job value for each of the subsection', () => {
           STATS_SUBSECTIONS.forEach((subSection) => {
-            const wrapper = find(`rollupJobDetailStats${subSection}Description`);
-            expect(wrapper.length).toBe(1);
-            const description = wrapper.text();
+            const description = screen.getByTestId(`rollupJobDetailStats${subSection}Description`);
+            expect(description).toBeInTheDocument();
 
             switch (subSection) {
               case 'DocumentsProcessed':
-                expect(description).toEqual(defaultJob.documentsProcessed.toString());
+                expect(description).toHaveTextContent(defaultJob.documentsProcessed.toString());
                 break;
               case 'PagesProcessed':
-                expect(description).toEqual(defaultJob.pagesProcessed.toString());
+                expect(description).toHaveTextContent(defaultJob.pagesProcessed.toString());
                 break;
               case 'RollupsIndexed':
-                expect(description).toEqual(defaultJob.rollupsIndexed.toString());
+                expect(description).toHaveTextContent(defaultJob.rollupsIndexed.toString());
                 break;
               case 'TriggerCount':
-                expect(description).toEqual(defaultJob.triggerCount.toString());
+                expect(description).toHaveTextContent(defaultJob.triggerCount.toString());
                 break;
               default:
                 // Should never get here... if it does a section is missing in the constant
@@ -271,59 +287,71 @@ describe('<DetailPanel />', () => {
         });
 
         it('should display the job status', () => {
-          const statsSection = find('rollupJobDetailSummaryStatsSection');
-          expect(statsSection.length).toBe(1);
+          const statsSection = screen.getByTestId('rollupJobDetailSummaryStatsSection');
+          expect(statsSection).toBeInTheDocument();
           expect(defaultJob.status).toEqual('stopped'); // make sure status is Stopped
-          expect(statsSection.find('EuiHealth').text()).toEqual('Stopped');
+          expect(within(statsSection).getByText('Stopped')).toBeInTheDocument();
         });
       });
     });
 
     describe('terms tab content', () => {
-      // Init testBed on the TERMS tab
-      const panelType = JOB_DETAILS_TAB_TERMS;
-      const { table } = initTestBed({ panelType });
-      const { tableCellsValues } = table.getMetaData('detailPanelTermsTabTable');
+      beforeEach(() => {
+        renderComponent({ panelType: JOB_DETAILS_TAB_TERMS });
+      });
 
       it('should list the Job terms fields', () => {
-        const expected = defaultJob.terms.map((term) => [term.name]);
-        expect(tableCellsValues).toEqual(expected);
+        const table = screen.getByTestId('detailPanelTermsTabTable');
+        expect(table).toBeInTheDocument();
+
+        // Check that each term name is present in the table
+        defaultJob.terms.forEach((term) => {
+          expect(within(table).getByText(term.name)).toBeInTheDocument();
+        });
       });
     });
 
     describe('histogram tab content', () => {
-      // Init testBed on the HISTOGRAM tab
-      const panelType = JOB_DETAILS_TAB_HISTOGRAM;
-      const { table } = initTestBed({ panelType });
-      const { tableCellsValues } = table.getMetaData('detailPanelHistogramTabTable');
+      beforeEach(() => {
+        renderComponent({ panelType: JOB_DETAILS_TAB_HISTOGRAM });
+      });
 
       it('should list the Job histogram fields', () => {
-        const expected = defaultJob.histogram.map((h) => [h.name]);
-        expect(tableCellsValues).toEqual(expected);
+        const table = screen.getByTestId('detailPanelHistogramTabTable');
+        expect(table).toBeInTheDocument();
+
+        // Check that each histogram name is present in the table
+        defaultJob.histogram.forEach((h) => {
+          expect(within(table).getByText(h.name)).toBeInTheDocument();
+        });
       });
     });
 
     describe('metrics tab content', () => {
-      // Init testBed on the METRICS tab
-      const panelType = JOB_DETAILS_TAB_METRICS;
-      const { table } = initTestBed({ panelType });
-      const { tableCellsValues } = table.getMetaData('detailPanelMetricsTabTable');
+      beforeEach(() => {
+        renderComponent({ panelType: JOB_DETAILS_TAB_METRICS });
+      });
 
       it('should list the Job metrics fields and their types', () => {
-        const expected = defaultJob.metrics.map((metric) => [metric.name, metric.types.join(', ')]);
-        expect(tableCellsValues).toEqual(expected);
+        const table = screen.getByTestId('detailPanelMetricsTabTable');
+        expect(table).toBeInTheDocument();
+
+        // Check that each metric name and types are present in the table
+        defaultJob.metrics.forEach((metric) => {
+          expect(within(table).getByText(metric.name)).toBeInTheDocument();
+          expect(within(table).getByText(metric.types.join(', '))).toBeInTheDocument();
+        });
       });
     });
 
     describe('JSON tab content', () => {
-      // Init testBed on the JSON tab
-      const panelType = JOB_DETAILS_TAB_JSON;
-      const { find } = initTestBed({ panelType });
-      const tabContent = find('rollupJobDetailTabContent');
+      beforeEach(() => {
+        renderComponent({ panelType: JOB_DETAILS_TAB_JSON });
+      });
 
       it('should render the "CodeEditor" with the job "json" data', () => {
-        const codeEditor = tabContent.find('[data-test-subj="jsonCodeBlock"]').at(0);
-        expect(JSON.parse(codeEditor.text())).toEqual(defaultJob.json);
+        const codeBlock = screen.getByTestId('jsonCodeBlock');
+        expect(JSON.parse(codeBlock.textContent)).toEqual(defaultJob.json);
       });
     });
   });

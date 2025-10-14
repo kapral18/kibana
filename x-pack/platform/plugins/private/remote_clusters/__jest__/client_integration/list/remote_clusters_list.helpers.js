@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+/* eslint-disable import/no-named-as-default */
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
@@ -22,21 +23,23 @@ import { registerRouter } from '../../../public/application/services/routing';
 export const setup = async (httpSetup, overrides = {}) => {
   const store = createRemoteClustersStore();
   const history = createMemoryHistory();
-  
+
   // Register router before rendering - the component expects it to be available
   // Match the structure that WithRoute creates: { route: { match, location }, history }
-  const router = { 
-    history, 
-    route: { 
+  const router = {
+    history,
+    route: {
       location: history.location,
-      match: { path: '/', url: '/', isExact: true, params: {} }
-    } 
+      match: { path: '/', url: '/', isExact: true, params: {} },
+    },
   };
   registerRouter(router);
 
   // Create user event instance
+  // eslint-disable-next-line no-undef
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
+  // eslint-disable-next-line new-cap
   const AppWithDependencies = WithAppDependencies(RemoteClusterList, httpSetup, overrides);
 
   let renderResult;
@@ -58,12 +61,16 @@ export const setup = async (httpSetup, overrides = {}) => {
   const getTableRows = () => {
     const table = screen.queryByTestId(EUI_TABLE);
     if (!table) return [];
-    return within(table).queryAllByRole('row').slice(1); // Skip header row
+    // EUI tables use tbody > tr structure
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr'));
   };
 
   // Helper to get table cells from a row
   const getTableCells = (row) => {
-    return within(row).queryAllByRole('gridcell');
+    // EUI tables use td elements
+    return Array.from(row.querySelectorAll('td'));
   };
 
   // Helper to extract table data
@@ -75,7 +82,7 @@ export const setup = async (httpSetup, overrides = {}) => {
     });
 
     return {
-      rows: rows.map((row, index) => ({
+      rows: rows.map((row) => ({
         element: row, // Store the actual DOM element for querying
         columns: getTableCells(row).map((cell) => ({
           element: cell, // Store the actual DOM element
@@ -89,11 +96,11 @@ export const setup = async (httpSetup, overrides = {}) => {
   // User actions
   const selectRemoteClusterAt = async (index = 0) => {
     const rows = getTableRows();
-    const checkbox = within(rows[index]).getByRole('checkbox');
+    // Find checkbox in the first cell
+    const checkbox = rows[index].querySelector('input[type="checkbox"]');
 
-    await act(async () => {
-      await user.click(checkbox);
-    });
+    // userEvent.click already wraps in act internally
+    await user.click(checkbox);
   };
 
   const clickBulkDeleteButton = async () => {
@@ -142,7 +149,8 @@ export const setup = async (httpSetup, overrides = {}) => {
   };
 
   const clickPaginationNextButton = async () => {
-    const button = screen.getByTestId('remoteClusterListTable.pagination-button-next');
+    // EUI pagination uses aria-label for next button
+    const button = screen.getByLabelText('Next page');
     await act(async () => {
       await user.click(button);
     });

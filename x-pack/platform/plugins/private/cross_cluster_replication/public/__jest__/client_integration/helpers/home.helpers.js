@@ -8,7 +8,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { Router, Route, Switch } from '@kbn/shared-ux-router';
+import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { CrossClusterReplicationHome } from '../../../app/sections/home/home';
 import { ccrStore } from '../../../app/store';
@@ -27,9 +27,7 @@ export const setup = (props = {}) => {
   const renderResult = render(
     <Provider store={ccrStore}>
       <Router history={history}>
-        <Switch>
-          <Route path="/:section" component={CrossClusterReplicationHome} />
-        </Switch>
+        <CrossClusterReplicationHome {...props} />
       </Router>
     </Provider>
   );

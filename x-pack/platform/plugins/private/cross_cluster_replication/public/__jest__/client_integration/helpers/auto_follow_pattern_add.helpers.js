@@ -8,7 +8,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { Router } from '@kbn/shared-ux-router';
+import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { AutoFollowPatternAdd } from '../../../app/sections/auto_follow_pattern_add';
 import { ccrStore } from '../../../app/store';

@@ -8,7 +8,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { Router, Route, Switch } from '@kbn/shared-ux-router';
+import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { AutoFollowPatternEdit } from '../../../app/sections/auto_follow_pattern_edit';
 import { ccrStore } from '../../../app/store';
@@ -37,9 +37,7 @@ export const setup = (props = {}) => {
   const renderResult = render(
     <Provider store={ccrStore}>
       <Router history={history}>
-        <Switch>
-          <Route path="/:id" component={AutoFollowPatternEdit} />
-        </Switch>
+        <AutoFollowPatternEdit {...props} />
       </Router>
     </Provider>
   );

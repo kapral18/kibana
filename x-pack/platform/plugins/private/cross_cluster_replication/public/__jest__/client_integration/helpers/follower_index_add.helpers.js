@@ -8,7 +8,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { Router } from '@kbn/shared-ux-router';
+import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { FollowerIndexAdd } from '../../../app/sections/follower_index_add';
 import { ccrStore } from '../../../app/store';

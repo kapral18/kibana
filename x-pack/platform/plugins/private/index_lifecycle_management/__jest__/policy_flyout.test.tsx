@@ -7,8 +7,8 @@
 
 import type { ReactElement } from 'react';
 import React from 'react';
-import { mountWithIntl } from '@kbn/test-jest-helpers';
-import { findTestSubject, takeMountedSnapshot } from '@elastic/eui/lib/test';
+import { screen } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 
 import { docLinksServiceMock } from '@kbn/core/public/mocks';
 
@@ -34,25 +34,35 @@ const TestComponent = ({ policy }: { policy: PolicyFromES }) => {
 
 describe('View policy flyout', () => {
   beforeAll(() => {
+    jest.useFakeTimers();
     jest.spyOn(readOnlyHook, 'useIsReadOnly').mockReturnValue(false);
     component = <TestComponent policy={policyAllPhases} />;
   });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('shows all phases', () => {
-    const rendered = mountWithIntl(component);
-    expect(takeMountedSnapshot(rendered)).toMatchSnapshot();
+    const { container } = renderWithI18n(component);
+    expect(container).toMatchSnapshot();
   });
 
   it('renders manage button', () => {
-    const rendered = mountWithIntl(component);
-    const button = findTestSubject(rendered, 'managePolicyButton');
-    expect(button.exists()).toBeTruthy();
+    renderWithI18n(component);
+    const button = screen.getByTestId('managePolicyButton');
+    expect(button).toBeInTheDocument();
   });
 
   it(`doesn't render manage button in read only view`, () => {
     jest.spyOn(readOnlyHook, 'useIsReadOnly').mockReturnValue(true);
     component = <TestComponent policy={policyAllPhases} />;
-    const rendered = mountWithIntl(component);
-    const button = findTestSubject(rendered, 'managePolicyButton');
-    expect(button.exists()).toBeFalsy();
+    renderWithI18n(component);
+    const button = screen.queryByTestId('managePolicyButton');
+    expect(button).not.toBeInTheDocument();
   });
 });

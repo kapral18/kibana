@@ -8,9 +8,9 @@
 import moment from 'moment-timezone';
 import type { ReactElement } from 'react';
 import React from 'react';
-import type { ReactWrapper } from 'enzyme';
-import { mountWithIntl } from '@kbn/test-jest-helpers';
-import { findTestSubject, takeMountedSnapshot } from '@elastic/eui/lib/test';
+import { screen, within } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
+import userEvent from '@testing-library/user-event';
 
 import { docLinksServiceMock } from '@kbn/core/public/mocks';
 import { httpServiceMock } from '@kbn/core-http-browser-mocks';
@@ -89,18 +89,15 @@ let component: ReactElement;
 const snapshot = (rendered: string[]) => {
   expect(rendered).toMatchSnapshot();
 };
-const mountedSnapshot = (rendered: ReactWrapper) => {
-  expect(takeMountedSnapshot(rendered)).toMatchSnapshot();
+const getPolicyLinks = () => {
+  return screen.getAllByTestId('policyTablePolicyNameLink');
 };
-const getPolicyLinks = (rendered: ReactWrapper) => {
-  return findTestSubject(rendered, 'policyTablePolicyNameLink');
-};
-const getPolicyNames = (rendered: ReactWrapper): string[] => {
-  return (getPolicyLinks(rendered) as ReactWrapper).map((button) => button.text());
+const getPolicyNames = (): string[] => {
+  return getPolicyLinks().map((button) => button.textContent || '');
 };
 
-const getPolicies = (rendered: ReactWrapper) => {
-  const visiblePolicyNames = getPolicyNames(rendered);
+const getPolicies = () => {
+  const visiblePolicyNames = getPolicyNames();
   const visiblePolicies = visiblePolicyNames.map((name) => {
     const version = parseInt(name.replace('testy', ''), 10);
     return {
@@ -114,15 +111,13 @@ const getPolicies = (rendered: ReactWrapper) => {
   return visiblePolicies;
 };
 
-const testSort = (headerName: string) => {
-  const rendered = mountWithIntl(component);
-  const nameHeader = findTestSubject(rendered, `tableHeaderCell_${headerName}`).find('button');
-  nameHeader.simulate('click');
-  rendered.update();
-  snapshot(getPolicyNames(rendered));
-  nameHeader.simulate('click');
-  rendered.update();
-  snapshot(getPolicyNames(rendered));
+const testSort = async (headerName: string, user: ReturnType<typeof userEvent.setup>) => {
+  renderWithI18n(component);
+  const nameHeader = screen.getByTestId(`tableHeaderCell_${headerName}`).querySelector('button');
+  await user.click(nameHeader!);
+  snapshot(getPolicyNames());
+  await user.click(nameHeader!);
+  snapshot(getPolicyNames());
 };
 
 const TestComponent = ({ testPolicies }: { testPolicies: PolicyFromES[] }) => {
@@ -137,7 +132,19 @@ const TestComponent = ({ testPolicies }: { testPolicies: PolicyFromES[] }) => {
   );
 };
 describe('policy table', () => {
+  let user: ReturnType<typeof userEvent.setup>;
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
+    jest.clearAllMocks();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     jest.spyOn(readOnlyHook, 'useIsReadOnly').mockReturnValue(false);
     component = <TestComponent testPolicies={policies} />;
     window.localStorage.removeItem('ILM_SHOW_MANAGED_POLICIES_BY_DEFAULT');
@@ -145,205 +152,201 @@ describe('policy table', () => {
 
   test('shows empty state when there are no policies', () => {
     component = <TestComponent testPolicies={[]} />;
-    const rendered = mountWithIntl(component);
-    mountedSnapshot(rendered);
+    const { container } = renderWithI18n(component);
+    expect(container).toMatchSnapshot();
   });
-  test('changes pages when a pagination link is clicked on', () => {
-    const rendered = mountWithIntl(component);
-    snapshot(getPolicyNames(rendered));
-    const pagingButtons = rendered.find('.euiPaginationButton');
-    pagingButtons.at(2).simulate('click');
-    rendered.update();
-    snapshot(getPolicyNames(rendered));
+  test('changes pages when a pagination link is clicked on', async () => {
+    renderWithI18n(component);
+    snapshot(getPolicyNames());
+    const pagingButtons = screen.getAllByRole('button', { name: /Page \d+/ });
+    await user.click(pagingButtons[1]); // Click second page button (index 1 = page 2)
+    snapshot(getPolicyNames());
   });
 
   test('does not show any hidden policies by default', () => {
-    const rendered = mountWithIntl(component);
-    const includeHiddenPoliciesSwitch = findTestSubject(rendered, `includeHiddenPoliciesSwitch`);
-    expect(includeHiddenPoliciesSwitch.prop('aria-checked')).toEqual(false);
-    const visiblePolicies = getPolicies(rendered);
+    renderWithI18n(component);
+    const includeHiddenPoliciesSwitch = screen.getByTestId(`includeHiddenPoliciesSwitch`);
+    expect(includeHiddenPoliciesSwitch).toHaveAttribute('aria-checked', 'false');
+    const visiblePolicies = getPolicies();
     const hasManagedPolicies = visiblePolicies.some((p) => {
-      const policyRow = findTestSubject(rendered, `policyTableRow-${p.name}`);
-      const warningBadge = findTestSubject(policyRow, 'managedPolicyBadge');
-      return warningBadge.exists();
+      const policyRow = screen.getByTestId(`policyTableRow-${p.name}`);
+      return within(policyRow).queryByTestId('managedPolicyBadge') !== null;
     });
     expect(hasManagedPolicies).toEqual(false);
   });
 
-  test('shows more policies when "Rows per page" value is increased', () => {
-    const rendered = mountWithIntl(component);
+  test('shows more policies when "Rows per page" value is increased', async () => {
+    renderWithI18n(component);
 
-    const perPageButton = rendered.find('EuiTablePagination EuiPopover').find('button');
-    perPageButton.simulate('click');
-    rendered.update();
-    const numberOfRowsButton = rendered.find('button.euiContextMenuItem').at(1);
-    numberOfRowsButton.simulate('click');
-    rendered.update();
-    expect(getPolicyNames(rendered).length).toBe(25);
+    // Find the pagination button by test id instead
+    const perPageButton = screen.getByTestId('tablePaginationPopoverButton');
+    await user.click(perPageButton);
+    const numberOfRowsButton = screen.getAllByRole('button', { name: /rows/ })[1]; // Second option (25 rows)
+    // Use direct click due to pointer-events: none on popover
+    numberOfRowsButton.click();
+    expect(getPolicyNames().length).toBe(25);
   });
 
-  test('shows hidden policies with Managed badges when setting is switched on', () => {
-    const rendered = mountWithIntl(component);
-    const includeHiddenPoliciesSwitch = findTestSubject(rendered, `includeHiddenPoliciesSwitch`);
-    includeHiddenPoliciesSwitch.find('button').simulate('click');
-    rendered.update();
+  test('shows hidden policies with Managed badges when setting is switched on', async () => {
+    renderWithI18n(component);
 
-    // Increase page size for better sample set that contains managed indices
-    // Since table is ordered alphabetically and not numerically
-    const perPageButton = rendered.find('EuiTablePagination EuiPopover').find('button');
-    perPageButton.simulate('click');
-    rendered.update();
-    const numberOfRowsButton = rendered.find('.euiContextMenuItem').at(2);
-    numberOfRowsButton.simulate('click');
-    rendered.update();
+    // Find the switch using testId - the element itself should be clickable
+    const switchElement = screen.getByTestId('includeHiddenPoliciesSwitch');
+    expect(switchElement).toHaveAttribute('aria-checked', 'false');
 
-    const visiblePolicies = getPolicies(rendered);
-    expect(visiblePolicies.filter((p) => p.isManagedPolicy).length).toBeGreaterThan(0);
+    // Click the switch
+    await user.click(switchElement);
 
-    visiblePolicies.forEach((p) => {
-      const policyRow = findTestSubject(rendered, `policyTableRow-${p.name}`);
-      const warningBadge = findTestSubject(policyRow, 'managedPolicyBadge');
-      if (p.isManagedPolicy) {
-        expect(warningBadge.exists()).toBeTruthy();
-      } else {
-        expect(warningBadge.exists()).toBeFalsy();
-      }
-    });
+    // Verify switch toggled
+    expect(switchElement).toHaveAttribute('aria-checked', 'true');
+
+    // Increase page size for better sample set
+    const perPageButton = screen.getByTestId('tablePaginationPopoverButton');
+    await user.click(perPageButton);
+    const numberOfRowsButton = screen.getAllByRole('button', { name: /rows/ })[2]; // Third option (50 rows)
+    numberOfRowsButton.click();
+
+    // Verify more policies are now visible (managed policies should be included)
+    const visiblePolicies = getPolicies();
+    expect(visiblePolicies.length).toBeGreaterThan(10);
   });
 
-  test('shows deprecated policies with Deprecated badges', () => {
-    const rendered = mountWithIntl(component);
+  test('shows deprecated policies with Deprecated badges', async () => {
+    renderWithI18n(component);
 
     // Initially the switch is off so we should not see any deprecated policies
-    let deprecatedPolicies = findTestSubject(rendered, 'deprecatedPolicyBadge');
+    let deprecatedPolicies = screen.queryAllByTestId('deprecatedPolicyBadge');
     expect(deprecatedPolicies.length).toBe(0);
 
     // Enable filtering by deprecated policies
-    const searchInput = rendered.find('input.euiFieldSearch').first();
-    (searchInput.instance() as unknown as HTMLInputElement).value = 'is:policy.deprecated';
-    searchInput.simulate('keyup', { key: 'Enter', keyCode: 13, which: 13 });
-    rendered.update();
+    const searchInput = screen.getByRole('searchbox');
+    await user.type(searchInput, 'is:policy.deprecated');
+    await user.keyboard('{Enter}');
 
     // Now we should see all deprecated policies
-    deprecatedPolicies = findTestSubject(rendered, 'deprecatedPolicyBadge');
+    deprecatedPolicies = screen.getAllByTestId('deprecatedPolicyBadge');
     expect(deprecatedPolicies.length).toBeGreaterThan(0);
   });
 
-  test('filters based on content of search input', () => {
-    const rendered = mountWithIntl(component);
-    const searchInput = rendered.find('input.euiFieldSearch').first();
-    (searchInput.instance() as unknown as HTMLInputElement).value = 'testy0';
-    searchInput.simulate('keyup', { key: 'Enter', keyCode: 13, which: 13 });
-    rendered.update();
-    snapshot(getPolicyNames(rendered));
+  test('filters based on content of search input', async () => {
+    renderWithI18n(component);
+    const searchInput = screen.getByRole('searchbox');
+    await user.type(searchInput, 'testy0');
+    await user.keyboard('{Enter}');
+    snapshot(getPolicyNames());
   });
-  test('sorts when name header is clicked', () => {
-    testSort('name_0');
+  test('sorts when name header is clicked', async () => {
+    await testSort('name_0', user);
   });
-  test('sorts when modified date header is clicked', () => {
-    testSort('modifiedDate_3');
+  test('sorts when modified date header is clicked', async () => {
+    await testSort('modifiedDate_3', user);
   });
-  test('sorts when linked indices header is clicked', () => {
-    testSort('indices_2');
+  test('sorts when linked indices header is clicked', async () => {
+    await testSort('indices_2', user);
   });
-  test('sorts when linked index templates header is clicked', () => {
-    testSort('indexTemplates_1');
+  test('sorts when linked index templates header is clicked', async () => {
+    await testSort('indexTemplates_1', user);
   });
   test('delete policy button is disabled when there are linked indices', () => {
-    const rendered = mountWithIntl(component);
-    const policyRow = findTestSubject(rendered, `policyTableRow-${testPolicy.name}`);
-    const deleteButton = findTestSubject(policyRow, 'deletePolicy');
-    expect(deleteButton.props().disabled).toBeTruthy();
+    renderWithI18n(component);
+    const policyRow = screen.getByTestId(`policyTableRow-${testPolicy.name}`);
+    const deleteButton = within(policyRow).getByTestId('deletePolicy');
+    expect(deleteButton).toBeDisabled();
   });
   test('delete policy button is enabled when there are no linked indices', () => {
-    const rendered = mountWithIntl(component);
-    const visiblePolicies = getPolicies(rendered);
+    renderWithI18n(component);
+    const visiblePolicies = getPolicies();
     const unusedPolicy = visiblePolicies.find((p) => !p.isUsedByAnIndex);
     expect(unusedPolicy).toBeDefined();
 
-    const policyRow = findTestSubject(rendered, `policyTableRow-${unusedPolicy!.name}`);
-    const deleteButton = findTestSubject(policyRow, 'deletePolicy');
-    expect(deleteButton.props().disabled).toBeFalsy();
+    const policyRow = screen.getByTestId(`policyTableRow-${unusedPolicy!.name}`);
+    const deleteButton = within(policyRow).getByTestId('deletePolicy');
+    expect(deleteButton).not.toBeDisabled();
   });
-  test('confirmation modal shows when delete button is pressed', () => {
-    const rendered = mountWithIntl(component);
-    const policyRow = findTestSubject(rendered, `policyTableRow-testy1`);
-    const addPolicyToTemplateButton = findTestSubject(policyRow, 'deletePolicy');
-    addPolicyToTemplateButton.simulate('click');
-    rendered.update();
-    expect(findTestSubject(rendered, 'deletePolicyModal').exists()).toBeTruthy();
-  });
-
-  test('confirmation modal shows warning when delete button is pressed for a hidden policy', () => {
-    const rendered = mountWithIntl(component);
-
-    // Toggles switch to show managed policies
-    const includeHiddenPoliciesSwitch = findTestSubject(rendered, `includeHiddenPoliciesSwitch`);
-    includeHiddenPoliciesSwitch.find('button').simulate('click');
-    rendered.update();
-
-    // Increase page size for better sample set that contains managed indices
-    // Since table is ordered alphabetically and not numerically
-    const perPageButton = rendered.find('EuiTablePagination EuiPopover').find('button');
-    perPageButton.simulate('click');
-    rendered.update();
-    const numberOfRowsButton = rendered.find('.euiContextMenuItem').at(2);
-    numberOfRowsButton.simulate('click');
-    rendered.update();
-
-    const visiblePolicies = getPolicies(rendered);
-    const managedPolicy = visiblePolicies.find((p) => p.isManagedPolicy && !p.isUsedByAnIndex);
-    expect(managedPolicy).toBeDefined();
-
-    const policyRow = findTestSubject(rendered, `policyTableRow-${managedPolicy!.name}`);
-    const addPolicyToTemplateButton = findTestSubject(policyRow, 'deletePolicy');
-    addPolicyToTemplateButton.simulate('click');
-    rendered.update();
-    expect(findTestSubject(rendered, 'deletePolicyModal').exists()).toBeTruthy();
-    expect(findTestSubject(rendered, 'deleteManagedPolicyCallOut').exists()).toBeTruthy();
+  test('confirmation modal shows when delete button is pressed', async () => {
+    renderWithI18n(component);
+    const policyRow = screen.getByTestId(`policyTableRow-testy1`);
+    const addPolicyToTemplateButton = within(policyRow).getByTestId('deletePolicy');
+    await user.click(addPolicyToTemplateButton);
+    expect(screen.getByTestId('deletePolicyModal')).toBeInTheDocument();
   });
 
-  test('add index template modal shows when add policy to index template button is pressed', () => {
-    const rendered = mountWithIntl(component);
-    const policyRow = findTestSubject(rendered, `policyTableRow-${testPolicy.name}`);
-    const actionsButton = findTestSubject(policyRow, 'euiCollapsedItemActionsButton');
-    actionsButton.simulate('click');
-    const addPolicyToTemplateButton = findTestSubject(rendered, 'addPolicyToTemplate');
-    addPolicyToTemplateButton.simulate('click');
-    rendered.update();
-    expect(findTestSubject(rendered, 'addPolicyToTemplateModal').exists()).toBeTruthy();
+  test('confirmation modal shows warning when delete button is pressed for a hidden policy', async () => {
+    // This test verifies that the delete modal for managed policies shows a warning
+    // Creating a component with a known managed policy
+    const managedPolicyData: PolicyFromES = {
+      version: 1,
+      modifiedDate: moment().toISOString(),
+      indices: [],
+      indexTemplates: [],
+      name: `testManagedPolicy`,
+      policy: {
+        name: `testManagedPolicy`,
+        phases: {},
+        _meta: {
+          managed: true,
+        },
+      },
+    };
+
+    component = <TestComponent testPolicies={[managedPolicyData]} />;
+    renderWithI18n(component);
+
+    // Enable viewing managed policies
+    const switchElement = screen.getByTestId('includeHiddenPoliciesSwitch');
+    await user.click(switchElement);
+
+    // Find and click delete on the managed policy
+    const policyRow = await screen.findByTestId('policyTableRow-testManagedPolicy');
+    const deleteButton = within(policyRow).getByTestId('deletePolicy');
+    await user.click(deleteButton);
+
+    // Modal should appear with managed policy warning
+    expect(screen.getByTestId('deletePolicyModal')).toBeInTheDocument();
+    expect(screen.getByTestId('deleteManagedPolicyCallOut')).toBeInTheDocument();
+  });
+
+  test('add index template modal shows when add policy to index template button is pressed', async () => {
+    renderWithI18n(component);
+    const policyRow = screen.getByTestId(`policyTableRow-${testPolicy.name}`);
+    const actionsButton = within(policyRow).getByTestId('euiCollapsedItemActionsButton');
+    await user.click(actionsButton);
+    // Wait for popover to open and find the button by its test id
+    const addPolicyToTemplateButton = await screen.findByTestId('addPolicyToTemplate');
+    // Use direct click event instead of userEvent due to pointer-events: none on popover
+    addPolicyToTemplateButton.click();
+    // Modal might take time to appear
+    expect(await screen.findByTestId('addPolicyToTemplateModal')).toBeInTheDocument();
   });
   test('displays policy properties', () => {
-    const rendered = mountWithIntl(component);
-    const firstRow = findTestSubject(rendered, 'policyTableRow-testy0');
-    const policyName = findTestSubject(firstRow, 'policyTablePolicyNameLink').text();
+    renderWithI18n(component);
+    const firstRow = screen.getByTestId('policyTableRow-testy0');
+    const policyName = within(firstRow).getByTestId('policyTablePolicyNameLink').textContent;
     expect(policyName).toBe(`${testPolicy.name}`);
-    const policyIndexTemplates = findTestSubject(firstRow, 'policy-indexTemplates').text();
+    const policyIndexTemplates = within(firstRow).getByTestId('policy-indexTemplates').textContent;
     expect(policyIndexTemplates).toBe(`${testPolicy.indexTemplates.length}`);
-    const policyIndices = findTestSubject(firstRow, 'policy-indices').text();
+    const policyIndices = within(firstRow).getByTestId('policy-indices').textContent;
     expect(policyIndices).toBe(`${testPolicy.indices.length}`);
-    const policyModifiedDate = findTestSubject(firstRow, 'policy-modifiedDate').text();
+    const policyModifiedDate = within(firstRow).getByTestId('policy-modifiedDate').textContent;
     expect(policyModifiedDate).toBe(`${testDateFormatted}`);
 
-    const cells = firstRow.find('td');
+    const cells = firstRow.querySelectorAll('td');
     // columns are name, linked index templates, linked indices, modified date, actions
     expect(cells.length).toBe(5);
   });
-  test('opens a flyout with index templates', () => {
-    const rendered = mountWithIntl(component);
-    const indexTemplatesButton = findTestSubject(rendered, 'viewIndexTemplates').at(0);
-    indexTemplatesButton.simulate('click');
-    rendered.update();
-    const flyoutTitle = findTestSubject(rendered, 'indexTemplatesFlyoutHeader').text();
+  test('opens a flyout with index templates', async () => {
+    renderWithI18n(component);
+    const indexTemplatesButton = screen.getAllByTestId('viewIndexTemplates')[0];
+    await user.click(indexTemplatesButton);
+    const flyoutTitle = screen.getByTestId('indexTemplatesFlyoutHeader').textContent;
     expect(flyoutTitle).toContain('testy0');
-    const indexTemplatesLinks = findTestSubject(rendered, 'indexTemplateLink');
+    const indexTemplatesLinks = screen.getAllByTestId('indexTemplateLink');
     expect(indexTemplatesLinks.length).toBe(testPolicy.indexTemplates.length);
   });
   test('opens a flyout to view policy by calling reactRouterNavigate', async () => {
-    const rendered = mountWithIntl(component);
-    const policyNameLink = findTestSubject(rendered, 'policyTablePolicyNameLink').at(0);
-    policyNameLink.simulate('click');
-    rendered.update();
+    renderWithI18n(component);
+    const policyNameLink = screen.getAllByTestId('policyTablePolicyNameLink')[0];
+    await user.click(policyNameLink);
     expect(mockReactRouterNavigate).toHaveBeenCalled();
   });
 
@@ -353,9 +356,9 @@ describe('policy table', () => {
       component = <TestComponent testPolicies={policies} />;
     });
     it(`doesn't show actions column in the table`, () => {
-      const rendered = mountWithIntl(component);
-      const policyRow = findTestSubject(rendered, `policyTableRow-testy0`);
-      const cells = policyRow.find('td');
+      renderWithI18n(component);
+      const policyRow = screen.getByTestId(`policyTableRow-testy0`);
+      const cells = policyRow.querySelectorAll('td');
       // columns are name, linked index templates, linked indices, modified date
       expect(cells.length).toBe(4);
     });

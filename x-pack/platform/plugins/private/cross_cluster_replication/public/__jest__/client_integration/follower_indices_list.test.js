@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import { screen, act } from '@testing-library/react';
 
 import './mocks';
 import { getFollowerIndexMock } from './fixtures/follower_index';
@@ -17,7 +17,7 @@ describe('<FollowerIndicesList />', () => {
   let httpRequestsMockHelpers;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     ({ httpRequestsMockHelpers } = setupEnvironment());
   });
 
@@ -26,47 +26,39 @@ describe('<FollowerIndicesList />', () => {
   });
 
   beforeEach(() => {
+    jest.clearAllMocks();
     // Set "default" mock responses by not providing any arguments
     httpRequestsMockHelpers.setLoadFollowerIndicesResponse();
   });
 
   describe('on component mount', () => {
-    let exists;
-    let component;
-
-    beforeEach(async () => {
-      ({ exists, component } = await setup());
-      component.update();
+    beforeEach(() => {
+      setup();
     });
 
     test('should show a loading indicator on component', () => {
-      expect(exists('sectionLoading')).toBe(true);
+      expect(screen.getByTestId('sectionLoading')).toBeInTheDocument();
     });
   });
 
   describe('when there are no follower indices', () => {
-    let exists;
-    let component;
-
     beforeEach(async () => {
       await act(async () => {
-        ({ exists, component } = await setup());
+        setup();
+        await jest.runAllTimersAsync();
       });
-
-      component.update();
     });
 
     test('should display an empty prompt', () => {
-      expect(exists('emptyPrompt')).toBe(true);
+      expect(screen.getByTestId('emptyPrompt')).toBeInTheDocument();
     });
 
     test('should have a button to create a follower index', () => {
-      expect(exists('emptyPrompt.createFollowerIndexButton')).toBe(true);
+      expect(screen.getByTestId('emptyPrompt.createFollowerIndexButton')).toBeInTheDocument();
     });
   });
 
   describe('when there are multiple pages of follower indices', () => {
-    let component;
     let table;
     let actions;
     let form;
@@ -89,14 +81,13 @@ describe('<FollowerIndicesList />', () => {
       httpRequestsMockHelpers.setLoadFollowerIndicesResponse({ indices: followerIndices });
 
       await act(async () => {
-        ({ component, table, actions, form } = await setup());
+        ({ table, actions, form } = setup());
+        await jest.runAllTimersAsync();
       });
-
-      component.update();
     });
 
-    test('pagination works', async () => {
-      await actions.clickPaginationNextButton();
+    test('pagination works', () => {
+      actions.clickPaginationNextButton();
       const { tableCellsValues } = table.getMetaData('followerIndexListTable');
 
       // Pagination defaults to 20 follower indices per page. We loaded 30 follower indices,

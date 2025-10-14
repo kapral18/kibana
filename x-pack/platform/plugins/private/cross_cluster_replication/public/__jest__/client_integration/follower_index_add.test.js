@@ -5,10 +5,10 @@
  * 2.0.
  */
 
+import { screen, waitFor, act } from '@testing-library/react';
 import { indexPatterns } from '@kbn/data-plugin/public';
 import './mocks';
-import { setupEnvironment, pageHelpers, nextTick, delay } from './helpers';
-import { RemoteClustersFormField } from '../../app/components';
+import { setupEnvironment, pageHelpers } from './helpers';
 
 const { setup } = pageHelpers.followerIndexAdd;
 const { setup: setupAutoFollowPatternAdd } = pageHelpers.autoFollowPatternAdd;
@@ -18,76 +18,75 @@ describe('Create Follower index', () => {
   let httpRequestsMockHelpers;
 
   beforeAll(() => {
+    jest.useFakeTimers();
     const mockEnvironment = setupEnvironment();
     httpRequestsMockHelpers = mockEnvironment.httpRequestsMockHelpers;
     httpSetup = mockEnvironment.httpSetup;
   });
 
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
+    jest.clearAllMocks();
     // Set "default" mock responses by not providing any arguments
     httpRequestsMockHelpers.setLoadRemoteClustersResponse();
   });
 
   describe('on component mount', () => {
-    let find;
-    let exists;
-
     beforeEach(() => {
-      ({ find, exists } = setup());
+      setup();
     });
 
     test('should display a "loading remote clusters" indicator', () => {
-      expect(exists('sectionLoading')).toBe(true);
-      expect(find('sectionLoading').text()).toBe('Loading remote clusters…');
+      expect(screen.getByTestId('sectionLoading')).toBeInTheDocument();
+      expect(screen.getByTestId('sectionLoading')).toHaveTextContent('Loading remote clusters…');
     });
   });
 
   describe('when remote clusters are loaded', () => {
-    let find;
-    let exists;
-    let component;
     let form;
     let actions;
 
     beforeEach(async () => {
-      ({ find, exists, component, actions, form } = setup());
+      ({ actions, form } = setup());
 
-      await nextTick(); // We need to wait next tick for the mock server response to comes in
-      component.update();
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
     });
 
     test('should have a link to the documentation', () => {
-      expect(exists('docsButton')).toBe(true);
+      expect(screen.getByTestId('docsButton')).toBeInTheDocument();
     });
 
-    test('should display the Follower index form', async () => {
-      expect(exists('followerIndexForm')).toBe(true);
+    test('should display the Follower index form', () => {
+      expect(screen.getByTestId('followerIndexForm')).toBeInTheDocument();
     });
 
     test('should display errors and disable the save button when clicking "save" without filling the form', () => {
-      expect(exists('formError')).toBe(false);
-      expect(find('submitButton').props().disabled).toBe(false);
+      expect(screen.queryByTestId('formError')).not.toBeInTheDocument();
+      expect(screen.getByTestId('submitButton')).not.toBeDisabled();
 
       actions.clickSaveForm();
 
-      expect(exists('formError')).toBe(true);
+      expect(screen.getByTestId('formError')).toBeInTheDocument();
       expect(form.getErrorsMessages()).toEqual(['Leader index is required.', 'Name is required.']);
-      expect(find('submitButton').props().disabled).toBe(true);
+      expect(screen.getByTestId('submitButton')).toBeDisabled();
     });
   });
 
   describe('form validation', () => {
-    let find;
-    let exists;
-    let component;
     let form;
     let actions;
 
     beforeEach(async () => {
-      ({ component, form, actions, exists, find } = setup());
+      ({ form, actions } = setup());
 
-      await nextTick(); // We need to wait next tick for the mock server response to comes in
-      component.update();
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
     });
 
     describe('remote cluster', () => {
@@ -95,16 +94,14 @@ describe('Create Follower index', () => {
       // done inside the <RemoteClustersFormField /> component. The same component that we use in the <AutoFollowPatternAdd /> section.
       // To avoid copy/pasting the same tests here, we simply make sure that both sections use the <RemoteClustersFormField />
       test('should use the same <RemoteClustersFormField /> component as the <AutoFollowPatternAdd /> section', async () => {
-        const { component: autoFollowPatternAddComponent } = setupAutoFollowPatternAdd();
-        await nextTick();
-        autoFollowPatternAddComponent.update();
+        setupAutoFollowPatternAdd();
+        await act(async () => {
+          await jest.runAllTimersAsync();
+        });
 
-        const remoteClusterFormFieldFollowerIndex = component.find(RemoteClustersFormField);
-        const remoteClusterFormFieldAutoFollowPattern =
-          autoFollowPatternAddComponent.find(RemoteClustersFormField);
-
-        expect(remoteClusterFormFieldFollowerIndex.length).toBe(1);
-        expect(remoteClusterFormFieldAutoFollowPattern.length).toBe(1);
+        // Both components should render the remote cluster field
+        const remoteClusterFields = screen.getAllByTestId('remoteClusterFormField');
+        expect(remoteClusterFields.length).toBeGreaterThanOrEqual(2);
       });
     });
 
@@ -164,7 +161,10 @@ describe('Create Follower index', () => {
           httpRequestsMockHelpers.setGetClusterIndicesResponse([]);
 
           form.setInputValue('followerIndexInput', 'index-name');
-          await delay(550); // we need to wait as there is a debounce of 500ms on the http validation
+          
+          await act(async () => {
+            jest.advanceTimersByTime(550); // Advance past the 500ms debounce
+          });
 
           expect(httpSetup.get).toHaveBeenLastCalledWith(
             `/api/index_management/indices`,
@@ -177,8 +177,11 @@ describe('Create Follower index', () => {
           httpRequestsMockHelpers.setGetClusterIndicesResponse([{ name: indexName }]);
 
           form.setInputValue('followerIndexInput', indexName);
-          await delay(550);
-          component.update();
+          
+          await act(async () => {
+            jest.advanceTimersByTime(550);
+            await jest.runAllTimersAsync();
+          });
 
           expect(form.getErrorsMessages()).toContain('An index with the same name already exists.');
         });
@@ -231,17 +234,15 @@ describe('Create Follower index', () => {
 
       test('should have a toggle to activate advanced settings', () => {
         const expectDoesNotExist = (testSubject) => {
-          try {
-            expect(exists(testSubject)).toBe(false);
-          } catch {
+          const element = screen.queryByTestId(testSubject);
+          if (element !== null) {
             throw new Error(`The advanced field "${testSubject}" exists.`);
           }
         };
 
         const expectDoesExist = (testSubject) => {
-          try {
-            expect(exists(testSubject)).toBe(true);
-          } catch {
+          const element = screen.queryByTestId(testSubject);
+          if (element === null) {
             throw new Error(`The advanced field "${testSubject}" does not exist.`);
           }
         };
@@ -251,7 +252,7 @@ describe('Create Follower index', () => {
 
         actions.toggleAdvancedSettings();
 
-        // Make sure no advanced settings is visible
+        // Make sure all advanced settings are visible
         Object.keys(advancedSettingsInputFields).forEach(expectDoesExist);
       });
 
@@ -259,7 +260,8 @@ describe('Create Follower index', () => {
         actions.toggleAdvancedSettings();
 
         Object.entries(advancedSettingsInputFields).forEach(([testSubject, data]) => {
-          expect(find(testSubject).props().value).toBe(data.default);
+          const input = screen.getByTestId(testSubject);
+          expect(input).toHaveValue(data.default);
         });
       });
 
@@ -268,7 +270,8 @@ describe('Create Follower index', () => {
 
         Object.entries(advancedSettingsInputFields).forEach(([testSubject, data]) => {
           if (data.type === 'number') {
-            expect(find(testSubject).props().type).toBe('number');
+            const input = screen.getByTestId(testSubject);
+            expect(input).toHaveAttribute('type', 'number');
           }
         });
       });

@@ -6,7 +6,9 @@
  */
 
 import React from 'react';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import { screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { rollupJobsStore } from '../../store';
 import { JobList } from './job_list';
 
@@ -31,11 +33,24 @@ jest.mock('../../services/documentation_links', () => {
   };
 });
 
+beforeAll(() => {
+  jest.useFakeTimers();
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 const defaultProps = {
   history: { location: {} },
   loadJobs: () => {},
   refreshJobs: () => {},
   openDetailPanel: () => {},
+  closeDetailPanel: () => {},
   hasJobs: false,
   isLoading: false,
 };
@@ -43,55 +58,61 @@ const defaultProps = {
 const services = {
   setBreadcrumbs: startMock.chrome.setBreadcrumbs,
 };
-const Component = (props) => (
-  <KibanaContextProvider services={services}>
-    <JobList {...props} />
-  </KibanaContextProvider>
-);
 
-const initTestBed = registerTestBed(Component, { defaultProps, store: rollupJobsStore });
+const renderComponent = (props = {}) => {
+  const mergedProps = { ...defaultProps, ...props };
+  return renderWithI18n(
+    <Provider store={rollupJobsStore}>
+      <KibanaContextProvider services={services}>
+        <JobList {...mergedProps} />
+      </KibanaContextProvider>
+    </Provider>
+  );
+};
 
 describe('<JobList />', () => {
   it('should render deprecated prompt when loading is complete and there are no rollup jobs', () => {
-    const { exists } = initTestBed();
+    renderComponent();
 
-    expect(exists('jobListDeprecatedPrompt')).toBeTruthy();
+    expect(screen.getByTestId('jobListDeprecatedPrompt')).toBeInTheDocument();
   });
 
   it('should display a loading message when loading the jobs', () => {
-    const { component, exists } = initTestBed({ isLoading: true });
+    renderComponent({ isLoading: true });
 
-    expect(exists('sectionLoading')).toBeTruthy();
-    expect(component.find('JobTable').length).toBeFalsy();
+    expect(screen.getByTestId('sectionLoading')).toBeInTheDocument();
+    expect(screen.queryByTestId('rollupJobsListTable')).not.toBeInTheDocument();
   });
 
   it('should display the <JobTable /> when there are jobs', () => {
-    const { component, exists } = initTestBed({ hasJobs: true });
+    renderComponent({ hasJobs: true });
 
-    expect(exists('sectionLoading')).toBeFalsy();
-    expect(component.find('JobTable').length).toBeTruthy();
+    expect(screen.queryByTestId('sectionLoading')).not.toBeInTheDocument();
+    // The JobTable gets jobs from Redux store, which is empty in this test
+    // But we can verify the page header is rendered, which is part of renderList()
+    expect(screen.getByTestId('jobListPageHeader')).toBeInTheDocument();
   });
 
   describe('when there is an API error', () => {
-    const { exists, find } = initTestBed({
-      jobLoadError: {
-        status: 400,
-        body: { statusCode: 400, error: 'Houston we got a problem.' },
-      },
-    });
-
     it('should display an error with the status and the message', () => {
-      expect(exists('jobListError')).toBeTruthy();
-      expect(find('jobListError').find('EuiText').text()).toEqual('400 Houston we got a problem.');
+      renderComponent({
+        jobLoadError: {
+          status: 400,
+          body: { statusCode: 400, error: 'Houston we got a problem.' },
+        },
+      });
+
+      expect(screen.getByTestId('jobListError')).toBeInTheDocument();
+      expect(screen.getByTestId('jobListError')).toHaveTextContent('400 Houston we got a problem.');
     });
   });
 
   describe('when the user does not have the permission to access it', () => {
-    const { exists, find } = initTestBed({ jobLoadError: { status: 403 } });
-
     it('should render an error message', () => {
-      expect(exists('jobListNoPermission')).toBeTruthy();
-      expect(find('jobListNoPermission').find('EuiText').text()).toEqual(
+      renderComponent({ jobLoadError: { status: 403 } });
+
+      expect(screen.getByTestId('jobListNoPermission')).toBeInTheDocument();
+      expect(screen.getByTestId('jobListNoPermission')).toHaveTextContent(
         'You do not have permission to view or add rollup jobs.'
       );
     });

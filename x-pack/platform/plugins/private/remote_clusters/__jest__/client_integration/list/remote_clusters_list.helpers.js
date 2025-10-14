@@ -5,117 +5,161 @@
  * 2.0.
  */
 
+import React from 'react';
+import { render, screen, within } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
-
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
+import userEvent from '@testing-library/user-event';
+import { Provider } from 'react-redux';
+import { Router } from '@kbn/shared-ux-router';
+import { createMemoryHistory } from 'history';
 
 import { WithAppDependencies } from '../helpers';
 import { RemoteClusterList } from '../../../public/application/sections/remote_cluster_list';
 import { createRemoteClustersStore } from '../../../public/application/store';
 import { registerRouter } from '../../../public/application/services/routing';
 
-const testBedConfig = {
-  store: createRemoteClustersStore,
-  memoryRouter: {
-    onRouter: (router) => registerRouter(router),
-  },
-};
+export const setup = async (httpSetup, overrides = {}) => {
+  const store = createRemoteClustersStore();
+  const history = createMemoryHistory();
+  
+  // Register router before rendering - the component expects it to be available
+  // Match the structure that WithRoute creates: { route: { match, location }, history }
+  const router = { 
+    history, 
+    route: { 
+      location: history.location,
+      match: { path: '/', url: '/', isExact: true, params: {} }
+    } 
+  };
+  registerRouter(router);
 
-export const setup = async (httpSetup, overrides) => {
-  const initTestBed = registerTestBed(
-    // ESlint cannot figure out that the hoc should start with a capital leter.
-    // eslint-disable-next-line new-cap
-    WithAppDependencies(RemoteClusterList, httpSetup, overrides),
-    testBedConfig
+  // Create user event instance
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+  const AppWithDependencies = WithAppDependencies(RemoteClusterList, httpSetup, overrides);
+
+  const renderResult = render(
+    <Provider store={store}>
+      <Router history={history}>
+        <AppWithDependencies />
+      </Router>
+    </Provider>
   );
-  const testBed = await initTestBed();
 
   const EUI_TABLE = 'remoteClusterListTable';
 
+  // Helper to get table rows
+  const getTableRows = () => {
+    const table = screen.queryByTestId(EUI_TABLE);
+    if (!table) return [];
+    return within(table).queryAllByRole('row').slice(1); // Skip header row
+  };
+
+  // Helper to get table cells from a row
+  const getTableCells = (row) => {
+    return within(row).queryAllByRole('gridcell');
+  };
+
+  // Helper to extract table data
+  const getTableMetaData = () => {
+    const rows = getTableRows();
+    const tableCellsValues = rows.map((row) => {
+      const cells = getTableCells(row);
+      return cells.map((cell) => cell.textContent || '');
+    });
+
+    return {
+      rows: rows.map((row, index) => ({
+        element: row, // Store the actual DOM element for querying
+        columns: getTableCells(row).map((cell) => ({
+          element: cell, // Store the actual DOM element
+          value: cell.textContent || '',
+        })),
+      })),
+      tableCellsValues,
+    };
+  };
+
   // User actions
-  const selectRemoteClusterAt = (index = 0) => {
-    const { rows } = testBed.table.getMetaData(EUI_TABLE);
+  const selectRemoteClusterAt = async (index = 0) => {
+    const rows = getTableRows();
+    const checkbox = within(rows[index]).getByRole('checkbox');
+
+    await act(async () => {
+      await user.click(checkbox);
+    });
+  };
+
+  const clickBulkDeleteButton = async () => {
+    const button = screen.getByTestId('remoteClusterBulkDeleteButton');
+    await act(async () => {
+      await user.click(button);
+    });
+  };
+
+  const clickRowActionButtonAt = async (index = 0, action = 'delete') => {
+    const rows = getTableRows();
     const row = rows[index];
-    const checkBox = row.reactWrapper.find('input').hostNodes();
-
-    act(() => {
-      checkBox.simulate('change', { target: { checked: true } });
-    });
-
-    testBed.component.update();
-  };
-
-  const clickBulkDeleteButton = () => {
-    const { find, component } = testBed;
-    act(() => {
-      find('remoteClusterBulkDeleteButton').simulate('click');
-    });
-
-    component.update();
-  };
-
-  const clickRowActionButtonAt = (index = 0, action = 'delete') => {
-    const { table, component } = testBed;
-    const { rows } = table.getMetaData(EUI_TABLE);
-    const indexLastColumn = rows[index].columns.length - 1;
-    const tableCellActions = rows[index].columns[indexLastColumn].reactWrapper;
 
     let button;
     if (action === 'delete') {
-      button = findTestSubject(tableCellActions, 'remoteClusterTableRowRemoveButton');
+      button = within(row).getByTestId('remoteClusterTableRowRemoveButton');
     } else if (action === 'edit') {
-      button = findTestSubject(tableCellActions, 'remoteClusterTableRowEditButton');
+      button = within(row).getByTestId('remoteClusterTableRowEditButton');
     }
 
     if (!button) {
       throw new Error(`Button for action "${action}" not found.`);
     }
 
-    act(() => {
-      button.simulate('click');
+    await act(async () => {
+      await user.click(button);
     });
-
-    component.update();
   };
 
-  const clickConfirmModalDeleteRemoteCluster = () => {
-    const { find, component } = testBed;
-    const modal = find('remoteClustersDeleteConfirmModal');
+  const clickConfirmModalDeleteRemoteCluster = async () => {
+    const modal = screen.getByTestId('remoteClustersDeleteConfirmModal');
+    const confirmButton = within(modal).getByTestId('confirmModalConfirmButton');
 
-    act(() => {
-      findTestSubject(modal, 'confirmModalConfirmButton').simulate('click');
+    await act(async () => {
+      await user.click(confirmButton);
     });
-
-    component.update();
   };
 
-  const clickRemoteClusterAt = (index = 0) => {
-    const { table, component } = testBed;
-    const { rows } = table.getMetaData(EUI_TABLE);
-    const remoteClusterLink = findTestSubject(
-      rows[index].reactWrapper,
-      'remoteClustersTableListClusterLink'
-    );
+  const clickRemoteClusterAt = async (index = 0) => {
+    const rows = getTableRows();
+    const link = within(rows[index]).getByTestId('remoteClustersTableListClusterLink');
 
-    act(() => {
-      remoteClusterLink.simulate('click');
+    await act(async () => {
+      await user.click(link);
     });
-
-    component.update();
   };
 
-  const clickPaginationNextButton = () => {
-    const { find, component } = testBed;
-
-    act(() => {
-      find('remoteClusterListTable.pagination-button-next').simulate('click');
+  const clickPaginationNextButton = async () => {
+    const button = screen.getByTestId('remoteClusterListTable.pagination-button-next');
+    await act(async () => {
+      await user.click(button);
     });
-
-    component.update();
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
+    // Compatibility helpers
+    exists: (testId) => screen.queryByTestId(testId) !== null,
+    find: (testId) => screen.getByTestId(testId),
+    table: {
+      getMetaData: (tableTestId) => getTableMetaData(tableTestId),
+    },
+    form: {
+      setInputValue: (testId, value) => {
+        const input = screen.getByTestId(testId);
+        return act(async () => {
+          await user.clear(input);
+          await user.type(input, value);
+        });
+      },
+    },
     actions: {
       selectRemoteClusterAt,
       clickBulkDeleteButton,

@@ -7,13 +7,15 @@
 
 import React from 'react';
 import { act } from 'react-dom/test-utils';
+import { within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { getRouter } from '../../../public/application/services';
 import { getRemoteClusterMock } from '../../../fixtures/remote_cluster';
 
 import { PROXY_MODE } from '../../../common/constants';
 
-import { setupEnvironment, getRandomString, findTestSubject } from '../helpers';
+import { setupEnvironment, getRandomString } from '../helpers';
 
 import { setup } from './remote_clusters_list.helpers';
 
@@ -34,11 +36,15 @@ describe('<RemoteClusterList />', () => {
   const { httpSetup, httpRequestsMockHelpers } = setupEnvironment();
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
   });
 
   afterAll(() => {
     jest.useRealTimers();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   httpRequestsMockHelpers.setLoadRemoteClustersResponse([]);
@@ -57,14 +63,11 @@ describe('<RemoteClusterList />', () => {
 
   describe('when there are no remote clusters', () => {
     let exists;
-    let component;
 
     beforeEach(async () => {
       await act(async () => {
-        ({ exists, component } = await setup(httpSetup));
+        ({ exists } = await setup(httpSetup));
       });
-
-      component.update();
     });
 
     test('should display an empty prompt', async () => {
@@ -78,7 +81,6 @@ describe('<RemoteClusterList />', () => {
 
   describe('can search', () => {
     let table;
-    let component;
     let form;
 
     const remoteClusters = [
@@ -97,10 +99,8 @@ describe('<RemoteClusterList />', () => {
       httpRequestsMockHelpers.setLoadRemoteClustersResponse(remoteClusters);
 
       await act(async () => {
-        ({ table, component, form } = await setup(httpSetup));
+        ({ table, form } = await setup(httpSetup));
       });
-
-      component.update();
     });
 
     test('without any search params it should show all clusters', () => {
@@ -108,14 +108,14 @@ describe('<RemoteClusterList />', () => {
       expect(tableCellsValues.length).toBe(2);
     });
 
-    test('search by seed works', () => {
-      form.setInputValue('remoteClusterSearch', 'simple');
+    test('search by seed works', async () => {
+      await form.setInputValue('remoteClusterSearch', 'simple');
       const { tableCellsValues } = table.getMetaData('remoteClusterListTable');
       expect(tableCellsValues.length).toBe(1);
     });
 
-    test('search by proxyAddress works', () => {
-      form.setInputValue('remoteClusterSearch', 'proxy');
+    test('search by proxyAddress works', async () => {
+      await form.setInputValue('remoteClusterSearch', 'proxy');
       const { tableCellsValues } = table.getMetaData('remoteClusterListTable');
       expect(tableCellsValues.length).toBe(1);
     });
@@ -124,7 +124,6 @@ describe('<RemoteClusterList />', () => {
   describe('when there are multiple pages of remote clusters', () => {
     let table;
     let actions;
-    let component;
     let form;
 
     const remoteClusters = [
@@ -153,14 +152,12 @@ describe('<RemoteClusterList />', () => {
       httpRequestsMockHelpers.setLoadRemoteClustersResponse(remoteClusters);
 
       await act(async () => {
-        ({ table, actions, component, form } = await setup(httpSetup));
+        ({ table, actions, form } = await setup(httpSetup));
       });
-
-      component.update();
     });
 
-    test('pagination works', () => {
-      actions.clickPaginationNextButton();
+    test('pagination works', async () => {
+      await actions.clickPaginationNextButton();
       const { tableCellsValues } = table.getMetaData('remoteClusterListTable');
 
       // Pagination defaults to 20 remote clusters per page. We loaded 30 remote clusters,
@@ -168,8 +165,8 @@ describe('<RemoteClusterList />', () => {
       expect(tableCellsValues.length).toBe(10);
     });
 
-    test('search works', () => {
-      form.setInputValue('remoteClusterSearch', 'unique');
+    test('search works', async () => {
+      await form.setInputValue('remoteClusterSearch', 'unique');
       const { tableCellsValues } = table.getMetaData('remoteClusterListTable');
       expect(tableCellsValues.length).toBe(1);
     });
@@ -178,7 +175,6 @@ describe('<RemoteClusterList />', () => {
   describe('when there are remote clusters', () => {
     let find;
     let exists;
-    let component;
     let table;
     let actions;
     let tableCellsValues;
@@ -217,10 +213,8 @@ describe('<RemoteClusterList />', () => {
       httpRequestsMockHelpers.setLoadRemoteClustersResponse(remoteClusters);
 
       await act(async () => {
-        ({ component, find, exists, table, actions } = await setup(httpSetup));
+        ({ find, exists, table, actions } = await setup(httpSetup));
       });
-
-      component.update();
 
       // Read the remote clusters list table
       ({ rows, tableCellsValues } = table.getMetaData('remoteClusterListTable'));
@@ -275,49 +269,48 @@ describe('<RemoteClusterList />', () => {
     });
 
     test('should have a tooltip to indicate that the cluster has been defined in elasticsearch.yml', () => {
-      const secondRow = rows[1].reactWrapper; // The second cluster has been defined by node
+      const secondRow = rows[1].element; // The second cluster has been defined by node
       expect(
-        findTestSubject(secondRow, 'remoteClustersTableListClusterDefinedByNodeTooltip').length
-      ).toBe(1);
+        within(secondRow).queryByTestId('remoteClustersTableListClusterDefinedByNodeTooltip')
+      ).toBeInTheDocument();
     });
 
     test('should have a tooltip to indicate that the cluster has a deprecated setting', () => {
-      const thirdRow = rows[2].reactWrapper; // The third cluster has been defined with deprecated setting
+      const thirdRow = rows[2].element; // The third cluster has been defined with deprecated setting
       expect(
-        findTestSubject(thirdRow, 'remoteClustersTableListClusterWithDeprecatedSettingTooltip')
-          .length
-      ).toBe(1);
+        within(thirdRow).queryByTestId('remoteClustersTableListClusterWithDeprecatedSettingTooltip')
+      ).toBeInTheDocument();
     });
 
     test('should have a tooltip to indicate that the cluster is using an old security model', () => {
-      const secondRow = rows[1].reactWrapper;
-      expect(findTestSubject(secondRow, 'authenticationTypeWarning').length).toBe(1);
+      const secondRow = rows[1].element;
+      expect(within(secondRow).queryByTestId('authenticationTypeWarning')).toBeInTheDocument();
     });
 
     describe('bulk delete button', () => {
-      test('should be visible when a remote cluster is selected', () => {
+      test('should be visible when a remote cluster is selected', async () => {
         expect(exists('remoteClusterBulkDeleteButton')).toBe(false);
 
-        actions.selectRemoteClusterAt(0);
+        await actions.selectRemoteClusterAt(0);
 
         expect(exists('remoteClusterBulkDeleteButton')).toBe(true);
       });
 
-      test('should update the button label if more than 1 remote cluster is selected', () => {
-        actions.selectRemoteClusterAt(0);
+      test('should update the button label if more than 1 remote cluster is selected', async () => {
+        await actions.selectRemoteClusterAt(0);
 
         const button = find('remoteClusterBulkDeleteButton');
-        expect(button.text()).toEqual('Remove remote cluster');
+        expect(button.textContent).toEqual('Remove remote cluster');
 
-        actions.selectRemoteClusterAt(1);
-        expect(button.text()).toEqual('Remove 2 remote clusters');
+        await actions.selectRemoteClusterAt(1);
+        expect(button.textContent).toEqual('Remove 2 remote clusters');
       });
 
-      test('should open a confirmation modal when clicking on it', () => {
+      test('should open a confirmation modal when clicking on it', async () => {
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(false);
 
-        actions.selectRemoteClusterAt(0);
-        actions.clickBulkDeleteButton();
+        await actions.selectRemoteClusterAt(0);
+        await actions.clickBulkDeleteButton();
 
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(true);
       });
@@ -326,19 +319,19 @@ describe('<RemoteClusterList />', () => {
     describe('table row actions', () => {
       test('should have a "delete" and an "edit" action button on each row', () => {
         const indexLastColumn = rows[0].columns.length - 1;
-        const tableCellActions = rows[0].columns[indexLastColumn].reactWrapper;
+        const tableCellActions = rows[0].columns[indexLastColumn].element;
 
-        const deleteButton = findTestSubject(tableCellActions, 'remoteClusterTableRowRemoveButton');
-        const editButton = findTestSubject(tableCellActions, 'remoteClusterTableRowEditButton');
+        const deleteButton = within(tableCellActions).queryByTestId('remoteClusterTableRowRemoveButton');
+        const editButton = within(tableCellActions).queryByTestId('remoteClusterTableRowEditButton');
 
-        expect(deleteButton.length).toBe(1);
-        expect(editButton.length).toBe(1);
+        expect(deleteButton).toBeInTheDocument();
+        expect(editButton).toBeInTheDocument();
       });
 
       test('should open a confirmation modal when clicking on "delete" button', async () => {
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(false);
 
-        actions.clickRowActionButtonAt(0, 'delete');
+        await actions.clickRowActionButtonAt(0, 'delete');
 
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(true);
       });
@@ -355,15 +348,13 @@ describe('<RemoteClusterList />', () => {
         // Make sure that we have our 3 remote clusters in the table
         expect(rows.length).toBe(3);
 
-        actions.selectRemoteClusterAt(0);
-        actions.clickBulkDeleteButton();
-        actions.clickConfirmModalDeleteRemoteCluster();
+        await actions.selectRemoteClusterAt(0);
+        await actions.clickBulkDeleteButton();
+        await actions.clickConfirmModalDeleteRemoteCluster();
 
         await act(async () => {
           jest.advanceTimersByTime(600); // there is a 500ms timeout in the api action
         });
-
-        component.update();
 
         ({ rows } = table.getMetaData('remoteClusterListTable'));
 
@@ -373,63 +364,70 @@ describe('<RemoteClusterList />', () => {
     });
 
     describe('detail panel', () => {
-      test('should open a detail panel when clicking on a remote cluster', () => {
+      test('should open a detail panel when clicking on a remote cluster', async () => {
         expect(exists('remoteClusterDetailFlyout')).toBe(false);
 
-        actions.clickRemoteClusterAt(0);
+        await actions.clickRemoteClusterAt(0);
 
         expect(exists('remoteClusterDetailFlyout')).toBe(true);
       });
 
-      test('should set the title to the remote cluster selected', () => {
-        actions.clickRemoteClusterAt(0); // Select remote cluster and open the detail panel
-        expect(find('remoteClusterDetailsFlyoutTitle').text()).toEqual(remoteCluster1.name);
+      test('should set the title to the remote cluster selected', async () => {
+        await actions.clickRemoteClusterAt(0); // Select remote cluster and open the detail panel
+        expect(find('remoteClusterDetailsFlyoutTitle').textContent).toEqual(remoteCluster1.name);
       });
 
-      test('should have a "Status" section', () => {
-        actions.clickRemoteClusterAt(0);
-        expect(find('remoteClusterDetailPanelStatusSection').find('h3').text()).toEqual('Status');
+      test('should have a "Status" section', async () => {
+        await actions.clickRemoteClusterAt(0);
+        const statusSection = find('remoteClusterDetailPanelStatusSection');
+        expect(within(statusSection).getByRole('heading', { level: 3 }).textContent).toEqual('Status');
         expect(exists('remoteClusterDetailPanelStatusValues')).toBe(true);
       });
 
-      test('should set the correct remote cluster status values', () => {
-        actions.clickRemoteClusterAt(0);
+      test('should set the correct remote cluster status values', async () => {
+        await actions.clickRemoteClusterAt(0);
 
-        expect(find('remoteClusterDetailIsConnected').text()).toEqual('Connected');
-        expect(find('remoteClusterDetailConnectedNodesCount').text()).toEqual(
+        expect(find('remoteClusterDetailIsConnected').textContent).toEqual('Connected');
+        expect(find('remoteClusterDetailConnectedNodesCount').textContent).toEqual(
           remoteCluster1.connectedNodesCount.toString()
         );
-        expect(find('remoteClusterDetailSeeds').text()).toEqual(remoteCluster1.seeds.join(' '));
-        expect(find('remoteClusterDetailSkipUnavailable').text()).toEqual('No');
-        expect(find('remoteClusterDetailMaxConnections').text()).toEqual(
+        expect(find('remoteClusterDetailSeeds').textContent).toEqual(remoteCluster1.seeds.join(' '));
+        expect(find('remoteClusterDetailSkipUnavailable').textContent).toEqual('No');
+        expect(find('remoteClusterDetailMaxConnections').textContent).toEqual(
           remoteCluster1.maxConnectionsPerCluster.toString()
         );
-        expect(find('remoteClusterDetailInitialConnectTimeout').text()).toEqual(
+        expect(find('remoteClusterDetailInitialConnectTimeout').textContent).toEqual(
           remoteCluster1.initialConnectTimeout
         );
       });
 
-      test('should have a "close", "delete" and "edit" button in the footer', () => {
-        actions.clickRemoteClusterAt(0);
+      test('should have a "close", "delete" and "edit" button in the footer', async () => {
+        await actions.clickRemoteClusterAt(0);
         expect(exists('remoteClusterDetailsPanelCloseButton')).toBe(true);
         expect(exists('remoteClusterDetailPanelRemoveButton')).toBe(true);
         expect(exists('remoteClusterDetailPanelEditButton')).toBe(true);
       });
 
-      test('should close the detail panel when clicking the "close" button', () => {
-        actions.clickRemoteClusterAt(0); // open the detail panel
+      test('should close the detail panel when clicking the "close" button', async () => {
+        await actions.clickRemoteClusterAt(0); // open the detail panel
         expect(exists('remoteClusterDetailFlyout')).toBe(true);
 
-        find('remoteClusterDetailsPanelCloseButton').simulate('click');
+        const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+        await act(async () => {
+          await user.click(find('remoteClusterDetailsPanelCloseButton'));
+        });
 
         expect(exists('remoteClusterDetailFlyout')).toBe(false);
       });
 
-      test('should open a confirmation modal when clicking the "delete" button', () => {
-        actions.clickRemoteClusterAt(0);
+      test('should open a confirmation modal when clicking the "delete" button', async () => {
+        await actions.clickRemoteClusterAt(0);
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(false);
 
-        find('remoteClusterDetailPanelRemoveButton').simulate('click');
+        const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+        await act(async () => {
+          await user.click(find('remoteClusterDetailPanelRemoveButton'));
+        });
 
         expect(exists('remoteClustersDeleteConfirmModal')).toBe(true);
       });
@@ -437,23 +435,24 @@ describe('<RemoteClusterList />', () => {
       test('should display a "Remote cluster not found" when providing a wrong cluster name', async () => {
         expect(exists('remoteClusterDetailFlyout')).toBe(false);
 
-        getRouter().history.replace({ search: `?cluster=wrong-cluster` });
-        component.update();
+        await act(async () => {
+          getRouter().history.replace({ search: `?cluster=wrong-cluster` });
+        });
 
         expect(exists('remoteClusterDetailFlyout')).toBe(true);
         expect(exists('remoteClusterDetailClusterNotFound')).toBe(true);
       });
 
-      test('should display a warning when the cluster is configured by node', () => {
-        actions.clickRemoteClusterAt(0); // the remoteCluster1 has *not* been configured by node
+      test('should display a warning when the cluster is configured by node', async () => {
+        await actions.clickRemoteClusterAt(0); // the remoteCluster1 has *not* been configured by node
         expect(exists('remoteClusterConfiguredByNodeWarning')).toBe(false);
 
-        actions.clickRemoteClusterAt(1); // the remoteCluster2 has been configured by node
+        await actions.clickRemoteClusterAt(1); // the remoteCluster2 has been configured by node
         expect(exists('remoteClusterConfiguredByNodeWarning')).toBe(true);
       });
 
-      test('Should display authentication type', () => {
-        actions.clickRemoteClusterAt(2);
+      test('Should display authentication type', async () => {
+        await actions.clickRemoteClusterAt(2);
         expect(exists('remoteClusterDetailAuthType')).toBe(true);
       });
     });

@@ -5,18 +5,38 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { Router, Route, Switch } from '@kbn/shared-ux-router';
+import { createMemoryHistory } from 'history';
 import { CrossClusterReplicationHome } from '../../../app/sections/home/home';
 import { ccrStore } from '../../../app/store';
 import { routing } from '../../../app/services/routing';
 
-const testBedConfig = {
-  store: ccrStore,
-  memoryRouter: {
-    initialEntries: [`/follower_indices`],
-    componentRoutePath: `/:section`,
-    onRouter: (router) => (routing.reactRouter = router),
-  },
-};
+export const setup = (props = {}) => {
+  const history = createMemoryHistory({ initialEntries: ['/follower_indices'] });
+  routing.reactRouter = {
+    history,
+    route: {
+      location: history.location,
+      match: { path: '/:section', url: '/follower_indices', isExact: true, params: { section: 'follower_indices' } },
+    },
+  };
 
-export const setup = registerTestBed(CrossClusterReplicationHome, testBedConfig);
+  const renderResult = render(
+    <Provider store={ccrStore}>
+      <Router history={history}>
+        <Switch>
+          <Route path="/:section" component={CrossClusterReplicationHome} />
+        </Switch>
+      </Router>
+    </Provider>
+  );
+
+  return {
+    ...renderResult,
+    find: (testSubject) => screen.getByTestId(testSubject),
+    exists: (testSubject) => screen.queryByTestId(testSubject) !== null,
+  };
+};

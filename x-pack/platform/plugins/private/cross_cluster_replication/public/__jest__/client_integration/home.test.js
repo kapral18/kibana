@@ -5,64 +5,74 @@
  * 2.0.
  */
 
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import './mocks';
-import { setupEnvironment, pageHelpers, nextTick } from './helpers';
+import { setupEnvironment, pageHelpers } from './helpers';
 
 const { setup } = pageHelpers.home;
 
 describe('<CrossClusterReplicationHome />', () => {
   let httpRequestsMockHelpers;
-  let find;
-  let exists;
-  let component;
+  let user;
 
   beforeAll(() => {
+    jest.useFakeTimers();
     ({ httpRequestsMockHelpers } = setupEnvironment());
   });
 
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
+    jest.clearAllMocks();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     // Set "default" mock responses by not providing any arguments
     httpRequestsMockHelpers.setLoadFollowerIndicesResponse();
   });
 
   describe('on component mount', () => {
-    beforeEach(async () => {
-      ({ exists, find, component } = setup());
+    beforeEach(() => {
+      setup();
     });
 
     test('should set the correct app title', () => {
-      expect(exists('appTitle')).toBe(true);
-      expect(find('appTitle').text()).toEqual('Cross-Cluster Replication');
+      expect(screen.getByTestId('appTitle')).toBeInTheDocument();
+      expect(screen.getByTestId('appTitle')).toHaveTextContent('Cross-Cluster Replication');
     });
 
     test('should have 2 tabs to switch between "Follower indices" & "Auto-follow patterns"', () => {
-      expect(exists('followerIndicesTab')).toBe(true);
-      expect(find('followerIndicesTab').text()).toEqual('Follower indices');
+      expect(screen.getByTestId('followerIndicesTab')).toBeInTheDocument();
+      expect(screen.getByTestId('followerIndicesTab')).toHaveTextContent('Follower indices');
 
-      expect(exists('autoFollowPatternsTab')).toBe(true);
-      expect(find('autoFollowPatternsTab').text()).toEqual('Auto-follow patterns');
+      expect(screen.getByTestId('autoFollowPatternsTab')).toBeInTheDocument();
+      expect(screen.getByTestId('autoFollowPatternsTab')).toHaveTextContent('Auto-follow patterns');
     });
 
     test('should set the default selected tab to "Follower indices"', () => {
-      expect(component.find('button.euiTab-isSelected').text()).toBe('Follower indices');
+      const selectedTab = screen.getByRole('tab', { selected: true });
+      expect(selectedTab).toHaveTextContent('Follower indices');
 
-      // Verify that the <FollowerIndicesList /> component is rendered
-      expect(component.find('FollowerIndicesList').length).toBe(1);
+      // Verify that the follower indices content is rendered
+      expect(screen.getByTestId('followerIndexListTable')).toBeInTheDocument();
     });
   });
 
   describe('section change', () => {
     test('should change to auto-follow pattern', async () => {
-      const autoFollowPatternsTab = find('autoFollowPatternsTab');
+      setup();
 
-      autoFollowPatternsTab.simulate('click');
-      await nextTick();
-      component.update();
+      const autoFollowPatternsTab = screen.getByTestId('autoFollowPatternsTab');
+      await user.click(autoFollowPatternsTab);
 
-      expect(component.find('button.euiTab-isSelected').text()).toBe('Auto-follow patterns');
+      await waitFor(() => {
+        const selectedTab = screen.getByRole('tab', { selected: true });
+        expect(selectedTab).toHaveTextContent('Auto-follow patterns');
+      });
 
-      // Verify that the <AutoFollowPatternList /> component is rendered
-      expect(component.find('AutoFollowPatternList').length).toBe(1);
+      // Verify that the auto-follow patterns content is rendered
+      expect(screen.getByTestId('autoFollowPatternListTable')).toBeInTheDocument();
     });
   });
 });

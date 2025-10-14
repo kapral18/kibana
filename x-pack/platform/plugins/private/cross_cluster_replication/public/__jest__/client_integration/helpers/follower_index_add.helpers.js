@@ -5,38 +5,64 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { Router } from '@kbn/shared-ux-router';
+import { createMemoryHistory } from 'history';
 import { FollowerIndexAdd } from '../../../app/sections/follower_index_add';
 import { ccrStore } from '../../../app/store';
 import { routing } from '../../../app/services/routing';
 
-const testBedConfig = {
-  store: ccrStore,
-  memoryRouter: {
-    onRouter: (router) =>
-      (routing.reactRouter = {
-        ...router,
-        getUrlForApp: () => '',
-      }),
-  },
-};
+export const setup = (props = {}) => {
+  const history = createMemoryHistory();
+  routing.reactRouter = {
+    history,
+    route: {
+      location: history.location,
+      match: { path: '/', url: '/', isExact: true, params: {} },
+    },
+    getUrlForApp: () => '',
+  };
 
-const initTestBed = registerTestBed(FollowerIndexAdd, testBedConfig);
-
-export const setup = (props) => {
-  const testBed = initTestBed(props);
+  const renderResult = render(
+    <Provider store={ccrStore}>
+      <Router history={history}>
+        <FollowerIndexAdd {...props} />
+      </Router>
+    </Provider>
+  );
 
   // User actions
   const clickSaveForm = () => {
-    testBed.find('submitButton').simulate('click');
+    const submitButton = screen.getByTestId('submitButton');
+    fireEvent.click(submitButton);
   };
 
   const toggleAdvancedSettings = () => {
-    testBed.form.toggleEuiSwitch('advancedSettingsToggle');
+    const toggle = screen.getByTestId('advancedSettingsToggle');
+    fireEvent.click(toggle);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    find: (testSubject) => screen.getByTestId(testSubject),
+    exists: (testSubject) => screen.queryByTestId(testSubject) !== null,
+    form: {
+      setInputValue: (testSubject, value) => {
+        const input = screen.getByTestId(testSubject);
+        fireEvent.change(input, { target: { value } });
+        fireEvent.blur(input);
+      },
+      getErrorsMessages: () => {
+        const errors = screen.queryAllByText(/is required|are not allowed|can't begin|Remove the characters/i);
+        return errors.map((error) => error.textContent);
+      },
+      toggleEuiSwitch: (testSubject) => {
+        const toggle = screen.getByTestId(testSubject);
+        fireEvent.click(toggle);
+      },
+    },
     actions: {
       clickSaveForm,
       toggleAdvancedSettings,

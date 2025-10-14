@@ -4,118 +4,100 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { act } from 'react-dom/test-utils';
 
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { Router } from '@kbn/shared-ux-router';
+import { createMemoryHistory } from 'history';
 import { FollowerIndicesList } from '../../../app/sections/home/follower_indices_list';
 import { ccrStore } from '../../../app/store';
 import { routing } from '../../../app/services/routing';
 
-const testBedConfig = {
-  store: ccrStore,
-  memoryRouter: {
-    onRouter: (router) =>
-      (routing.reactRouter = {
-        history: {
-          ...router.history,
-          parentHistory: {
-            createHref: () => '',
-            push: () => {},
-          },
-        },
-        getUrlForApp: () => '',
-      }),
-  },
-};
+export const setup = (props = {}) => {
+  const history = createMemoryHistory();
+  routing.reactRouter = {
+    history: {
+      ...history,
+      parentHistory: {
+        createHref: () => '',
+        push: () => {},
+      },
+    },
+    getUrlForApp: () => '',
+  };
 
-const initTestBed = registerTestBed(FollowerIndicesList, testBedConfig);
+  const renderResult = render(
+    <Provider store={ccrStore}>
+      <Router history={history}>
+        <FollowerIndicesList {...props} />
+      </Router>
+    </Provider>
+  );
 
-export const setup = (props) => {
-  const testBed = initTestBed(props);
   const EUI_TABLE = 'followerIndexListTable';
 
   /**
    * User Actions
    */
 
-  const selectFollowerIndexAt = async (index = 0) => {
-    const { table, component } = testBed;
-    const { rows } = table.getMetaData(EUI_TABLE);
-    const row = rows[index];
-    const checkBox = row.reactWrapper.find('input').hostNodes();
-
-    await act(async () => {
-      checkBox.simulate('change', { target: { checked: true } });
-    });
-
-    component.update();
+  const selectFollowerIndexAt = (index = 0) => {
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const checkbox = within(rows[index]).getByRole('checkbox');
+    fireEvent.click(checkbox);
   };
 
-  const openContextMenu = async () => {
-    const { find, component } = testBed;
-
-    await act(async () => {
-      find('contextMenuButton').simulate('click');
-    });
-
-    component.update();
+  const openContextMenu = () => {
+    const button = screen.getByTestId('contextMenuButton');
+    fireEvent.click(button);
   };
 
-  const clickContextMenuButtonAt = async (index = 0) => {
-    const { find, component } = testBed;
-
-    const contextMenu = find('contextMenu');
-
-    await act(async () => {
-      contextMenu.find('button').at(index).simulate('click');
-    });
-
-    component.update();
+  const clickContextMenuButtonAt = (index = 0) => {
+    const contextMenu = screen.getByTestId('contextMenu');
+    const buttons = within(contextMenu).getAllByRole('button');
+    fireEvent.click(buttons[index]);
   };
 
-  const openTableRowContextMenuAt = async (index = 0) => {
-    const { table, component } = testBed;
-    const { rows } = table.getMetaData(EUI_TABLE);
-    const actionsColumnIndex = rows[0].columns.length - 1; // Actions are in the last column
-    const actionsTableCell = rows[index].columns[actionsColumnIndex];
-    const button = actionsTableCell.reactWrapper.find('button');
-    if (!button.length) {
+  const openTableRowContextMenuAt = (index = 0) => {
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const buttons = within(rows[index]).getAllByRole('button');
+    const actionButton = buttons[buttons.length - 1]; // Actions are in the last column
+    if (!actionButton) {
       throw new Error(
         `No button to open context menu were found on Follower index list table row ${index}`
       );
     }
-
-    await act(async () => {
-      button.simulate('click');
-    });
-
-    component.update();
+    fireEvent.click(actionButton);
   };
 
-  const clickFollowerIndexAt = async (index = 0) => {
-    const { table, component } = testBed;
-    const { rows } = table.getMetaData(EUI_TABLE);
-    const followerIndexLink = findTestSubject(rows[index].reactWrapper, 'followerIndexLink');
-
-    await act(async () => {
-      followerIndexLink.simulate('click');
-    });
-
-    component.update();
+  const clickFollowerIndexAt = (index = 0) => {
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const link = within(rows[index]).getByTestId('followerIndexLink');
+    fireEvent.click(link);
   };
 
-  const clickPaginationNextButton = async () => {
-    const { find, component } = testBed;
-
-    await act(async () => {
-      find('followerIndexListTable.pagination-button-next').simulate('click');
-    });
-
-    component.update();
+  const clickPaginationNextButton = () => {
+    const nextButton = screen.getByTestId('followerIndexListTable.pagination-button-next');
+    fireEvent.click(nextButton);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    find: (testSubject) => screen.getByTestId(testSubject),
+    exists: (testSubject) => screen.queryByTestId(testSubject) !== null,
+    table: {
+      getMetaData: (testSubject) => {
+        const table = screen.getByTestId(testSubject);
+        const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+        const tableCellsValues = rows.map((row) => {
+          return within(row).getAllByRole('cell').map((cell) => cell.textContent || '');
+        });
+        return { tableCellsValues };
+      },
+    },
     actions: {
       selectFollowerIndexAt,
       openContextMenu,

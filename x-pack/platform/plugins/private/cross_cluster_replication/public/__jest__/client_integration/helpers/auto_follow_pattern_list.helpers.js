@@ -5,33 +5,36 @@
  * 2.0.
  */
 
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { Router } from '@kbn/shared-ux-router';
+import { createMemoryHistory } from 'history';
 import { AutoFollowPatternList } from '../../../app/sections/home/auto_follow_pattern_list';
 import { ccrStore } from '../../../app/store';
 import { routing } from '../../../app/services/routing';
 
-const testBedConfig = {
-  store: ccrStore,
-  memoryRouter: {
-    onRouter: (router) =>
-      (routing.reactRouter = {
-        ...router,
-        history: {
-          ...router.history,
-          parentHistory: {
-            createHref: () => '',
-            push: () => {},
-          },
-        },
-        getUrlForApp: () => '',
-      }),
-  },
-};
+export const setup = (props = {}) => {
+  const history = createMemoryHistory();
+  routing.reactRouter = {
+    history: {
+      ...history,
+      parentHistory: {
+        createHref: () => '',
+        push: () => {},
+      },
+    },
+    getUrlForApp: () => '',
+  };
 
-const initTestBed = registerTestBed(AutoFollowPatternList, testBedConfig);
+  const renderResult = render(
+    <Provider store={ccrStore}>
+      <Router history={history}>
+        <AutoFollowPatternList {...props} />
+      </Router>
+    </Provider>
+  );
 
-export const setup = (props) => {
-  const testBed = initTestBed(props);
   const EUI_TABLE = 'autoFollowPatternListTable';
 
   /**
@@ -39,24 +42,28 @@ export const setup = (props) => {
    */
 
   const selectAutoFollowPatternAt = (index = 0) => {
-    const { rows } = testBed.table.getMetaData(EUI_TABLE);
-    const row = rows[index];
-    const checkBox = row.reactWrapper.find('input').hostNodes();
-    checkBox.simulate('change', { target: { checked: true } });
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const checkbox = within(rows[index]).getByRole('checkbox');
+    fireEvent.click(checkbox);
   };
 
   const getPatternsActionMenuItem = (index = 0) => {
-    testBed.find('autoFollowPatternActionMenuButton').simulate('click');
-    const contextMenu = testBed.find('autoFollowPatternActionContextMenu');
-    return contextMenu.find('button').at(index);
+    const button = screen.getByTestId('autoFollowPatternActionMenuButton');
+    fireEvent.click(button);
+    const contextMenu = screen.getByTestId('autoFollowPatternActionContextMenu');
+    const buttons = within(contextMenu).getAllByRole('button');
+    return buttons[index];
   };
 
   const clickPatternsActionMenuItem = (index = 0) => {
-    getPatternsActionMenuItem(index).simulate('click');
+    const button = getPatternsActionMenuItem(index);
+    fireEvent.click(button);
   };
 
   const getPatternsActionMenuItemText = (index = 0) => {
-    return getPatternsActionMenuItem(index).text();
+    const button = getPatternsActionMenuItem(index);
+    return button.textContent || '';
   };
 
   const clickBulkDeleteButton = () => {
@@ -64,44 +71,63 @@ export const setup = (props) => {
   };
 
   const clickConfirmModalDeleteAutoFollowPattern = () => {
-    const modal = testBed.find('deleteAutoFollowPatternConfirmation');
-    findTestSubject(modal, 'confirmModalConfirmButton').simulate('click');
+    const modal = screen.getByTestId('deleteAutoFollowPatternConfirmation');
+    const confirmButton = within(modal).getByTestId('confirmModalConfirmButton');
+    fireEvent.click(confirmButton);
   };
 
   const clickRowActionButtonAt = (index = 0, action = 'delete') => {
-    const { rows } = testBed.table.getMetaData(EUI_TABLE);
-    const indexLastColumn = rows[index].columns.length - 1;
-    const tableCellActions = rows[index].columns[indexLastColumn].reactWrapper;
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const cells = within(rows[index]).getAllByRole('cell');
+    const lastCell = cells[cells.length - 1];
 
     let button;
     if (action === 'delete') {
-      button = findTestSubject(tableCellActions, 'deleteButton');
+      button = within(lastCell).getByTestId('deleteButton');
     } else if (action === 'edit') {
-      button = findTestSubject(tableCellActions, 'editButton');
+      button = within(lastCell).getByTestId('editButton');
     }
 
     if (!button) {
       throw new Error(`Button for action "${action}" not found.`);
     }
 
-    button.simulate('click');
+    fireEvent.click(button);
   };
 
   const clickAutoFollowPatternAt = (index = 0) => {
-    const { rows } = testBed.table.getMetaData(EUI_TABLE);
-    const autoFollowPatternLink = findTestSubject(
-      rows[index].reactWrapper,
-      'autoFollowPatternLink'
-    );
-    autoFollowPatternLink.simulate('click');
+    const table = screen.getByTestId(EUI_TABLE);
+    const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+    const link = within(rows[index]).getByTestId('autoFollowPatternLink');
+    fireEvent.click(link);
   };
 
   const clickPaginationNextButton = () => {
-    testBed.find('autoFollowPatternListTable.pagination-button-next').simulate('click');
+    const nextButton = screen.getByTestId('autoFollowPatternListTable.pagination-button-next');
+    fireEvent.click(nextButton);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    find: (testSubject) => screen.getByTestId(testSubject),
+    exists: (testSubject) => screen.queryByTestId(testSubject) !== null,
+    table: {
+      getMetaData: (testSubject) => {
+        const table = screen.getByTestId(testSubject);
+        const rows = within(table).getAllByRole('row').slice(1); // Skip header row
+        const tableCellsValues = rows.map((row) => {
+          return within(row).getAllByRole('cell').map((cell) => cell.textContent || '');
+        });
+        return { tableCellsValues };
+      },
+    },
+    form: {
+      setInputValue: (testSubject, value) => {
+        const input = screen.getByTestId(testSubject);
+        fireEvent.change(input, { target: { value } });
+      },
+    },
     actions: {
       selectAutoFollowPatternAt,
       clickBulkDeleteButton,

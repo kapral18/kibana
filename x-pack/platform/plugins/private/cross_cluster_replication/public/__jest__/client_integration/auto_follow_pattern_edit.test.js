@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import { AutoFollowPatternForm } from '../../app/components/auto_follow_pattern_form';
+import { screen, act } from '@testing-library/react';
 import './mocks';
-import { setupEnvironment, pageHelpers, nextTick } from './helpers';
+import { setupEnvironment, pageHelpers } from './helpers';
 import { AUTO_FOLLOW_PATTERN_EDIT, AUTO_FOLLOW_PATTERN_EDIT_NAME } from './helpers/constants';
 
 const { setup } = pageHelpers.autoFollowPatternEdit;
@@ -17,13 +17,19 @@ describe('Edit Auto-follow pattern', () => {
   let httpRequestsMockHelpers;
 
   beforeAll(() => {
+    jest.useFakeTimers();
     ({ httpRequestsMockHelpers } = setupEnvironment());
   });
 
-  describe('on component mount', () => {
-    let find;
-    let component;
+  afterAll(() => {
+    jest.useRealTimers();
+  });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('on component mount', () => {
     const remoteClusters = [
       { name: 'cluster-1', seeds: ['localhost:123'], isConnected: true },
       { name: 'cluster-2', seeds: ['localhost:123'], isConnected: true },
@@ -35,10 +41,11 @@ describe('Edit Auto-follow pattern', () => {
         AUTO_FOLLOW_PATTERN_EDIT_NAME,
         AUTO_FOLLOW_PATTERN_EDIT
       );
-      ({ component, find } = setup());
+      setup();
 
-      await nextTick();
-      component.update();
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
     });
 
     /**
@@ -47,33 +54,29 @@ describe('Edit Auto-follow pattern', () => {
      * the form component is indeed shared between the 2 app sections.
      */
     test('should use the same Form component as the "<AutoFollowPatternAdd />" component', async () => {
-      const { component: addAutofollowPatternComponent } = setupAutoFollowPatternAdd();
+      setupAutoFollowPatternAdd();
 
-      await nextTick();
-      addAutofollowPatternComponent.update();
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
 
-      const formEdit = component.find(AutoFollowPatternForm);
-      const formAdd = addAutofollowPatternComponent.find(AutoFollowPatternForm);
-
-      expect(formEdit.length).toBe(1);
-      expect(formAdd.length).toBe(1);
+      // Both components should render the auto-follow pattern form
+      const forms = screen.getAllByTestId('autoFollowPatternForm');
+      expect(forms.length).toBeGreaterThanOrEqual(2);
     });
 
     test('should populate the form fields with the values from the auto-follow pattern loaded', () => {
-      expect(find('nameInput').props().value).toBe(AUTO_FOLLOW_PATTERN_EDIT.name);
-      expect(find('remoteClusterInput').props().value).toBe(AUTO_FOLLOW_PATTERN_EDIT.remoteCluster);
-      expect(find('indexPatternInput').text()).toBe(
+      expect(screen.getByTestId('nameInput')).toHaveValue(AUTO_FOLLOW_PATTERN_EDIT.name);
+      expect(screen.getByTestId('remoteClusterInput')).toHaveValue(AUTO_FOLLOW_PATTERN_EDIT.remoteCluster);
+      expect(screen.getByTestId('indexPatternInput')).toHaveTextContent(
         AUTO_FOLLOW_PATTERN_EDIT.leaderIndexPatterns.join('')
       );
-      expect(find('prefixInput').props().value).toBe('prefix_');
-      expect(find('suffixInput').props().value).toBe('_suffix');
+      expect(screen.getByTestId('prefixInput')).toHaveValue('prefix_');
+      expect(screen.getByTestId('suffixInput')).toHaveValue('_suffix');
     });
   });
 
   describe('when the remote cluster is disconnected', () => {
-    let find;
-    let exists;
-    let component;
     let actions;
     let form;
 
@@ -85,27 +88,29 @@ describe('Edit Auto-follow pattern', () => {
         AUTO_FOLLOW_PATTERN_EDIT_NAME,
         AUTO_FOLLOW_PATTERN_EDIT
       );
-      ({ component, find, exists, actions, form } = setup());
+      ({ actions, form } = setup());
 
-      await nextTick();
-      component.update();
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
     });
 
     test('should display an error and have a button to edit the remote cluster', () => {
-      const error = find('notConnectedError');
+      const error = screen.getByTestId('notConnectedError');
 
-      expect(error.length).toBe(1);
-      expect(error.find('.euiCallOutHeader__title').last().text()).toBe(
+      expect(error).toBeInTheDocument();
+      const title = error.querySelector('.euiCallOutHeader__title');
+      expect(title).toHaveTextContent(
         `Can't edit auto-follow pattern because remote cluster '${AUTO_FOLLOW_PATTERN_EDIT.remoteCluster}' is not connected`
       );
-      expect(exists('notConnectedError.editButton')).toBe(true);
+      expect(screen.getByTestId('notConnectedError.editButton')).toBeInTheDocument();
     });
 
     test('should prevent saving the form and display an error message for the required remote cluster', () => {
       actions.clickSaveForm();
 
       expect(form.getErrorsMessages()).toEqual(['A connected remote cluster is required.']);
-      expect(find('submitButton').props().disabled).toBe(true);
+      expect(screen.getByTestId('submitButton')).toBeDisabled();
     });
   });
 });

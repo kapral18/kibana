@@ -103,9 +103,6 @@ describe('<FollowerIndicesList />', () => {
   });
 
   describe('when there are follower indices', () => {
-    let find;
-    let exists;
-    let component;
     let table;
     let actions;
     let tableCellsValues;
@@ -123,21 +120,20 @@ describe('<FollowerIndicesList />', () => {
 
       // Mount the component
       await act(async () => {
-        ({ find, exists, component, table, actions } = await setup());
+        ({ table, actions } = setup());
+        await jest.runAllTimersAsync();
       });
-
-      component.update();
 
       // Read the index list table
       ({ tableCellsValues } = table.getMetaData('followerIndexListTable'));
     });
 
     test('should not display the empty prompt', () => {
-      expect(exists('emptyPrompt')).toBe(false);
+      expect(screen.queryByTestId('emptyPrompt')).not.toBeInTheDocument();
     });
 
     test('should have a button to create a follower index', () => {
-      expect(exists('createFollowerIndexButton')).toBe(true);
+      expect(screen.getByTestId('createFollowerIndexButton')).toBeInTheDocument();
     });
 
     test('should list the follower indices in the table', () => {
@@ -156,23 +152,21 @@ describe('<FollowerIndicesList />', () => {
     });
 
     describe('action menu', () => {
-      test('should be visible when a follower index is selected', async () => {
-        expect(exists('contextMenuButton')).toBe(false);
+      test('should be visible when a follower index is selected', () => {
+        expect(screen.queryByTestId('contextMenuButton')).not.toBeInTheDocument();
 
-        await actions.selectFollowerIndexAt(0);
+        actions.selectFollowerIndexAt(0);
 
-        expect(exists('contextMenuButton')).toBe(true);
+        expect(screen.getByTestId('contextMenuButton')).toBeInTheDocument();
       });
 
-      test('should have a "pause", "edit" and "unfollow" action when the follower index is active', async () => {
-        await actions.selectFollowerIndexAt(0);
-        await actions.openContextMenu();
+      test('should have a "pause", "edit" and "unfollow" action when the follower index is active', () => {
+        actions.selectFollowerIndexAt(0);
+        actions.openContextMenu();
 
-        const contextMenu = find('contextMenu');
-
-        expect(contextMenu.length).toBe(1);
-        const contextMenuButtons = contextMenu.find('button');
-        const buttonsLabel = contextMenuButtons.map((btn) => btn.text());
+        const contextMenu = screen.getByTestId('contextMenu');
+        const buttons = contextMenu.querySelectorAll('button');
+        const buttonsLabel = Array.from(buttons).map((btn) => btn.textContent);
 
         expect(buttonsLabel).toEqual([
           'Pause replication',
@@ -181,14 +175,14 @@ describe('<FollowerIndicesList />', () => {
         ]);
       });
 
-      test('should have a "resume", "edit" and "unfollow" action when the follower index is active', async () => {
-        await actions.selectFollowerIndexAt(1); // Select the second follower that is "paused"
-        await actions.openContextMenu();
+      test('should have a "resume", "edit" and "unfollow" action when the follower index is active', () => {
+        actions.selectFollowerIndexAt(1); // Select the second follower that is "paused"
+        actions.openContextMenu();
 
-        const contextMenu = find('contextMenu');
-
-        const contextMenuButtons = contextMenu.find('button');
-        const buttonsLabel = contextMenuButtons.map((btn) => btn.text());
+        const contextMenu = screen.getByTestId('contextMenu');
+        const buttons = contextMenu.querySelectorAll('button');
+        const buttonsLabel = Array.from(buttons).map((btn) => btn.textContent);
+        
         expect(buttonsLabel).toEqual([
           'Resume replication',
           'Edit follower index',
@@ -196,43 +190,42 @@ describe('<FollowerIndicesList />', () => {
         ]);
       });
 
-      test('should open a confirmation modal when clicking on "pause replication"', async () => {
-        expect(exists('pauseReplicationConfirmation')).toBe(false);
+      test('should open a confirmation modal when clicking on "pause replication"', () => {
+        expect(screen.queryByTestId('pauseReplicationConfirmation')).not.toBeInTheDocument();
 
-        await actions.selectFollowerIndexAt(0);
-        await actions.openContextMenu();
-        await actions.clickContextMenuButtonAt(0); // first button is the "pause" action
+        actions.selectFollowerIndexAt(0);
+        actions.openContextMenu();
+        actions.clickContextMenuButtonAt(0); // first button is the "pause" action
 
-        expect(exists('pauseReplicationConfirmation')).toBe(true);
+        expect(screen.getByTestId('pauseReplicationConfirmation')).toBeInTheDocument();
       });
 
-      test('should open a confirmation modal when clicking on "unfollow leader index"', async () => {
-        expect(exists('unfollowLeaderConfirmation')).toBe(false);
+      test('should open a confirmation modal when clicking on "unfollow leader index"', () => {
+        expect(screen.queryByTestId('unfollowLeaderConfirmation')).not.toBeInTheDocument();
 
-        await actions.selectFollowerIndexAt(0);
-        await actions.openContextMenu();
-        await actions.clickContextMenuButtonAt(2); // third button is the "unfollow" action
+        actions.selectFollowerIndexAt(0);
+        actions.openContextMenu();
+        actions.clickContextMenuButtonAt(2); // third button is the "unfollow" action
 
-        expect(exists('unfollowLeaderConfirmation')).toBe(true);
+        expect(screen.getByTestId('unfollowLeaderConfirmation')).toBeInTheDocument();
       });
     });
 
     describe('table row action menu', () => {
-      test('should open a context menu when clicking on the button of each row', async () => {
-        expect(component.find('div.euiContextMenuPanel').length).toBe(0);
+      test('should open a context menu when clicking on the button of each row', () => {
+        expect(document.querySelectorAll('div.euiContextMenuPanel').length).toBe(0);
 
-        await actions.openTableRowContextMenuAt(0);
+        actions.openTableRowContextMenuAt(0);
 
-        expect(component.find('div.euiContextMenuPanel').length).toBe(1);
+        expect(document.querySelectorAll('div.euiContextMenuPanel').length).toBe(1);
       });
 
-      test('should have the "pause", "edit" and "unfollow" options in the row context menu', async () => {
-        await actions.openTableRowContextMenuAt(0);
+      test('should have the "pause", "edit" and "unfollow" options in the row context menu', () => {
+        actions.openTableRowContextMenuAt(0);
 
-        const buttonLabels = component
-          .find('div.euiContextMenuPanel')
-          .find('button.euiContextMenuItem')
-          .map((button) => button.text());
+        const panel = document.querySelector('div.euiContextMenuPanel');
+        const buttons = panel.querySelectorAll('button.euiContextMenuItem');
+        const buttonLabels = Array.from(buttons).map((button) => button.textContent);
 
         expect(buttonLabels).toEqual([
           'Pause replication',
@@ -241,14 +234,13 @@ describe('<FollowerIndicesList />', () => {
         ]);
       });
 
-      test('should have the "resume", "edit" and "unfollow" options in the row context menu', async () => {
+      test('should have the "resume", "edit" and "unfollow" options in the row context menu', () => {
         // We open the context menu of the second row (index 1) as followerIndices[1].status is "paused"
-        await actions.openTableRowContextMenuAt(1);
+        actions.openTableRowContextMenuAt(1);
 
-        const buttonLabels = component
-          .find('div.euiContextMenuPanel')
-          .find('button.euiContextMenuItem')
-          .map((button) => button.text());
+        const panel = document.querySelector('div.euiContextMenuPanel');
+        const buttons = panel.querySelectorAll('button.euiContextMenuItem');
+        const buttonLabels = Array.from(buttons).map((button) => button.textContent);
 
         expect(buttonLabels).toEqual([
           'Resume replication',
@@ -257,78 +249,70 @@ describe('<FollowerIndicesList />', () => {
         ]);
       });
 
-      test('should open a confirmation modal when clicking on "pause replication"', async () => {
-        expect(exists('pauseReplicationConfirmation')).toBe(false);
+      test('should open a confirmation modal when clicking on "pause replication"', () => {
+        expect(screen.queryByTestId('pauseReplicationConfirmation')).not.toBeInTheDocument();
 
-        await actions.openTableRowContextMenuAt(0);
+        actions.openTableRowContextMenuAt(0);
 
-        await act(async () => {
-          find('pauseButton').simulate('click');
-        });
+        const pauseButton = screen.getByTestId('pauseButton');
+        pauseButton.click();
 
-        component.update();
-
-        expect(exists('pauseReplicationConfirmation')).toBe(true);
+        expect(screen.getByTestId('pauseReplicationConfirmation')).toBeInTheDocument();
       });
 
-      test('should open a confirmation modal when clicking on "resume"', async () => {
-        expect(exists('resumeReplicationConfirmation')).toBe(false);
+      test('should open a confirmation modal when clicking on "resume"', () => {
+        expect(screen.queryByTestId('resumeReplicationConfirmation')).not.toBeInTheDocument();
 
-        await actions.openTableRowContextMenuAt(1); // open the second row context menu, as it is a "paused" follower index
+        actions.openTableRowContextMenuAt(1); // open the second row context menu, as it is a "paused" follower index
 
-        await act(async () => {
-          find('resumeButton').simulate('click');
-        });
+        const resumeButton = screen.getByTestId('resumeButton');
+        resumeButton.click();
 
-        component.update();
-
-        expect(exists('resumeReplicationConfirmation')).toBe(true);
+        expect(screen.getByTestId('resumeReplicationConfirmation')).toBeInTheDocument();
       });
 
-      test('should open a confirmation modal when clicking on "unfollow leader index"', async () => {
-        expect(exists('unfollowLeaderConfirmation')).toBe(false);
+      test('should open a confirmation modal when clicking on "unfollow leader index"', () => {
+        expect(screen.queryByTestId('unfollowLeaderConfirmation')).not.toBeInTheDocument();
 
-        await actions.openTableRowContextMenuAt(0);
+        actions.openTableRowContextMenuAt(0);
 
-        await act(async () => {
-          find('unfollowButton').simulate('click');
-        });
+        const unfollowButton = screen.getByTestId('unfollowButton');
+        unfollowButton.click();
 
-        component.update();
-
-        expect(exists('unfollowLeaderConfirmation')).toBe(true);
+        expect(screen.getByTestId('unfollowLeaderConfirmation')).toBeInTheDocument();
       });
     });
 
     // FLAKY: https://github.com/elastic/kibana/issues/142774
     describe.skip('detail panel', () => {
-      test('should open a detail panel when clicking on a follower index', async () => {
-        expect(exists('followerIndexDetail')).toBe(false);
+      test('should open a detail panel when clicking on a follower index', () => {
+        expect(screen.queryByTestId('followerIndexDetail')).not.toBeInTheDocument();
 
-        await actions.clickFollowerIndexAt(0);
+        actions.clickFollowerIndexAt(0);
 
-        expect(exists('followerIndexDetail')).toBe(true);
+        expect(screen.getByTestId('followerIndexDetail')).toBeInTheDocument();
       });
 
-      test('should set the title the index that has been selected', async () => {
-        await actions.clickFollowerIndexAt(0); // Open the detail panel
-        expect(find('followerIndexDetail.title').text()).toEqual(index1.name);
+      test('should set the title the index that has been selected', () => {
+        actions.clickFollowerIndexAt(0); // Open the detail panel
+        expect(screen.getByTestId('followerIndexDetail.title')).toHaveTextContent(index1.name);
       });
 
-      test('should indicate the correct "status", "remote cluster" and "leader index"', async () => {
-        await actions.clickFollowerIndexAt(0);
-        expect(find('followerIndexDetail.status').text()).toEqual(index1.status);
-        expect(find('followerIndexDetail.remoteCluster').text()).toEqual(index1.remoteCluster);
-        expect(find('followerIndexDetail.leaderIndex').text()).toEqual(index1.leaderIndex);
+      test('should indicate the correct "status", "remote cluster" and "leader index"', () => {
+        actions.clickFollowerIndexAt(0);
+        expect(screen.getByTestId('followerIndexDetail.status')).toHaveTextContent(index1.status);
+        expect(screen.getByTestId('followerIndexDetail.remoteCluster')).toHaveTextContent(index1.remoteCluster);
+        expect(screen.getByTestId('followerIndexDetail.leaderIndex')).toHaveTextContent(index1.leaderIndex);
       });
 
-      test('should have a "settings" section', async () => {
-        await actions.clickFollowerIndexAt(0);
-        expect(find('followerIndexDetail.settingsSection').find('h3').text()).toEqual('Settings');
-        expect(find('followerIndexDetail.settingsValues').length).toBeGreaterThan(0);
+      test('should have a "settings" section', () => {
+        actions.clickFollowerIndexAt(0);
+        const settingsSection = screen.getByTestId('followerIndexDetail.settingsSection');
+        expect(settingsSection.querySelector('h3')).toHaveTextContent('Settings');
+        expect(screen.queryByTestId('followerIndexDetail.settingsValues')).toBeInTheDocument();
       });
 
-      test('should set the correct follower index settings values', async () => {
+      test('should set the correct follower index settings values', () => {
         const mapSettingsToFollowerIndexProp = {
           maxReadReqOpCount: 'maxReadRequestOperationCount',
           maxOutstandingReadReq: 'maxOutstandingReadRequests',
@@ -342,33 +326,33 @@ describe('<FollowerIndicesList />', () => {
           readPollTimeout: 'readPollTimeout',
         };
 
-        await actions.clickFollowerIndexAt(0);
+        actions.clickFollowerIndexAt(0);
 
         Object.entries(mapSettingsToFollowerIndexProp).forEach(([setting, prop]) => {
-          const wrapper = find(`settingsValues.${setting}`);
+          const element = screen.queryByTestId(`settingsValues.${setting}`);
 
-          if (!wrapper.length) {
+          if (!element) {
             throw new Error(`Could not find description for setting "${setting}"`);
           }
 
-          expect(wrapper.text()).toEqual(index1[prop].toString());
+          expect(element).toHaveTextContent(index1[prop].toString());
         });
       });
 
-      test('should not have settings values for a "paused" follower index', async () => {
-        await actions.clickFollowerIndexAt(1); // the second follower index is paused
-        expect(exists('followerIndexDetail.settingsValues')).toBe(false);
-        expect(find('followerIndexDetail.settingsSection').text()).toContain(
+      test('should not have settings values for a "paused" follower index', () => {
+        actions.clickFollowerIndexAt(1); // the second follower index is paused
+        expect(screen.queryByTestId('followerIndexDetail.settingsValues')).not.toBeInTheDocument();
+        expect(screen.getByTestId('followerIndexDetail.settingsSection')).toHaveTextContent(
           'paused follower index does not have settings'
         );
       });
 
       // FLAKY: https://github.com/elastic/kibana/issues/100951
-      test.skip('should have a section to render the follower index shards stats', async () => {
-        await actions.clickFollowerIndexAt(0);
-        expect(exists('followerIndexDetail.shardsStatsSection')).toBe(true);
+      test.skip('should have a section to render the follower index shards stats', () => {
+        actions.clickFollowerIndexAt(0);
+        expect(screen.getByTestId('followerIndexDetail.shardsStatsSection')).toBeInTheDocument();
 
-        const codeBlocks = find('shardsStats');
+        const codeBlocks = screen.getAllByTestId('shardsStats');
 
         expect(codeBlocks.length).toBe(index1.shards.length);
         codeBlocks.forEach((codeBlock, i) => {

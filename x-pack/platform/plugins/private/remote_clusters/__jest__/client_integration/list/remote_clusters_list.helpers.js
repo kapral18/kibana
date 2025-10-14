@@ -10,8 +10,9 @@ import { render, screen, within } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
-import { Router } from '@kbn/shared-ux-router';
+import { Router, Route } from '@kbn/shared-ux-router';
 import { createMemoryHistory } from 'history';
+import { I18nProvider } from '@kbn/i18n-react';
 
 import { WithAppDependencies } from '../helpers';
 import { RemoteClusterList } from '../../../public/application/sections/remote_cluster_list';
@@ -38,13 +39,18 @@ export const setup = async (httpSetup, overrides = {}) => {
 
   const AppWithDependencies = WithAppDependencies(RemoteClusterList, httpSetup, overrides);
 
-  const renderResult = render(
-    <Provider store={store}>
-      <Router history={history}>
-        <AppWithDependencies />
-      </Router>
-    </Provider>
-  );
+  let renderResult;
+  act(() => {
+    renderResult = render(
+      <I18nProvider>
+        <Provider store={store}>
+          <Router history={history}>
+            <Route path="/" component={AppWithDependencies} />
+          </Router>
+        </Provider>
+      </I18nProvider>
+    );
+  });
 
   const EUI_TABLE = 'remoteClusterListTable';
 

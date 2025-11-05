@@ -13,15 +13,24 @@ jest.mock('@elastic/eui', () => {
 
   return {
     ...original,
-    EuiComboBox: (props: any) => (
-      <input
-        data-test-subj={props['data-test-subj'] || 'mockComboBox'}
-        data-currentvalue={props.selectedOptions}
-        value={props.selectedOptions[0]?.value}
-        onChange={async (syntheticEvent: any) => {
-          props.onChange([syntheticEvent['0']]);
-        }}
-      />
-    ),
+    EuiComboBox: (props: any) => {
+      const handleChange = (e: any) => {
+        // Support both RTL fireEvent format and custom format
+        const newValue = e.target?.value || e['0'];
+        if (newValue) {
+          props.onChange([newValue]);
+        }
+      };
+
+      return (
+        <input
+          data-test-subj={props['data-test-subj'] || 'mockComboBox'}
+          data-currentvalue={JSON.stringify(props.selectedOptions)}
+          value={props.selectedOptions[0]?.value || ''}
+          onChange={handleChange}
+          data-onchange={handleChange} // Store for direct access
+        />
+      );
+    },
   };
 });

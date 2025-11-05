@@ -5,24 +5,16 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import React from 'react';
+import { screen, waitFor, within } from '@testing-library/react';
 import type { DocLinksStart } from '@kbn/core/public';
 
 import '../../__jest__/setup_environment';
-import type { TestBed } from '../../test_utils';
-import { registerTestBed } from '../../test_utils';
+import { renderWithI18n, createUserEvent } from '../../test_utils';
 import type { RuntimeField } from '../../types';
 import type { FormState } from '../runtime_field_form/runtime_field_form';
-import { RuntimeFieldForm } from '../runtime_field_form/runtime_field_form';
 import type { Props } from './runtime_field_editor';
 import { RuntimeFieldEditor } from './runtime_field_editor';
-
-const setup = (props?: Props) =>
-  registerTestBed(RuntimeFieldEditor, {
-    memoryRouter: {
-      wrapComponent: false,
-    },
-  })(props) as TestBed;
 
 const docLinks: DocLinksStart = {
   ELASTIC_WEBSITE_URL: 'https://jestTest.elastic.co',
@@ -34,13 +26,12 @@ const docLinks: DocLinksStart = {
 };
 
 describe('Runtime field editor', () => {
-  let testBed: TestBed;
   let onChange: jest.Mock<Props['onChange']> = jest.fn();
 
   const lastOnChangeCall = (): FormState[] => onChange.mock.calls[onChange.mock.calls.length - 1];
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
   });
 
   afterAll(() => {
@@ -52,10 +43,12 @@ describe('Runtime field editor', () => {
   });
 
   test('should render the <RuntimeFieldForm />', () => {
-    testBed = setup({ docLinks });
-    const { component } = testBed;
+    renderWithI18n(<RuntimeFieldEditor docLinks={docLinks} />);
 
-    expect(component.find(RuntimeFieldForm).length).toBe(1);
+    // Verify the form is rendered by checking for its key fields
+    expect(screen.getByTestId('nameField')).toBeInTheDocument();
+    expect(screen.getByTestId('typeField')).toBeInTheDocument();
+    expect(screen.getByTestId('scriptField')).toBeInTheDocument();
   });
 
   test('should accept a defaultValue and onChange prop to forward the form state', async () => {
@@ -64,7 +57,9 @@ describe('Runtime field editor', () => {
       type: 'date',
       script: { source: 'test=123' },
     };
-    testBed = setup({ onChange, defaultValue, docLinks });
+    renderWithI18n(
+      <RuntimeFieldEditor onChange={onChange} defaultValue={defaultValue} docLinks={docLinks} />
+    );
 
     expect(onChange).toHaveBeenCalled();
 
@@ -74,64 +69,80 @@ describe('Runtime field editor', () => {
     expect(lastState.submit).toBeDefined();
 
     let data;
-    await act(async () => {
+    await waitFor(async () => {
       const submit = lastState.submit();
       jest.advanceTimersByTime(0); // advance timers to allow the form to validate
       ({ data } = await submit);
+      expect(data).toEqual(defaultValue);
     });
-    expect(data).toEqual(defaultValue);
 
     // Make sure that both isValid and isSubmitted state are now "true"
-    lastState = lastOnChangeCall()[0];
-    expect(lastState.isValid).toBe(true);
-    expect(lastState.isSubmitted).toBe(true);
+    await waitFor(() => {
+      lastState = lastOnChangeCall()[0];
+      expect(lastState.isValid).toBe(true);
+      expect(lastState.isSubmitted).toBe(true);
+    });
   });
 
   test('should accept a list of existing concrete fields and display a callout when shadowing one of the fields', async () => {
+    const user = createUserEvent();
     const existingConcreteFields = [{ name: 'myConcreteField', type: 'keyword' }];
 
-    testBed = setup({ onChange, docLinks, ctx: { existingConcreteFields } });
+    renderWithI18n(
+      <RuntimeFieldEditor
+        onChange={onChange}
+        docLinks={docLinks}
+        ctx={{ existingConcreteFields }}
+      />
+    );
 
-    const { form, component, exists } = testBed;
+    expect(screen.queryByTestId('shadowingFieldCallout')).not.toBeInTheDocument();
 
-    expect(exists('shadowingFieldCallout')).toBe(false);
+    const nameField = screen.getByTestId('nameField');
+    const nameInput = within(nameField).getByTestId('input');
+    await user.clear(nameInput);
+    await user.type(nameInput, existingConcreteFields[0].name);
 
-    await act(async () => {
-      form.setInputValue('nameField.input', existingConcreteFields[0].name);
-      jest.advanceTimersByTime(0); // advance timers to allow the form to validate
+    await jest.advanceTimersByTimeAsync(0); // advance timers to allow the form to validate
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shadowingFieldCallout')).toBeInTheDocument();
     });
-    component.update();
-
-    expect(exists('shadowingFieldCallout')).toBe(true);
   });
 
   describe('validation', () => {
     test('should accept an optional list of existing runtime fields and prevent creating duplicates', async () => {
+      const user = createUserEvent();
       const existingRuntimeFieldNames = ['myRuntimeField'];
 
-      testBed = setup({ onChange, docLinks, ctx: { namesNotAllowed: existingRuntimeFieldNames } });
+      renderWithI18n(
+        <RuntimeFieldEditor
+          onChange={onChange}
+          docLinks={docLinks}
+          ctx={{ namesNotAllowed: existingRuntimeFieldNames }}
+        />
+      );
 
-      const { form, component } = testBed;
+      const nameField = screen.getByTestId('nameField');
+      const nameInput = within(nameField).getByTestId('input');
+      const scriptInput = screen.getByTestId('scriptField');
 
-      await act(async () => {
-        form.setInputValue('nameField.input', existingRuntimeFieldNames[0]);
-        form.setInputValue('scriptField', 'echo("hello")');
+      await user.type(nameInput, existingRuntimeFieldNames[0]);
+      await user.type(scriptInput, 'echo("hello")');
+
+      await jest.advanceTimersByTimeAsync(1000); // Make sure our debounced error message is in the DOM
+
+      const submit = lastOnChangeCall()[0].submit();
+      jest.advanceTimersByTime(0); // advance timers to allow the form to validate
+      await submit;
+
+      await waitFor(() => {
+        expect(lastOnChangeCall()[0].isValid).toBe(false);
       });
 
-      act(() => {
-        jest.advanceTimersByTime(1000); // Make sure our debounced error message is in the DOM
+      await waitFor(() => {
+        expect(screen.getByText('There is already a field with this name.')).toBeInTheDocument();
       });
-
-      await act(async () => {
-        const submit = lastOnChangeCall()[0].submit();
-        jest.advanceTimersByTime(0); // advance timers to allow the form to validate
-        await submit;
-      });
-
-      component.update();
-
-      expect(lastOnChangeCall()[0].isValid).toBe(false);
-      expect(form.getErrorsMessages()).toEqual(['There is already a field with this name.']);
     });
 
     test('should not count the default value as a duplicate', async () => {
@@ -143,23 +154,29 @@ describe('Runtime field editor', () => {
         script: { source: 'emit("hello")' },
       };
 
-      testBed = setup({
-        defaultValue,
-        onChange,
-        docLinks,
-        ctx: { namesNotAllowed: existingRuntimeFieldNames },
-      });
+      renderWithI18n(
+        <RuntimeFieldEditor
+          defaultValue={defaultValue}
+          onChange={onChange}
+          docLinks={docLinks}
+          ctx={{ namesNotAllowed: existingRuntimeFieldNames }}
+        />
+      );
 
-      const { form } = testBed;
-
-      await act(async () => {
+      await waitFor(async () => {
         const submit = lastOnChangeCall()[0].submit();
         jest.advanceTimersByTime(0); // advance timers to allow the form to validate
         await submit;
       });
 
-      expect(lastOnChangeCall()[0].isValid).toBe(true);
-      expect(form.getErrorsMessages()).toEqual([]);
+      await waitFor(() => {
+        expect(lastOnChangeCall()[0].isValid).toBe(true);
+      });
+
+      // Verify no error message is shown
+      expect(
+        screen.queryByText('There is already a field with this name.')
+      ).not.toBeInTheDocument();
     });
   });
 });

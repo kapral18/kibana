@@ -5,24 +5,25 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { searchResponse } from './fixtures/search_response';
 import type { Props } from '../profile_tree';
 import { ProfileTree } from '../profile_tree';
 
 describe('ProfileTree', () => {
-  it('renders', async () => {
+  it('renders', () => {
     const props: Props = {
       onHighlight: () => {},
       target: 'searches',
       data: searchResponse,
       onDataInitError: jest.fn(),
     };
-    const init = registerTestBed(ProfileTree);
-    await init(props);
+    const { container } = renderWithI18n(<ProfileTree {...props} />);
+    expect(container).toBeInTheDocument();
   });
 
-  it('does not throw despite bad profile data', async () => {
+  it('does not throw despite bad profile data', () => {
     // For now, ignore the console.error that gets logged.
     const props: Props = {
       onHighlight: () => {},
@@ -31,8 +32,8 @@ describe('ProfileTree', () => {
       data: [{}] as any,
     };
 
-    const init = registerTestBed(ProfileTree);
-    await init(props);
+    const { container } = renderWithI18n(<ProfileTree {...props} />);
+    expect(container).toBeInTheDocument();
     expect(props.onDataInitError).toHaveBeenCalled();
   });
 });

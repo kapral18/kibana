@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 
 import type { Props } from './searchprofiler_tabs';
 import { SearchProfilerTabs } from './searchprofiler_tabs';
 
 describe('Search Profiler Tabs', () => {
-  it('renders', async () => {
+  it('renders', () => {
     const props: Props = {
       activateTab: () => {},
       activeTab: null,
@@ -20,7 +21,7 @@ describe('Search Profiler Tabs', () => {
         searches: true,
       },
     };
-    const init = registerTestBed(SearchProfilerTabs);
-    await init(props);
+    const { container } = renderWithI18n(<SearchProfilerTabs {...props} />);
+    expect(container).toBeInTheDocument();
   });
 });

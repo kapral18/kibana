@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import type { Props } from '.';
 import { HighlightDetailsFlyout } from '.';
 
 describe('Highlight Details Flyout', () => {
-  it('renders', async () => {
+  it('renders', () => {
     const props: Props = {
       onClose: () => {},
       shardName: '[test][test]',
@@ -50,7 +51,7 @@ describe('Highlight Details Flyout', () => {
       indexName: 'test',
     };
 
-    const init = registerTestBed(HighlightDetailsFlyout);
-    await init(props);
+    const { container } = renderWithI18n(<HighlightDetailsFlyout {...props} />);
+    expect(container).toBeInTheDocument();
   });
 });

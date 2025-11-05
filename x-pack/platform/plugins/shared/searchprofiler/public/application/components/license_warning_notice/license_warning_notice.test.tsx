@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 
 import { LicenseWarningNotice } from './license_warning_notice';
 
 describe('License Error Notice', () => {
-  it('renders', async () => {
-    const init = registerTestBed(LicenseWarningNotice);
-    await init({});
+  it('renders', () => {
+    const { container } = renderWithI18n(<LicenseWarningNotice />);
+    expect(container).toBeInTheDocument();
   });
 });

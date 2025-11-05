@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import type { Props } from './editor';
 import { Editor } from './editor';
 
 describe('Editor Component', () => {
-  it('renders', async () => {
+  it('renders', () => {
     const props: Props = {
       editorValue: '',
       setEditorValue: () => {},
@@ -18,7 +19,7 @@ describe('Editor Component', () => {
       onEditorReady: (e: any) => {},
     };
     // Ignore the warning about Worker not existing for now...
-    const init = registerTestBed(Editor);
-    await init(props);
+    const { container } = renderWithI18n(<Editor {...props} />);
+    expect(container).toBeInTheDocument();
   });
 });

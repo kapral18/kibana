@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { EmptyTreePlaceHolder } from '.';
 
 describe('EmptyTreePlaceholder', () => {
-  it('renders', async () => {
-    const init = registerTestBed(EmptyTreePlaceHolder);
-    await init();
+  it('renders', () => {
+    const { container } = renderWithI18n(<EmptyTreePlaceHolder />);
+    expect(container).toBeInTheDocument();
   });
 });

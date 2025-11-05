@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { ProfileLoadingPlaceholder } from '.';
 
 describe('Profile Loading Placeholder', () => {
-  it('renders', async () => {
-    const init = registerTestBed(ProfileLoadingPlaceholder);
-    await init();
+  it('renders', () => {
+    const { container } = renderWithI18n(<ProfileLoadingPlaceholder />);
+    expect(container).toBeInTheDocument();
   });
 });

@@ -66,7 +66,10 @@
     "test:ftr:server": "node --no-experimental-require-module scripts/functional_tests_server",
     "test:jest": "node --no-experimental-require-module scripts/jest",
     "test:jest_integration": "node --no-experimental-require-module scripts/jest_integration",
-    "test:type_check": "node --no-experimental-require-module scripts/type_check"
+    "test:type_check": "node --no-experimental-require-module scripts/type_check",
+    "count:ts": "find . -name '*.ts' -not -path '*/node_modules/*' -not -path '*/build/*' -not -path '*/target/*' | wc -l",
+    "count:ts-tsx": "find . \\( -name '*.ts' -o -name '*.tsx' \\) -not -path '*/node_modules/*' -not -path '*/build/*' -not -path '*/target/*' | wc -l",
+    "count:ts-detailed": "echo 'TypeScript files breakdown:' && echo '  .ts files:' && find . -name '*.ts' -not -path '*/node_modules/*' -not -path '*/build/*' -not -path '*/target/*' | wc -l && echo '  .tsx files:' && find . -name '*.tsx' -not -path '*/node_modules/*' -not -path '*/build/*' -not -path '*/target/*' | wc -l"
   },
   "repository": {
     "type": "git",

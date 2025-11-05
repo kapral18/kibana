@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-import type { TestBed } from '@kbn/test-jest-helpers';
+import { waitFor, screen } from '@testing-library/react';
 
 import { RemoteClusterForm } from '../../../public/application/sections/components/remote_cluster_config_steps/remote_cluster_form';
 import type { RemoteClustersActions } from '../helpers';
 import { setupEnvironment } from '../helpers';
 import { setup as setupRemoteClustersAdd } from '../add/remote_clusters_add.helpers';
+import type { RemoteClusterEditTestBed } from './remote_clusters_edit.helpers';
 import {
   setup,
   REMOTE_CLUSTER_EDIT,
@@ -20,19 +20,23 @@ import {
 import type { Cluster } from '../../../common/lib';
 import { SECURITY_MODEL } from '../../../common/constants';
 
-let component: TestBed['component'];
+let testBed: RemoteClusterEditTestBed;
 let actions: RemoteClustersActions;
 
 describe('Edit Remote cluster', () => {
   const { httpSetup, httpRequestsMockHelpers } = setupEnvironment();
 
-  httpRequestsMockHelpers.setLoadRemoteClustersResponse([REMOTE_CLUSTER_EDIT]);
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
   beforeEach(async () => {
-    await act(async () => {
-      ({ component, actions } = await setup(httpSetup));
+    httpRequestsMockHelpers.setLoadRemoteClustersResponse([REMOTE_CLUSTER_EDIT]);
+    testBed = await setup(httpSetup);
+    actions = testBed.actions;
+    await waitFor(() => {
+      expect(actions.pageTitle.exists()).toBe(true);
     });
-    component.update();
   });
 
   test('should have the title of the page set correctly', () => {
@@ -50,19 +54,15 @@ describe('Edit Remote cluster', () => {
    * the form component is indeed shared between the 2 app sections.
    */
   test('should use the same Form component as the "<RemoteClusterAdd />" component', async () => {
-    let addRemoteClusterTestBed: TestBed;
+    const addRemoteClusterTestBed = await setupRemoteClustersAdd(httpSetup);
 
-    await act(async () => {
-      addRemoteClusterTestBed = await setupRemoteClustersAdd(httpSetup);
-    });
+    const formEdit = testBed.container.querySelector('[data-test-subj*="remoteClusterForm"]');
+    const formAdd = addRemoteClusterTestBed.container.querySelector(
+      '[data-test-subj*="remoteClusterForm"]'
+    );
 
-    addRemoteClusterTestBed!.component.update();
-
-    const formEdit = component.find(RemoteClusterForm);
-    const formAdd = addRemoteClusterTestBed!.component.find(RemoteClusterForm);
-
-    expect(formEdit.length).toBe(1);
-    expect(formAdd.length).toBe(1);
+    expect(formEdit).toBeTruthy();
+    expect(formAdd).toBeTruthy();
   });
 
   test('should populate the form fields with the values from the remote cluster loaded', () => {
@@ -91,10 +91,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
-      await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+      testBed = await setup(httpSetup, { isCloudEnabled: true });
+      actions = testBed.actions;
+      await waitFor(() => {
+        expect(actions.pageTitle.exists()).toBe(true);
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(
@@ -112,10 +113,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
-      await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+      testBed = await setup(httpSetup, { isCloudEnabled: true });
+      actions = testBed.actions;
+      await waitFor(() => {
+        expect(actions.pageTitle.exists()).toBe(true);
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(`${cloudUrl}:9500`);
@@ -132,10 +134,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
-      await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+      testBed = await setup(httpSetup, { isCloudEnabled: true });
+      actions = testBed.actions;
+      await waitFor(() => {
+        expect(actions.pageTitle.exists()).toBe(true);
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(

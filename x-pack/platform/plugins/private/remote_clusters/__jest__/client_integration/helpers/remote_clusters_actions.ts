@@ -5,8 +5,9 @@
  * 2.0.
  */
 
-import type { TestBed } from '@kbn/test-jest-helpers';
-import { act } from 'react-dom/test-utils';
+import { screen, within } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
+
 export interface RemoteClustersActions {
   docsButtonExists: () => boolean;
   pageTitle: {
@@ -15,39 +16,39 @@ export interface RemoteClustersActions {
   };
   formStep: {
     nameInput: {
-      setValue: (name: string) => void;
+      setValue: (name: string) => Promise<void>;
       getValue: () => string;
       isDisabled: () => boolean;
     };
     skipUnavailableSwitch: {
       exists: () => boolean;
-      toggle: () => void;
+      toggle: () => Promise<void>;
       isChecked: () => boolean;
     };
     connectionModeSwitch: {
       exists: () => boolean;
-      toggle: () => void;
+      toggle: () => Promise<void>;
       isChecked: () => boolean;
     };
     cloudAdvancedOptionsSwitch: {
-      toggle: () => void;
+      toggle: () => Promise<void>;
       exists: () => boolean;
       isChecked: () => boolean;
     };
     cloudRemoteAddressInput: {
       exists: () => boolean;
       getValue: () => string;
-      setValue: (remoteAddress: string) => void;
+      setValue: (remoteAddress: string) => Promise<void>;
     };
     seedsInput: {
-      setValue: (seed: string) => void;
+      setValue: (seed: string) => Promise<void>;
       getValue: () => string;
     };
     nodeConnectionsInput: {
-      setValue: (connections: string) => void;
+      setValue: (connections: string) => Promise<void>;
     };
     proxyAddressInput: {
-      setValue: (proxyAddress: string) => void;
+      setValue: (proxyAddress: string) => Promise<void>;
       exists: () => boolean;
     };
     serverNameInput: {
@@ -59,11 +60,11 @@ export interface RemoteClustersActions {
       exists: () => boolean;
     };
     button: {
-      click: () => void;
+      click: () => Promise<void>;
       isDisabled: () => boolean;
     };
     backButton: {
-      click: () => void;
+      click: () => Promise<void>;
     };
     isOnFormStep: () => boolean;
   };
@@ -71,10 +72,10 @@ export interface RemoteClustersActions {
   setupTrustStep: {
     apiCardExist: () => boolean;
     certCardExist: () => boolean;
-    selectApiKeyTrustMode: () => void;
-    selectCertificatesTrustMode: () => void;
+    selectApiKeyTrustMode: () => Promise<void>;
+    selectCertificatesTrustMode: () => Promise<void>;
     button: {
-      click: () => void;
+      click: () => Promise<void>;
       isDisabled: () => boolean;
     };
     isOnTrustStep: () => boolean;
@@ -92,35 +93,28 @@ export interface RemoteClustersActions {
       apiKeyDocumentationExists: () => boolean;
       certDocumentationExists: () => boolean;
     };
-    clickAddCluster: () => void;
+    clickAddCluster: () => Promise<void>;
     errorBannerExists: () => boolean;
     backButton: {
-      click: () => void;
+      click: () => Promise<void>;
     };
   };
 
   getErrorMessages: () => string[];
   globalErrorExists: () => boolean;
 }
-export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersActions => {
-  const { form, exists, find, component } = testBed;
 
-  const click = (selector: string) => {
-    act(() => {
-      find(selector).simulate('click');
-    });
-
-    component.update();
+export const createRemoteClustersActions = (user: UserEvent): RemoteClustersActions => {
+  const docsButtonExists = () => {
+    return screen.queryByTestId('remoteClusterDocsButton') !== null;
   };
-
-  const docsButtonExists = () => exists('remoteClusterDocsButton');
 
   const createPageTitleActions = () => {
     const pageTitleSelector = 'remoteClusterPageTitle';
     return {
       pageTitle: {
-        exists: () => exists(pageTitleSelector),
-        text: () => find(pageTitleSelector).text(),
+        exists: () => screen.queryByTestId(pageTitleSelector) !== null,
+        text: () => screen.getByTestId(pageTitleSelector).textContent || '',
       },
     };
   };
@@ -130,9 +124,19 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const nameInputSelector = 'remoteClusterFormNameInput';
       return {
         nameInput: {
-          setValue: (name: string) => form.setInputValue(nameInputSelector, name),
-          getValue: () => find(nameInputSelector).props().value,
-          isDisabled: () => find(nameInputSelector).props().disabled,
+          setValue: async (name: string) => {
+            const input = screen.getByTestId(nameInputSelector);
+            await user.clear(input);
+            await user.type(input, name);
+          },
+          getValue: () => {
+            const input = screen.getByTestId(nameInputSelector) as HTMLInputElement;
+            return input.value;
+          },
+          isDisabled: () => {
+            const input = screen.getByTestId(nameInputSelector) as HTMLInputElement;
+            return input.disabled;
+          },
         },
       };
     };
@@ -141,14 +145,15 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const skipUnavailableToggleSelector = 'remoteClusterFormSkipUnavailableFormToggle';
       return {
         skipUnavailableSwitch: {
-          exists: () => exists(skipUnavailableToggleSelector),
-          toggle: () => {
-            act(() => {
-              form.toggleEuiSwitch(skipUnavailableToggleSelector);
-            });
-            component.update();
+          exists: () => screen.queryByTestId(skipUnavailableToggleSelector) !== null,
+          toggle: async () => {
+            const toggle = screen.getByTestId(skipUnavailableToggleSelector);
+            await user.click(toggle);
           },
-          isChecked: () => find(skipUnavailableToggleSelector).props()['aria-checked'],
+          isChecked: () => {
+            const toggle = screen.getByTestId(skipUnavailableToggleSelector);
+            return toggle.getAttribute('aria-checked') === 'true';
+          },
         },
       };
     };
@@ -157,14 +162,15 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const connectionModeToggleSelector = 'remoteClusterFormConnectionModeToggle';
       return {
         connectionModeSwitch: {
-          exists: () => exists(connectionModeToggleSelector),
-          toggle: () => {
-            act(() => {
-              form.toggleEuiSwitch(connectionModeToggleSelector);
-            });
-            component.update();
+          exists: () => screen.queryByTestId(connectionModeToggleSelector) !== null,
+          toggle: async () => {
+            const toggle = screen.getByTestId(connectionModeToggleSelector);
+            await user.click(toggle);
           },
-          isChecked: () => find(connectionModeToggleSelector).props()['aria-checked'],
+          isChecked: () => {
+            const toggle = screen.getByTestId(connectionModeToggleSelector);
+            return toggle.getAttribute('aria-checked') === 'true';
+          },
         },
       };
     };
@@ -173,14 +179,15 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const cloudUrlSelector = 'remoteClusterFormCloudAdvancedOptionsToggle';
       return {
         cloudAdvancedOptionsSwitch: {
-          exists: () => exists(cloudUrlSelector),
-          toggle: () => {
-            act(() => {
-              form.toggleEuiSwitch(cloudUrlSelector);
-            });
-            component.update();
+          exists: () => screen.queryByTestId(cloudUrlSelector) !== null,
+          toggle: async () => {
+            const toggle = screen.getByTestId(cloudUrlSelector);
+            await user.click(toggle);
           },
-          isChecked: () => find(cloudUrlSelector).props()['aria-checked'],
+          isChecked: () => {
+            const toggle = screen.getByTestId(cloudUrlSelector);
+            return toggle.getAttribute('aria-checked') === 'true';
+          },
         },
       };
     };
@@ -189,8 +196,17 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const seedsInputSelector = 'remoteClusterFormSeedsInput';
       return {
         seedsInput: {
-          setValue: (seed: string) => form.setComboBoxValue(seedsInputSelector, seed),
-          getValue: () => find(seedsInputSelector).text(),
+          setValue: async (seed: string) => {
+            const input = screen.getByTestId(seedsInputSelector);
+            await user.clear(input);
+            await user.type(input, seed);
+            // Simulate pressing Enter to add the seed
+            await user.keyboard('{Enter}');
+          },
+          getValue: () => {
+            const comboBox = screen.getByTestId(seedsInputSelector);
+            return comboBox.textContent || '';
+          },
         },
       };
     };
@@ -199,8 +215,11 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const nodeConnectionsInputSelector = 'remoteClusterFormNodeConnectionsInput';
       return {
         nodeConnectionsInput: {
-          setValue: (connections: string) =>
-            form.setInputValue(nodeConnectionsInputSelector, connections),
+          setValue: async (connections: string) => {
+            const input = screen.getByTestId(nodeConnectionsInputSelector);
+            await user.clear(input);
+            await user.type(input, connections);
+          },
         },
       };
     };
@@ -209,9 +228,12 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const proxyAddressSelector = 'remoteClusterFormProxyAddressInput';
       return {
         proxyAddressInput: {
-          setValue: (proxyAddress: string) =>
-            form.setInputValue(proxyAddressSelector, proxyAddress),
-          exists: () => exists(proxyAddressSelector),
+          setValue: async (proxyAddress: string) => {
+            const input = screen.getByTestId(proxyAddressSelector);
+            await user.clear(input);
+            await user.type(input, proxyAddress);
+          },
+          exists: () => screen.queryByTestId(proxyAddressSelector) !== null,
         },
       };
     };
@@ -220,8 +242,14 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const formButtonSelector = 'remoteClusterFormNextButton';
       return {
         button: {
-          click: () => click(formButtonSelector),
-          isDisabled: () => find(formButtonSelector).props().disabled,
+          click: async () => {
+            const button = screen.getByTestId(formButtonSelector);
+            await user.click(button);
+          },
+          isDisabled: () => {
+            const button = screen.getByTestId(formButtonSelector) as HTMLButtonElement;
+            return button.disabled;
+          },
         },
       };
     };
@@ -229,21 +257,30 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
     const formBackButtonActions = () => {
       return {
         backButton: {
-          click: () => click('remoteClusterFormBackButton'),
+          click: async () => {
+            const button = screen.getByTestId('remoteClusterFormBackButton');
+            await user.click(button);
+          },
         },
       };
     };
 
     const isOnFormStepActions = () => {
-      return { isOnFormStep: () => exists('remoteClusterFormNextButton') };
+      return {
+        isOnFormStep: () => screen.queryByTestId('remoteClusterFormNextButton') !== null,
+      };
     };
 
     const createServerNameActions = () => {
       const serverNameSelector = 'remoteClusterFormServerNameFormRow';
       return {
         serverNameInput: {
-          getLabel: () => find('remoteClusterFormServerNameFormRow').find('label').text(),
-          exists: () => exists(serverNameSelector),
+          getLabel: () => {
+            const formRow = screen.getByTestId(serverNameSelector);
+            const label = within(formRow).getByText(/Server name/i);
+            return label.textContent || '';
+          },
+          exists: () => screen.queryByTestId(serverNameSelector) !== null,
         },
       };
     };
@@ -252,8 +289,12 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const serverNameSelector = 'remoteClusterFormTLSServerNameFormRow';
       return {
         tlsServerNameInput: {
-          getLabel: () => find(serverNameSelector).find('label').text(),
-          exists: () => exists(serverNameSelector),
+          getLabel: () => {
+            const formRow = screen.getByTestId(serverNameSelector);
+            const label = within(formRow).getByText(/TLS server name/i);
+            return label.textContent || '';
+          },
+          exists: () => screen.queryByTestId(serverNameSelector) !== null,
         },
       };
     };
@@ -262,10 +303,16 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
       const cloudUrlInputSelector = 'remoteClusterFormRemoteAddressInput';
       return {
         cloudRemoteAddressInput: {
-          exists: () => exists(cloudUrlInputSelector),
-          getValue: () => find(cloudUrlInputSelector).props().value,
-          setValue: (remoteAddress: string) =>
-            form.setInputValue(cloudUrlInputSelector, remoteAddress),
+          exists: () => screen.queryByTestId(cloudUrlInputSelector) !== null,
+          getValue: () => {
+            const input = screen.getByTestId(cloudUrlInputSelector) as HTMLInputElement;
+            return input.value;
+          },
+          setValue: async (remoteAddress: string) => {
+            const input = screen.getByTestId(cloudUrlInputSelector);
+            await user.clear(input);
+            await user.type(input, remoteAddress);
+          },
         },
       };
     };
@@ -289,21 +336,38 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
     };
   };
 
-  const globalErrorExists = () => exists('remoteClusterFormGlobalError');
+  const globalErrorExists = () => screen.queryByTestId('remoteClusterFormGlobalError') !== null;
+
+  const getErrorMessages = () => {
+    const errorElements = screen.queryAllByText(/is required|Remove the character|Spaces are not allowed/i);
+    return errorElements.map((el) => el.textContent || '');
+  };
 
   const setupTrustStepActions = () => {
     const trustButtonSelector = 'remoteClusterTrustNextButton';
     return {
       setupTrustStep: {
-        apiCardExist: () => exists('setupTrustApiMode'),
-        certCardExist: () => exists('setupTrustCertMode'),
-        selectApiKeyTrustMode: () => click('setupTrustApiMode'),
-        selectCertificatesTrustMode: () => click('setupTrustCertMode'),
-        button: {
-          click: () => click(trustButtonSelector),
-          isDisabled: () => find(trustButtonSelector).props().disabled,
+        apiCardExist: () => screen.queryByTestId('setupTrustApiMode') !== null,
+        certCardExist: () => screen.queryByTestId('setupTrustCertMode') !== null,
+        selectApiKeyTrustMode: async () => {
+          const apiCard = screen.getByTestId('setupTrustApiMode');
+          await user.click(apiCard);
         },
-        isOnTrustStep: () => exists(trustButtonSelector),
+        selectCertificatesTrustMode: async () => {
+          const certCard = screen.getByTestId('setupTrustCertMode');
+          await user.click(certCard);
+        },
+        button: {
+          click: async () => {
+            const button = screen.getByTestId(trustButtonSelector);
+            await user.click(button);
+          },
+          isDisabled: () => {
+            const button = screen.getByTestId(trustButtonSelector) as HTMLButtonElement;
+            return button.disabled;
+          },
+        },
+        isOnTrustStep: () => screen.queryByTestId(trustButtonSelector) !== null,
       },
     };
   };
@@ -315,20 +379,32 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
     return {
       reviewStep: {
         onPrem: {
-          exists: () => exists(onPremReviewStepsSelector),
-          step1LinkExists: () => exists(onPremStep1Selector),
-          step2LinkExists: () => exists(onPremStep2Selector),
-          step1Link: () => find(onPremStep1Selector).props().href,
-          step2Link: () => find(onPremStep2Selector).props().href,
+          exists: () => screen.queryByTestId(onPremReviewStepsSelector) !== null,
+          step1LinkExists: () => screen.queryByTestId(onPremStep1Selector) !== null,
+          step2LinkExists: () => screen.queryByTestId(onPremStep2Selector) !== null,
+          step1Link: () => {
+            const link = screen.getByTestId(onPremStep1Selector) as HTMLAnchorElement;
+            return link.href;
+          },
+          step2Link: () => {
+            const link = screen.getByTestId(onPremStep2Selector) as HTMLAnchorElement;
+            return link.href;
+          },
         },
         cloud: {
-          apiKeyDocumentationExists: () => exists('cloudApiKeySteps'),
-          certDocumentationExists: () => exists('cloudCertDocumentation'),
+          apiKeyDocumentationExists: () => screen.queryByTestId('cloudApiKeySteps') !== null,
+          certDocumentationExists: () => screen.queryByTestId('cloudCertDocumentation') !== null,
         },
-        clickAddCluster: () => click('remoteClusterReviewtNextButton'),
-        errorBannerExists: () => exists('saveErrorBanner'),
+        clickAddCluster: async () => {
+          const button = screen.getByTestId('remoteClusterReviewtNextButton');
+          await user.click(button);
+        },
+        errorBannerExists: () => screen.queryByTestId('saveErrorBanner') !== null,
         backButton: {
-          click: () => click('remoteClusterReviewtBackButton'),
+          click: async () => {
+            const button = screen.getByTestId('remoteClusterReviewtBackButton');
+            await user.click(button);
+          },
         },
       },
     };
@@ -340,7 +416,7 @@ export const createRemoteClustersActions = (testBed: TestBed): RemoteClustersAct
     ...formStepActions(),
     ...setupTrustStepActions(),
     ...reviewStepActions(),
-    getErrorMessages: form.getErrorsMessages,
+    getErrorMessages,
     globalErrorExists,
   };
 };

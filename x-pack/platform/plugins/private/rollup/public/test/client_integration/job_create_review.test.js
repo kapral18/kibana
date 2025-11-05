@@ -6,8 +6,7 @@
  */
 
 import { pageHelpers, mockHttpRequest } from './helpers';
-
-import { act } from 'react-dom/test-utils';
+import { screen, within, waitFor } from '@testing-library/react';
 import { first } from 'lodash';
 import { coreMock } from '@kbn/core/public/mocks';
 import { setHttp } from '../../crud_app/services';
@@ -32,10 +31,10 @@ describe('Create Rollup Job, step 6: Review', () => {
   let table;
   let form;
   let startMock;
-  let component;
+  let user;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     startMock = coreMock.createStart();
     setHttp(startMock.http);
   });
@@ -45,10 +44,16 @@ describe('Create Rollup Job, step 6: Review', () => {
   });
 
   beforeEach(() => {
-    // Set "default" mock responses by not providing any arguments
     mockHttpRequest(startMock.http);
-    ({ find, exists, actions, getEuiStepsHorizontalActive, goToStep, table, form, component } =
-      setup());
+    const testBed = setup();
+    find = (testSubj) => screen.queryByTestId(testSubj);
+    exists = (testSubj) => screen.queryByTestId(testSubj) !== null;
+    actions = testBed.actions;
+    getEuiStepsHorizontalActive = testBed.getEuiStepsHorizontalActive;
+    goToStep = testBed.goToStep;
+    table = testBed.table;
+    form = testBed.form;
+    user = testBed.user;
   });
 
   afterEach(() => {
@@ -81,26 +86,23 @@ describe('Create Rollup Job, step 6: Review', () => {
     });
 
     it('should go to the "Metrics" step when clicking the back button', async () => {
-      actions.clickPreviousStep();
+      await actions.clickPreviousStep();
       expect(getEuiStepsHorizontalActive()).toContain('Metrics');
     });
   });
 
   describe('tabs', () => {
-    const getTabsText = () => find('stepReviewTab').map((tab) => tab.text());
-    const selectFirstField = (step) => {
-      act(() => {
-        find('rollupJobShowFieldChooserButton').simulate('click');
-      });
-      component.update();
+    const getTabsText = () => {
+      const tabs = screen.getAllByTestId('stepReviewTab');
+      return tabs.map((tab) => tab.textContent);
+    };
+    
+    const selectFirstField = async (step) => {
+      await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
 
-      act(() => {
-        // Select the first term field
-        table
-          .getMetaData(`rollupJob${step}FieldChooser-table`)
-          .rows[0].reactWrapper.simulate('click');
-      });
-      component.update();
+      const tableElement = screen.getByTestId(`rollupJob${step}FieldChooser-table`);
+      const rows = within(tableElement).getAllByRole('row').slice(1);
+      await user.click(rows[0]);
     };
 
     it('should have a "Summary" & "Request" tabs to review the Job', async () => {
@@ -111,24 +113,24 @@ describe('Create Rollup Job, step 6: Review', () => {
     it('should have a "Summary", "Terms" & "Request" tab if a term aggregation was added', async () => {
       mockHttpRequest(startMock.http, { indxPatternVldtResp: { numericFields: ['my-field'] } });
       await goToStep(3);
-      selectFirstField('Terms');
+      await selectFirstField('Terms');
 
-      actions.clickNextStep(); // go to step 4
-      actions.clickNextStep(); // go to step 5
-      actions.clickNextStep(); // go to review
+      await actions.clickNextStep();
+      await actions.clickNextStep();
+      await actions.clickNextStep();
 
-      expect(exists('rollupJobCreateReviewTitle')); // Make sure we are on the review step
+      expect(exists('rollupJobCreateReviewTitle'));
       expect(getTabsText()).toEqual(['Summary', 'Terms', 'Request']);
     });
 
     it('should have a "Summary", "Histogram" & "Request" tab if a histogram field was added', async () => {
       mockHttpRequest(startMock.http, { indxPatternVldtResp: { numericFields: ['a-field'] } });
       await goToStep(4);
-      selectFirstField('Histogram');
-      form.setInputValue('rollupJobCreateHistogramInterval', 3); // set an interval
+      await selectFirstField('Histogram');
+      await form.setInputValue('rollupJobCreateHistogramInterval', '3');
 
-      actions.clickNextStep(); // go to step 5
-      actions.clickNextStep(); // go to review
+      await actions.clickNextStep();
+      await actions.clickNextStep();
 
       expect(getTabsText()).toEqual(['Summary', 'Histogram', 'Request']);
     });
@@ -141,10 +143,10 @@ describe('Create Rollup Job, step 6: Review', () => {
         },
       });
       await goToStep(5);
-      selectFirstField('Metrics');
-      form.selectCheckBox('rollupJobMetricsCheckbox-avg'); // select a metric
+      await selectFirstField('Metrics');
+      await form.selectCheckBox('rollupJobMetricsCheckbox-avg');
 
-      actions.clickNextStep(); // go to review
+      await actions.clickNextStep();
 
       expect(getTabsText()).toEqual(['Summary', 'Metrics', 'Request']);
     });
@@ -162,17 +164,17 @@ describe('Create Rollup Job, step 6: Review', () => {
 
         await goToStep(6);
 
-        expect(startMock.http.put).not.toHaveBeenCalledWith(jobCreateApiPath); // make sure it hasn't been called
-        expect(startMock.http.get).not.toHaveBeenCalledWith(jobStartApiPath); // make sure it hasn't been called
+        expect(startMock.http.put).not.toHaveBeenCalledWith(jobCreateApiPath);
+        expect(startMock.http.get).not.toHaveBeenCalledWith(jobStartApiPath);
 
-        actions.clickSave();
+        await actions.clickSave();
 
-        // There is a 500 timeout before receiving the response.
-        // To be investigated, this is the only app requiring a timeout to avoid a "weird flicker";
         jest.advanceTimersByTime(500);
 
-        expect(startMock.http.put).toHaveBeenCalledWith(jobCreateApiPath, expect.anything()); // It has been called!
-        expect(startMock.http.get).not.toHaveBeenCalledWith(jobStartApiPath); // It has still not been called!
+        await waitFor(() => {
+          expect(startMock.http.put).toHaveBeenCalledWith(jobCreateApiPath, expect.anything());
+          expect(startMock.http.get).not.toHaveBeenCalledWith(jobStartApiPath);
+        });
       });
     });
 
@@ -184,32 +186,22 @@ describe('Create Rollup Job, step 6: Review', () => {
 
         await goToStep(6);
 
-        act(() => {
-          find('rollupJobToggleJobStartAfterCreation').simulate('change', {
-            target: { checked: true },
+        const toggleCheckbox = screen.getByTestId('rollupJobToggleJobStartAfterCreation');
+        await user.click(toggleCheckbox);
+
+        expect(startMock.http.post).not.toHaveBeenCalledWith(jobStartApiPath);
+
+        await actions.clickSave();
+
+        jest.advanceTimersByTime(500);
+        jest.advanceTimersByTime(300);
+
+        await waitFor(() => {
+          expect(startMock.http.post).toHaveBeenCalledWith(jobStartApiPath, {
+            body: JSON.stringify({
+              jobIds: ['test-job'],
+            }),
           });
-        });
-        component.update();
-
-        expect(startMock.http.post).not.toHaveBeenCalledWith(jobStartApiPath); // make sure it hasn't been called
-
-        actions.clickSave();
-
-        // There is a 500 timeout before receiving the response.
-        // To be investigated, this is the only app requiring a timeout to avoid a "weird flicker";
-        await act(async () => {
-          jest.advanceTimersByTime(500);
-        });
-
-        // We then have a createNoticeableDelay() that we need to account for.
-        act(() => {
-          jest.advanceTimersByTime(300);
-        });
-
-        expect(startMock.http.post).toHaveBeenCalledWith(jobStartApiPath, {
-          body: JSON.stringify({
-            jobIds: ['test-job'],
-          }),
         });
       });
     });

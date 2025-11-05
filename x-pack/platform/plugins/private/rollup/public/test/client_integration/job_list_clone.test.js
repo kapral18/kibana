@@ -6,8 +6,8 @@
  */
 
 import { mockHttpRequest, pageHelpers } from './helpers';
-
-import { act } from 'react-dom/test-utils';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { JOB_TO_CLONE, JOB_CLONE_INDEX_PATTERN_CHECK } from './helpers/constants';
 import { getRouter } from '../../crud_app/services/routing';
 import { setHttp } from '../../crud_app/services';
@@ -24,14 +24,10 @@ jest.mock('../../kibana_services', () => {
 const { setup } = pageHelpers.jobList;
 
 describe('Smoke test cloning an existing rollup job from job list', () => {
-  let table;
-  let find;
-  let component;
-  let exists;
   let startMock;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     startMock = coreMock.createStart();
     setHttp(startMock.http);
   });
@@ -46,11 +42,11 @@ describe('Smoke test cloning an existing rollup job from job list', () => {
       indxPatternVldtResp: JOB_CLONE_INDEX_PATTERN_CHECK,
     });
 
-    await act(async () => {
-      ({ find, exists, table, component } = setup());
+    setup();
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('rollupJobsListTable')).toBeInTheDocument();
     });
-
-    component.update();
   });
 
   afterEach(() => {
@@ -58,21 +54,30 @@ describe('Smoke test cloning an existing rollup job from job list', () => {
   });
 
   it('should navigate to create view with default values set', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     const router = getRouter();
-    const { rows } = table.getMetaData('rollupJobsListTable');
-    const button = rows[0].columns[1].reactWrapper.find('button');
+    
+    const rows = screen.getAllByTestId('jobTableRow');
+    const firstRowButton = rows[0].querySelector('button[data-test-subj="jobTableCell-id"] button');
 
-    expect(exists('rollupJobDetailFlyout')).toBe(false); // make sure it is not shown
+    expect(screen.queryByTestId('rollupJobDetailFlyout')).not.toBeInTheDocument();
 
-    button.simulate('click');
+    await user.click(firstRowButton);
 
-    expect(exists('rollupJobDetailFlyout')).toBe(true);
-    expect(exists('jobActionMenuButton')).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByTestId('rollupJobDetailFlyout')).toBeInTheDocument();
+    });
 
-    find('jobActionMenuButton').simulate('click');
+    expect(screen.getByTestId('jobActionMenuButton')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('jobActionMenuButton'));
 
     expect(router.history.location.pathname).not.toBe(`/create`);
-    find('jobCloneActionContextMenu').simulate('click');
-    expect(router.history.location.pathname).toBe(`/create`);
+    
+    await user.click(screen.getByTestId('jobCloneActionContextMenu'));
+    
+    await waitFor(() => {
+      expect(router.history.location.pathname).toBe(`/create`);
+    });
   });
 });

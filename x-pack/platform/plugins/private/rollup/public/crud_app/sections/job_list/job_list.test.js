@@ -6,12 +6,15 @@
  */
 
 import React from 'react';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import { screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { renderWithProviders } from '../../../test/client_integration/helpers/setup_context';
 import { rollupJobsStore } from '../../store';
 import { JobList } from './job_list';
-
 import { KibanaContextProvider } from '@kbn/kibana-react-plugin/public';
 import { coreMock } from '@kbn/core/public/mocks';
+
 const startMock = coreMock.createStart();
 
 jest.mock('../../services', () => {
@@ -43,57 +46,65 @@ const defaultProps = {
 const services = {
   setBreadcrumbs: startMock.chrome.setBreadcrumbs,
 };
-const Component = (props) => (
-  <KibanaContextProvider services={services}>
-    <JobList {...props} />
-  </KibanaContextProvider>
-);
 
-const initTestBed = registerTestBed(Component, { defaultProps, store: rollupJobsStore });
+const renderJobList = (props = {}) => {
+  const mergedProps = { ...defaultProps, ...props };
+  
+  const Wrapper = ({ children }) => (
+    <KibanaContextProvider services={services}>
+      <Provider store={rollupJobsStore}>
+        <MemoryRouter>
+          {children}
+        </MemoryRouter>
+      </Provider>
+    </KibanaContextProvider>
+  );
+
+  return renderWithProviders(<JobList {...mergedProps} />, { wrapper: Wrapper });
+};
 
 describe('<JobList />', () => {
   it('should render deprecated prompt when loading is complete and there are no rollup jobs', () => {
-    const { exists } = initTestBed();
-
-    expect(exists('jobListDeprecatedPrompt')).toBeTruthy();
+    renderJobList();
+    expect(screen.getByTestId('jobListDeprecatedPrompt')).toBeInTheDocument();
   });
 
   it('should display a loading message when loading the jobs', () => {
-    const { component, exists } = initTestBed({ isLoading: true });
-
-    expect(exists('sectionLoading')).toBeTruthy();
-    expect(component.find('JobTable').length).toBeFalsy();
+    renderJobList({ isLoading: true });
+    
+    expect(screen.getByTestId('sectionLoading')).toBeInTheDocument();
+    expect(screen.queryByTestId('rollupJobsListTable')).not.toBeInTheDocument();
   });
 
   it('should display the <JobTable /> when there are jobs', () => {
-    const { component, exists } = initTestBed({ hasJobs: true });
-
-    expect(exists('sectionLoading')).toBeFalsy();
-    expect(component.find('JobTable').length).toBeTruthy();
+    renderJobList({ hasJobs: true });
+    
+    expect(screen.queryByTestId('sectionLoading')).not.toBeInTheDocument();
+    expect(screen.getByTestId('rollupJobsListTable')).toBeInTheDocument();
   });
 
   describe('when there is an API error', () => {
-    const { exists, find } = initTestBed({
-      jobLoadError: {
-        status: 400,
-        body: { statusCode: 400, error: 'Houston we got a problem.' },
-      },
-    });
-
     it('should display an error with the status and the message', () => {
-      expect(exists('jobListError')).toBeTruthy();
-      expect(find('jobListError').find('EuiText').text()).toEqual('400 Houston we got a problem.');
+      renderJobList({
+        jobLoadError: {
+          status: 400,
+          body: { statusCode: 400, error: 'Houston we got a problem.' },
+        },
+      });
+
+      expect(screen.getByTestId('jobListError')).toBeInTheDocument();
+      expect(screen.getByText(/400 Houston we got a problem./)).toBeInTheDocument();
     });
   });
 
   describe('when the user does not have the permission to access it', () => {
-    const { exists, find } = initTestBed({ jobLoadError: { status: 403 } });
-
     it('should render an error message', () => {
-      expect(exists('jobListNoPermission')).toBeTruthy();
-      expect(find('jobListNoPermission').find('EuiText').text()).toEqual(
-        'You do not have permission to view or add rollup jobs.'
-      );
+      renderJobList({ jobLoadError: { status: 403 } });
+
+      expect(screen.getByTestId('jobListNoPermission')).toBeInTheDocument();
+      expect(
+        screen.getByText('You do not have permission to view or add rollup jobs.')
+      ).toBeInTheDocument();
     });
   });
 });

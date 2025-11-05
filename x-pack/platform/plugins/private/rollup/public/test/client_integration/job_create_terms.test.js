@@ -6,7 +6,8 @@
  */
 
 import { pageHelpers, mockHttpRequest } from './helpers';
-
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { setHttp, init as initDocumentation } from '../../crud_app/services';
 import { coreMock, docLinksServiceMock } from '@kbn/core/public/mocks';
 
@@ -19,10 +20,11 @@ describe('Create Rollup Job, step 3: Terms', () => {
   let getEuiStepsHorizontalActive;
   let goToStep;
   let table;
+  let user;
   let startMock;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     startMock = coreMock.createStart();
     setHttp(startMock.http);
     initDocumentation(docLinksServiceMock.createStartContract());
@@ -33,10 +35,15 @@ describe('Create Rollup Job, step 3: Terms', () => {
   });
 
   beforeEach(() => {
-    // Set "default" mock responses by not providing any arguments
     mockHttpRequest(startMock.http);
-
-    ({ find, exists, actions, getEuiStepsHorizontalActive, goToStep, table } = setup());
+    const testBed = setup();
+    find = (testSubj) => screen.queryByTestId(testSubj);
+    exists = (testSubj) => screen.queryByTestId(testSubj) !== null;
+    actions = testBed.actions;
+    getEuiStepsHorizontalActive = testBed.getEuiStepsHorizontalActive;
+    goToStep = testBed.goToStep;
+    table = testBed.table;
+    user = testBed.user;
   });
 
   afterEach(() => {
@@ -48,7 +55,7 @@ describe('Create Rollup Job, step 3: Terms', () => {
 
   const goToStepAndOpenFieldChooser = async () => {
     await goToStep(3);
-    find('rollupJobShowFieldChooserButton').simulate('click');
+    await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
   };
 
   describe('layout', () => {
@@ -79,19 +86,19 @@ describe('Create Rollup Job, step 3: Terms', () => {
     });
 
     it('should go to the "Date histogram" step when clicking the back button', async () => {
-      actions.clickPreviousStep();
+      await actions.clickPreviousStep();
       expect(getEuiStepsHorizontalActive()).toContain('Date histogram');
     });
 
     it('should go to the "Histogram" step when clicking the next button', async () => {
-      actions.clickNextStep();
+      await actions.clickNextStep();
       expect(getEuiStepsHorizontalActive()).toContain('Histogram');
     });
 
-    it('should have a button to display the list of terms to chose from', () => {
+    it('should have a button to display the list of terms to chose from', async () => {
       expect(exists('rollupJobTermsFieldChooser')).toBe(false);
 
-      find('rollupJobShowFieldChooserButton').simulate('click');
+      await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
 
       expect(exists('rollupJobTermsFieldChooser')).toBe(true);
     });
@@ -104,13 +111,15 @@ describe('Create Rollup Job, step 3: Terms', () => {
       });
 
       it('should have the title set to "Add terms fields"', async () => {
-        expect(find('rollupJobCreateFlyoutTitle').text()).toEqual('Add terms fields');
+        expect(screen.getByTestId('rollupJobCreateFlyoutTitle').textContent).toEqual(
+          'Add terms fields'
+        );
       });
 
-      it('should have a button to close the flyout', () => {
+      it('should have a button to close the flyout', async () => {
         expect(exists('rollupJobTermsFieldChooser')).toBe(true);
 
-        find('euiFlyoutCloseButton').simulate('click');
+        await user.click(screen.getByTestId('euiFlyoutCloseButton'));
 
         expect(exists('rollupJobTermsFieldChooser')).toBe(false);
       });
@@ -154,12 +163,13 @@ describe('Create Rollup Job, step 3: Terms', () => {
         ]);
       });
 
-      it('should add term to the field list when clicking on it', () => {
+      it('should add term to the field list when clicking on it', async () => {
         let { tableCellsValues } = table.getMetaData('rollupJobTermsFieldList');
-        expect(tableCellsValues).toEqual([['No terms fields added']]); // make sure the field list is empty
+        expect(tableCellsValues).toEqual([['No terms fields added']]);
 
-        const { rows } = table.getMetaData('rollupJobTermsFieldChooser-table');
-        rows[0].reactWrapper.simulate('click'); // Select first row
+        const tableElement = screen.getByTestId('rollupJobTermsFieldChooser-table');
+        const rows = within(tableElement).getAllByRole('row').slice(1);
+        await user.click(rows[0]);
 
         ({ tableCellsValues } = table.getMetaData('rollupJobTermsFieldList'));
         const [firstRow] = tableCellsValues;
@@ -179,7 +189,6 @@ describe('Create Rollup Job, step 3: Terms', () => {
     });
 
     it('should have a delete button on each row to remove a term', async () => {
-      // First let's add a term to the list
       mockHttpRequest(startMock.http, {
         indxPatternVldtResp: {
           numericFields,
@@ -187,20 +196,21 @@ describe('Create Rollup Job, step 3: Terms', () => {
         },
       });
       await goToStepAndOpenFieldChooser();
-      const { rows: fieldChooserRows } = table.getMetaData('rollupJobTermsFieldChooser-table');
-      fieldChooserRows[0].reactWrapper.simulate('click');
+      
+      const tableElement = screen.getByTestId('rollupJobTermsFieldChooser-table');
+      const rows = within(tableElement).getAllByRole('row').slice(1);
+      await user.click(rows[0]);
 
-      // Make sure rows value has been set
-      let { rows: fieldListRows } = table.getMetaData('rollupJobTermsFieldList');
-      expect(fieldListRows[0].columns[0].value).not.toEqual('No terms fields added');
+      let { tableCellsValues } = table.getMetaData('rollupJobTermsFieldList');
+      expect(tableCellsValues[0][0]).not.toEqual('No terms fields added');
 
-      const columnsFirstRow = fieldListRows[0].columns;
-      // The last column is the eui "actions" column
-      const deleteButton = columnsFirstRow[columnsFirstRow.length - 1].reactWrapper.find('button');
-      deleteButton.simulate('click');
+      const listTable = screen.getByTestId('rollupJobTermsFieldList');
+      const listRows = within(listTable).getAllByRole('row').slice(1);
+      const deleteButton = within(listRows[0]).getByRole('button', { name: /delete/i });
+      await user.click(deleteButton);
 
-      ({ rows: fieldListRows } = table.getMetaData('rollupJobTermsFieldList'));
-      expect(fieldListRows[0].columns[0].value).toEqual('No terms fields added');
+      ({ tableCellsValues } = table.getMetaData('rollupJobTermsFieldList'));
+      expect(tableCellsValues[0][0]).toEqual('No terms fields added');
     });
   });
 });

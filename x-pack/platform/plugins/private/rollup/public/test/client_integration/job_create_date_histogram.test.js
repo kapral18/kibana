@@ -6,7 +6,7 @@
  */
 
 import { mockHttpRequest, pageHelpers } from './helpers';
-
+import { screen } from '@testing-library/react';
 import moment from 'moment-timezone';
 import { setHttp, init as initDocumentation } from '../../crud_app/services';
 import { docLinksServiceMock, coreMock } from '@kbn/core/public/mocks';
@@ -23,7 +23,7 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
   let startMock;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     startMock = coreMock.createStart();
     setHttp(startMock.http);
     initDocumentation(docLinksServiceMock.createStartContract());
@@ -34,10 +34,14 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
   });
 
   beforeEach(() => {
-    // Set "default" mock responses by not providing any arguments
     mockHttpRequest(startMock.http);
-
-    ({ find, exists, actions, form, getEuiStepsHorizontalActive, goToStep } = setup());
+    const testBed = setup();
+    find = (testSubj) => screen.queryByTestId(testSubj);
+    exists = (testSubj) => screen.queryByTestId(testSubj) !== null;
+    actions = testBed.actions;
+    form = testBed.form;
+    getEuiStepsHorizontalActive = testBed.getEuiStepsHorizontalActive;
+    goToStep = testBed.goToStep;
   });
 
   afterEach(() => {
@@ -74,7 +78,7 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
     });
 
     it('should go to the "Logistics" step when clicking the back button', async () => {
-      actions.clickPreviousStep();
+      await actions.clickPreviousStep();
       expect(getEuiStepsHorizontalActive()).toContain('Logistics');
     });
   });
@@ -86,10 +90,11 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
 
       await goToStep(2);
 
-      const dateFieldSelectOptionsValues = find('rollupJobCreateDateFieldSelect')
-        .find('option')
-        .map((option) => option.text());
-      expect(dateFieldSelectOptionsValues).toEqual(dateFields);
+      const dateFieldSelect = screen.getByTestId('rollupJobCreateDateFieldSelect');
+      const options = Array.from(dateFieldSelect.querySelectorAll('option')).map(
+        (option) => option.textContent
+      );
+      expect(options).toEqual(dateFields);
     });
 
     it('should sort the options in ascending order', async () => {
@@ -98,10 +103,11 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
 
       await goToStep(2);
 
-      const dateFieldSelectOptionsValues = find('rollupJobCreateDateFieldSelect')
-        .find('option')
-        .map((option) => option.text());
-      expect(dateFieldSelectOptionsValues).toEqual(dateFields.sort());
+      const dateFieldSelect = screen.getByTestId('rollupJobCreateDateFieldSelect');
+      const options = Array.from(dateFieldSelect.querySelectorAll('option')).map(
+        (option) => option.textContent
+      );
+      expect(options).toEqual(dateFields.sort());
     });
   });
 
@@ -109,8 +115,10 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
     it('should have a select with all the timezones', async () => {
       await goToStep(2);
 
-      const timeZoneSelect = find('rollupJobCreateTimeZoneSelect');
-      const options = timeZoneSelect.find('option').map((option) => option.text());
+      const timeZoneSelect = screen.getByTestId('rollupJobCreateTimeZoneSelect');
+      const options = Array.from(timeZoneSelect.querySelectorAll('option')).map(
+        (option) => option.textContent
+      );
       expect(options).toEqual(moment.tz.names());
     });
   });
@@ -120,30 +128,30 @@ describe('Create Rollup Job, step 2: Date histogram', () => {
       await goToStep(2);
     });
 
-    it('should display errors when clicking "next" without filling the form', () => {
+    it('should display errors when clicking "next" without filling the form', async () => {
       expect(exists('rollupJobCreateStepError')).toBeFalsy();
 
-      actions.clickNextStep();
+      await actions.clickNextStep();
 
       expect(exists('rollupJobCreateStepError')).toBeTruthy();
       expect(form.getErrorsMessages()).toEqual(['Interval is required.']);
-      expect(find('rollupJobNextButton').props().disabled).toBe(true);
+      expect(find('rollupJobNextButton').disabled).toBe(true);
     });
 
     describe('interval', () => {
       afterEach(() => {
-        expect(find('rollupJobNextButton').props().disabled).toBe(true);
+        expect(find('rollupJobNextButton').disabled).toBe(true);
       });
 
-      it('should validate the interval format', () => {
-        form.setInputValue('rollupJobInterval', 'abc');
-        actions.clickNextStep();
+      it('should validate the interval format', async () => {
+        await form.setInputValue('rollupJobInterval', 'abc');
+        await actions.clickNextStep();
         expect(form.getErrorsMessages()).toContain('Invalid interval format.');
       });
 
-      it('should validate the calendar format', () => {
-        form.setInputValue('rollupJobInterval', '3y');
-        actions.clickNextStep();
+      it('should validate the calendar format', async () => {
+        await form.setInputValue('rollupJobInterval', '3y');
+        await actions.clickNextStep();
         expect(form.getErrorsMessages()).toContain(`The 'y' unit only allows values of 1. Try 1y.`);
       });
     });

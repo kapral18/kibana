@@ -5,69 +5,74 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { rollupJobsStore } from '../../../crud_app/store';
 import { JobCreate } from '../../../crud_app/sections';
-
 import { JOB_TO_CREATE } from './constants';
-
-import { wrapComponent } from './setup_context';
-
-const initTestBed = registerTestBed(wrapComponent(JobCreate), { store: rollupJobsStore });
+import { renderWithProviders } from './setup_context';
 
 export const setup = (props) => {
-  const testBed = initTestBed(props);
-  const { component, form, table } = testBed;
+  const RouterWrapper = ({ children }) => (
+    <Provider store={rollupJobsStore}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </Provider>
+  );
 
-  // User actions
-  const clickNextStep = () => {
-    const button = testBed.find('rollupJobNextButton');
-    act(() => {
-      button.simulate('click');
-    });
-    component.update();
+  const { user, ...renderResult } = renderWithProviders(<JobCreate {...props} />, {
+    wrapper: RouterWrapper,
+  });
+
+  // Helper functions
+  const clickNextStep = async () => {
+    const button = screen.getByTestId('rollupJobNextButton');
+    await user.click(button);
   };
 
-  const clickPreviousStep = () => {
-    const button = testBed.find('rollupJobBackButton');
-    button.simulate('click');
-    component.update();
+  const clickPreviousStep = async () => {
+    const button = screen.getByTestId('rollupJobBackButton');
+    await user.click(button);
   };
 
-  const clickSave = () => {
-    const button = testBed.find('rollupJobSaveButton');
-    act(() => {
-      button.simulate('click');
-    });
-    component.update();
+  const clickSave = async () => {
+    const button = screen.getByTestId('rollupJobSaveButton');
+    await user.click(button);
+  };
+
+  // Form helpers
+  const setInputValue = async (testSubj, value) => {
+    const input = screen.getByTestId(testSubj);
+    await user.clear(input);
+    await user.type(input, value.toString());
+  };
+
+  const getErrorsMessages = () => {
+    const errors = screen.queryAllByTestId(/FormRow.*-error/);
+    return errors.map((error) => error.textContent);
+  };
+
+  const selectCheckBox = async (testSubj) => {
+    const checkbox = screen.getByTestId(testSubj);
+    await user.click(checkbox);
   };
 
   // Forms
   const fillFormFields = async (step) => {
     switch (step) {
       case 'logistics':
-        act(() => {
-          form.setInputValue('rollupJobName', JOB_TO_CREATE.id);
-        });
-        act(() => {
-          form.setInputValue('rollupIndexPattern', JOB_TO_CREATE.indexPattern);
-        });
-        act(() => {
-          form.setInputValue('rollupIndexName', JOB_TO_CREATE.rollupIndex);
-        });
+        await setInputValue('rollupJobName', JOB_TO_CREATE.id);
+        await setInputValue('rollupIndexPattern', JOB_TO_CREATE.indexPattern);
+        await setInputValue('rollupIndexName', JOB_TO_CREATE.rollupIndex);
         break;
       case 'date-histogram':
-        act(() => {
-          form.setInputValue('rollupJobInterval', JOB_TO_CREATE.interval);
-        });
+        await setInputValue('rollupJobInterval', JOB_TO_CREATE.interval);
         break;
       default:
         return;
     }
-
-    component.update();
   };
 
   // Navigation
@@ -82,44 +87,41 @@ export const setup = (props) => {
       if (stepHandlers[currentStep]) {
         await stepHandlers[currentStep]();
       }
-      clickNextStep();
+      await clickNextStep();
       currentStep++;
     }
   };
 
-  // Helpers for the metrics step in job creation.
-  // Mostly placed here for now to make test file a bit smaller and specific
-  // to tests.
-  const getFieldListTableRows = () => {
-    const { rows } = table.getMetaData('rollupJobMetricsFieldList');
-    return rows;
-  };
-
-  const getFieldListTableRow = (row) => {
-    const rows = getFieldListTableRows();
-    return rows[row];
-  };
-
-  const getFieldChooserColumnForRow = (row) => {
-    const selectedRow = getFieldListTableRow(row);
-    const [, , fieldChooserColumn] = selectedRow.columns;
-    return fieldChooserColumn;
-  };
-
-  const getSelectAllInputForRow = (row) => {
-    const fieldChooser = getFieldChooserColumnForRow(row);
-    return fieldChooser.reactWrapper.find('input').first();
+  // Table helpers
+  const getTableData = (testSubj) => {
+    const table = screen.getByTestId(testSubj);
+    const rows = within(table).getAllByRole('row');
+    const dataRows = rows.slice(1); // Skip header
+    
+    return {
+      tableCellsValues: dataRows.map((row) => {
+        const cells = within(row).getAllByRole('cell');
+        return cells.map((cell) => cell.textContent);
+      }),
+      rows: dataRows.map((row) => ({
+        columns: within(row).getAllByRole('cell').map((cell) => ({
+          value: cell.textContent,
+          reactWrapper: cell,
+        })),
+        reactWrapper: row,
+      })),
+    };
   };
 
   // Misc
-  const getEuiStepsHorizontalActive = () =>
-    component
-      .findWhere((c) => c.prop('status') === 'selected')
-      .first()
-      .text();
+  const getEuiStepsHorizontalActive = () => {
+    const selectedStep = document.querySelector('[class*="euiStepHorizontal"][class*="isSelected"]');
+    return selectedStep ? selectedStep.textContent : '';
+  };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     goToStep,
     getEuiStepsHorizontalActive,
     actions: {
@@ -128,14 +130,13 @@ export const setup = (props) => {
       clickSave,
     },
     form: {
-      ...testBed.form,
       fillFormFields,
+      setInputValue,
+      getErrorsMessages,
+      selectCheckBox,
     },
-    metrics: {
-      getFieldListTableRows,
-      getFieldListTableRow,
-      getFieldChooserColumnForRow,
-      getSelectAllInputForRow,
+    table: {
+      getMetaData: getTableData,
     },
   };
 };

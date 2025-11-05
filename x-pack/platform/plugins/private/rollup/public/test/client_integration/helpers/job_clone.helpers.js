@@ -5,38 +5,42 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { screen } from '@testing-library/react';
 import { createRollupJobsStore } from '../../../crud_app/store';
 import { JobCreate } from '../../../crud_app/sections';
 import { JOB_TO_CLONE } from './constants';
 import { deserializeJob } from '../../../crud_app/services';
-
-import { wrapComponent } from './setup_context';
+import { renderWithProviders } from './setup_context';
 
 export const setup = (props) => {
-  const initTestBed = registerTestBed(wrapComponent(JobCreate), {
-    store: createRollupJobsStore({
-      cloneJob: { job: deserializeJob(JOB_TO_CLONE.jobs[0]) },
-    }),
+  const store = createRollupJobsStore({
+    cloneJob: { job: deserializeJob(JOB_TO_CLONE.jobs[0]) },
   });
-  const testBed = initTestBed(props);
-  const { component } = testBed;
+
+  const RouterWrapper = ({ children }) => (
+    <Provider store={store}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </Provider>
+  );
+
+  const { user, ...renderResult } = renderWithProviders(<JobCreate {...props} />, {
+    wrapper: RouterWrapper,
+  });
 
   // User actions
-  const clickNextStep = () => {
-    const button = testBed.find('rollupJobNextButton');
-    button.simulate('click');
-    component.update();
+  const clickNextStep = async () => {
+    const button = screen.getByTestId('rollupJobNextButton');
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       clickNextStep,
-    },
-    form: {
-      ...testBed.form,
-      // fillFormFields,
     },
   };
 };

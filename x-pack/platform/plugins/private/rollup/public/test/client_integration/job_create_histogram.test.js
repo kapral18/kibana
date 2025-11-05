@@ -6,7 +6,7 @@
  */
 
 import { mockHttpRequest, pageHelpers } from './helpers';
-
+import { screen, within } from '@testing-library/react';
 import { setHttp, init as initDocumentation } from '../../crud_app/services';
 import { coreMock, docLinksServiceMock } from '@kbn/core/public/mocks';
 
@@ -20,10 +20,11 @@ describe('Create Rollup Job, step 4: Histogram', () => {
   let goToStep;
   let table;
   let form;
+  let user;
   let startMock;
 
   beforeAll(() => {
-    jest.useFakeTimers({ legacyFakeTimers: true });
+    jest.useFakeTimers();
     startMock = coreMock.createStart();
     setHttp(startMock.http);
     initDocumentation(docLinksServiceMock.createStartContract());
@@ -34,10 +35,16 @@ describe('Create Rollup Job, step 4: Histogram', () => {
   });
 
   beforeEach(() => {
-    // Set "default" mock responses by not providing any arguments
     mockHttpRequest(startMock.http);
-
-    ({ find, exists, actions, getEuiStepsHorizontalActive, goToStep, table, form } = setup());
+    const testBed = setup();
+    find = (testSubj) => screen.queryByTestId(testSubj);
+    exists = (testSubj) => screen.queryByTestId(testSubj) !== null;
+    actions = testBed.actions;
+    getEuiStepsHorizontalActive = testBed.getEuiStepsHorizontalActive;
+    goToStep = testBed.goToStep;
+    table = testBed.table;
+    form = testBed.form;
+    user = testBed.user;
   });
 
   afterEach(() => {
@@ -50,7 +57,7 @@ describe('Create Rollup Job, step 4: Histogram', () => {
 
   const goToStepAndOpenFieldChooser = async () => {
     await goToStep(4);
-    find('rollupJobShowFieldChooserButton').simulate('click');
+    await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
   };
 
   describe('layout', () => {
@@ -81,19 +88,19 @@ describe('Create Rollup Job, step 4: Histogram', () => {
     });
 
     it('should go to the "Terms" step when clicking the back button', async () => {
-      actions.clickPreviousStep();
+      await actions.clickPreviousStep();
       expect(getEuiStepsHorizontalActive()).toContain('Terms');
     });
 
     it('should go to the "Metrics" step when clicking the next button', async () => {
-      actions.clickNextStep();
+      await actions.clickNextStep();
       expect(getEuiStepsHorizontalActive()).toContain('Metrics');
     });
 
-    it('should have a button to display the list of histogram fields to chose from', () => {
+    it('should have a button to display the list of histogram fields to chose from', async () => {
       expect(exists('rollupJobHistogramFieldChooser')).toBe(false);
 
-      find('rollupJobShowFieldChooserButton').simulate('click');
+      await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
 
       expect(exists('rollupJobHistogramFieldChooser')).toBe(true);
     });
@@ -106,13 +113,15 @@ describe('Create Rollup Job, step 4: Histogram', () => {
       });
 
       it('should have the title set to "Add histogram fields"', async () => {
-        expect(find('rollupJobCreateFlyoutTitle').text()).toEqual('Add histogram fields');
+        expect(screen.getByTestId('rollupJobCreateFlyoutTitle').textContent).toEqual(
+          'Add histogram fields'
+        );
       });
 
-      it('should have a button to close the flyout', () => {
+      it('should have a button to close the flyout', async () => {
         expect(exists('rollupJobHistogramFieldChooser')).toBe(true);
 
-        find('euiFlyoutCloseButton').simulate('click');
+        await user.click(screen.getByTestId('euiFlyoutCloseButton'));
 
         expect(exists('rollupJobHistogramFieldChooser')).toBe(false);
       });
@@ -141,12 +150,13 @@ describe('Create Rollup Job, step 4: Histogram', () => {
         expect(tableCellsValues).toEqual([['a-numericField'], ['b-numericField']]);
       });
 
-      it('should add histogram field to the field list when clicking on it', () => {
+      it('should add histogram field to the field list when clicking on it', async () => {
         let { tableCellsValues } = table.getMetaData('rollupJobHistogramFieldList');
-        expect(tableCellsValues).toEqual([['No histogram fields added']]); // make sure the field list is empty
+        expect(tableCellsValues).toEqual([['No histogram fields added']]);
 
-        const { rows } = table.getMetaData('rollupJobHistogramFieldChooser-table');
-        rows[0].reactWrapper.simulate('click'); // Select first row
+        const tableElement = screen.getByTestId('rollupJobHistogramFieldChooser-table');
+        const rows = within(tableElement).getAllByRole('row').slice(1);
+        await user.click(rows[0]);
 
         ({ tableCellsValues } = table.getMetaData('rollupJobHistogramFieldList'));
         const [firstRow] = tableCellsValues;
@@ -164,69 +174,70 @@ describe('Create Rollup Job, step 4: Histogram', () => {
     });
 
     it('should have a delete button on each row to remove an histogram field', async () => {
-      // First let's add a term to the list
       mockHttpRequest(startMock.http, { indxPatternVldtResp: { numericFields } });
       await goToStepAndOpenFieldChooser();
-      const { rows: fieldChooserRows } = table.getMetaData('rollupJobHistogramFieldChooser-table');
-      fieldChooserRows[0].reactWrapper.simulate('click');
+      
+      const tableElement = screen.getByTestId('rollupJobHistogramFieldChooser-table');
+      const rows = within(tableElement).getAllByRole('row').slice(1);
+      await user.click(rows[0]);
 
-      // Make sure rows value has been set
-      let { rows: fieldListRows } = table.getMetaData('rollupJobHistogramFieldList');
-      expect(fieldListRows[0].columns[0].value).not.toEqual('No histogram fields added');
+      let { tableCellsValues } = table.getMetaData('rollupJobHistogramFieldList');
+      expect(tableCellsValues[0][0]).not.toEqual('No histogram fields added');
 
-      const columnsFirstRow = fieldListRows[0].columns;
-      // The last column is the eui "actions" column
-      const deleteButton = columnsFirstRow[columnsFirstRow.length - 1].reactWrapper.find('button');
-      deleteButton.simulate('click');
+      const listTable = screen.getByTestId('rollupJobHistogramFieldList');
+      const listRows = within(listTable).getAllByRole('row').slice(1);
+      const deleteButton = within(listRows[0]).getByRole('button', { name: /delete/i });
+      await user.click(deleteButton);
 
-      ({ rows: fieldListRows } = table.getMetaData('rollupJobHistogramFieldList'));
-      expect(fieldListRows[0].columns[0].value).toEqual('No histogram fields added');
+      ({ tableCellsValues } = table.getMetaData('rollupJobHistogramFieldList'));
+      expect(tableCellsValues[0][0]).toEqual('No histogram fields added');
     });
   });
 
   describe('interval', () => {
-    const addHistogramFieldToList = () => {
-      find('rollupJobShowFieldChooserButton').simulate('click');
-      const { rows } = table.getMetaData('rollupJobHistogramFieldChooser-table');
-      rows[0].reactWrapper.simulate('click');
+    const addHistogramFieldToList = async () => {
+      await user.click(screen.getByTestId('rollupJobShowFieldChooserButton'));
+      const tableElement = screen.getByTestId('rollupJobHistogramFieldChooser-table');
+      const rows = within(tableElement).getAllByRole('row').slice(1);
+      await user.click(rows[0]);
     };
 
     beforeEach(async () => {
       mockHttpRequest(startMock.http, { indxPatternVldtResp: { numericFields } });
       await goToStep(4);
-      addHistogramFieldToList();
+      await addHistogramFieldToList();
     });
 
     describe('input validation', () => {
       afterEach(() => {
-        expect(find('rollupJobNextButton').props().disabled).toBe(true);
+        expect(find('rollupJobNextButton').disabled).toBe(true);
       });
 
-      it('should display errors when clicking "next" without filling the interval', () => {
+      it('should display errors when clicking "next" without filling the interval', async () => {
         expect(exists('rollupJobCreateStepError')).toBeFalsy();
 
-        actions.clickNextStep();
+        await actions.clickNextStep();
 
         expect(exists('rollupJobCreateStepError')).toBeTruthy();
         expect(form.getErrorsMessages()).toEqual(['Interval must be a whole number.']);
       });
 
-      it('should be a whole number', () => {
-        form.setInputValue('rollupJobCreateHistogramInterval', 5.5);
-        actions.clickNextStep();
+      it('should be a whole number', async () => {
+        await form.setInputValue('rollupJobCreateHistogramInterval', '5.5');
+        await actions.clickNextStep();
         expect(form.getErrorsMessages()).toEqual(['Interval must be a whole number.']);
       });
 
-      it('should be greater than zero', () => {
-        form.setInputValue('rollupJobCreateHistogramInterval', -1);
-        actions.clickNextStep();
+      it('should be greater than zero', async () => {
+        await form.setInputValue('rollupJobCreateHistogramInterval', '-1');
+        await actions.clickNextStep();
         expect(form.getErrorsMessages()).toEqual(['Interval must be greater than zero.']);
       });
     });
 
-    it('should go to next "Metrics" step if value is valid', () => {
-      form.setInputValue('rollupJobCreateHistogramInterval', 3);
-      actions.clickNextStep();
+    it('should go to next "Metrics" step if value is valid', async () => {
+      await form.setInputValue('rollupJobCreateHistogramInterval', '3');
+      await actions.clickNextStep();
       expect(getEuiStepsHorizontalActive()).toContain('Metrics');
     });
   });

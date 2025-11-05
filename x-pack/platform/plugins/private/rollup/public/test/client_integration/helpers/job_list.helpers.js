@@ -5,21 +5,40 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
 import { registerRouter } from '../../../crud_app/services';
 import { createRollupJobsStore } from '../../../crud_app/store';
 import { JobList } from '../../../crud_app/sections/job_list';
+import { renderWithProviders } from './setup_context';
 
-import { wrapComponent } from './setup_context';
+export const setup = (props) => {
+  const store = createRollupJobsStore();
 
-const testBedConfig = {
-  store: createRollupJobsStore,
-  memoryRouter: {
-    onRouter: (router) => {
-      // register our react memory router
-      registerRouter(router);
-    },
-  },
+  let routerInstance;
+  
+  const RouterWrapper = ({ children }) => (
+    <Provider store={store}>
+      <MemoryRouter
+        ref={(router) => {
+          if (router) {
+            routerInstance = router.history;
+            registerRouter(router.history);
+          }
+        }}
+      >
+        {children}
+      </MemoryRouter>
+    </Provider>
+  );
+
+  const renderResult = renderWithProviders(<JobList {...props} />, {
+    wrapper: RouterWrapper,
+  });
+
+  return {
+    ...renderResult,
+    router: routerInstance,
+  };
 };
-
-export const setup = registerTestBed(wrapComponent(JobList), testBedConfig);

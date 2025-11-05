@@ -8,7 +8,7 @@
 import React from 'react';
 import { Provider } from 'react-redux';
 
-import { mountWithIntl } from '@kbn/test-jest-helpers';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import { httpServiceMock, scopedHistoryMock } from '@kbn/core/public/mocks';
 import { licenseManagementStore } from '../../public/application/store/store';
 import { AppContextProvider } from '../../public/application/app_context';
@@ -41,7 +41,7 @@ export const getComponent = (initialState, Component) => {
     history,
   };
   const store = licenseManagementStore(initialState, services);
-  return mountWithIntl(
+  return renderWithI18n(
     <AppContextProvider value={appDependencies}>
       <Provider store={store}>
         <Component />

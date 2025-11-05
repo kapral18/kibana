@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { act } from 'react-dom/test-utils';
+import { screen } from '@testing-library/react';
 
 import { API_BASE_PATH } from '../../common';
 import { pageHelpers, setupEnvironment } from './helpers';
@@ -22,67 +22,53 @@ describe('<RestoreSnapshot />', () => {
   let testBed: RestoreSnapshotTestBed;
 
   describe('wizard navigation', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       httpRequestsMockHelpers.setGetSnapshotResponse(
         REPOSITORY_NAME,
         SNAPSHOT_NAME,
         fixtures.getSnapshot()
       );
 
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-
-      testBed.component.update();
+      testBed = setup(httpSetup);
     });
 
     it('does not allow navigation when the step is invalid', async () => {
       const { actions } = testBed;
-      actions.goToStep(2);
+      await actions.goToStep(2);
       expect(actions.canGoToADifferentStep()).toBe(true);
-      actions.toggleModifyIndexSettings();
+      await actions.toggleModifyIndexSettings();
       expect(actions.canGoToADifferentStep()).toBe(false);
     });
   });
 
   describe('with data streams', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       httpRequestsMockHelpers.setGetSnapshotResponse(
         REPOSITORY_NAME,
         SNAPSHOT_NAME,
         fixtures.getSnapshot()
       );
 
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-
-      testBed.component.update();
+      testBed = setup(httpSetup);
     });
 
     test('shows the data streams warning when the snapshot has data streams', () => {
-      const { exists } = testBed;
-      expect(exists('dataStreamWarningCallOut')).toBe(true);
+      expect(screen.queryByTestId('dataStreamWarningCallOut')).toBeInTheDocument();
     });
   });
 
   describe('without data streams', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       httpRequestsMockHelpers.setGetSnapshotResponse(
         REPOSITORY_NAME,
         SNAPSHOT_NAME,
         fixtures.getSnapshot({ totalDataStreams: 0 })
       );
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-
-      testBed.component.update();
+      testBed = setup(httpSetup);
     });
 
     test('hides the data streams warning when the snapshot has data streams', () => {
-      const { exists } = testBed;
-      expect(exists('dataStreamWarningCallOut')).toBe(false);
+      expect(screen.queryByTestId('dataStreamWarningCallOut')).not.toBeInTheDocument();
     });
   });
 
@@ -94,17 +80,14 @@ describe('<RestoreSnapshot />', () => {
         fixtures.getSnapshot({ featureStates: [] })
       );
 
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-      testBed.component.update();
+      testBed = setup(httpSetup);
 
-      const { exists, actions } = testBed;
+      const { actions } = testBed;
 
-      actions.toggleGlobalState();
-      expect(exists('systemIndicesInfoCallOut')).toBe(false);
-      expect(exists('featureStatesDropdown')).toBe(false);
-      expect(exists('noFeatureStatesCallout')).toBe(true);
+      await actions.toggleGlobalState();
+      expect(screen.queryByTestId('systemIndicesInfoCallOut')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('featureStatesDropdown')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('noFeatureStatesCallout')).toBeInTheDocument();
     });
 
     test('shows an extra info callout when includeFeatureState is enabled and we have featureStates present in snapshot', async () => {
@@ -114,43 +97,35 @@ describe('<RestoreSnapshot />', () => {
         fixtures.getSnapshot({ featureStates: ['kibana'] })
       );
 
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
+      testBed = setup(httpSetup);
 
-      testBed.component.update();
+      const { actions } = testBed;
 
-      const { exists, actions } = testBed;
-
-      expect(exists('systemIndicesInfoCallOut')).toBe(false);
+      expect(screen.queryByTestId('systemIndicesInfoCallOut')).not.toBeInTheDocument();
 
       await actions.toggleFeatureState();
 
-      expect(exists('systemIndicesInfoCallOut')).toBe(true);
+      expect(screen.queryByTestId('systemIndicesInfoCallOut')).toBeInTheDocument();
     });
   });
 
   // NOTE: This suite can be expanded to simulate the user setting non-default values for all of
   // the form controls and asserting that the correct payload is sent to the API.
   describe('include aliases', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       httpRequestsMockHelpers.setGetSnapshotResponse(
         REPOSITORY_NAME,
         SNAPSHOT_NAME,
         fixtures.getSnapshot()
       );
 
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-
-      testBed.component.update();
+      testBed = setup(httpSetup);
     });
 
     test('is sent to the API', async () => {
       const { actions } = testBed;
-      actions.toggleIncludeAliases();
-      actions.goToStep(3);
+      await actions.toggleIncludeAliases();
+      await actions.goToStep(3);
       await actions.clickRestore();
 
       expect(httpSetup.post).toHaveBeenLastCalledWith(

@@ -5,7 +5,8 @@
  * 2.0.
  */
 
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithI18n } from '@kbn/test-jest-helpers';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@kbn/react-query';
@@ -31,6 +32,7 @@ describe('Transform: Transform List <ExpandedRow />', () => {
   });
 
   test('Minimal initialization', async () => {
+    const user = userEvent.setup();
     // @ts-expect-error mock data is too loosely typed
     const item: TransformListRow = transformListRow;
 
@@ -54,7 +56,7 @@ describe('Transform: Transform List <ExpandedRow />', () => {
       expect(within(tabContent).getByText('General')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId('transformStatsTab'));
+    await user.click(screen.getByTestId('transformStatsTab'));
 
     await waitFor(() => {
       expect(screen.getByTestId('transformStatsTab')).toHaveAttribute('aria-selected', 'true');

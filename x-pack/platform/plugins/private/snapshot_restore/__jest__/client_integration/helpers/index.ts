@@ -14,10 +14,12 @@ import { setup as policyEditSetup } from './policy_edit.helpers';
 import { setup as restoreSnapshotSetup } from './restore_snapshot.helpers';
 import { setup as snapshotListSetup } from './snapshot_list.helpers';
 
-export type { TestBed } from '@kbn/test-jest-helpers';
-export { getRandomString, findTestSubject } from '@kbn/test-jest-helpers';
+export { getRandomString } from '@kbn/test-jest-helpers';
+export { within } from '@testing-library/react';
+export type { RenderResult } from '@testing-library/react';
 
-export { setupEnvironment } from './setup_environment';
+export { setupEnvironment, renderWithRouter } from './setup_environment';
+export type { RenderWithProvidersResult, RenderWithRouterOptions } from './setup_environment';
 
 export const pageHelpers = {
   home: { setup: homeSetup },

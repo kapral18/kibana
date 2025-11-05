@@ -5,27 +5,17 @@
  * 2.0.
  */
 
-import type { AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
 import type { HttpSetup } from '@kbn/core/public';
 import { PolicyAdd } from '../../../public/application/sections/policy_add';
-import type { PolicyFormTestSubjects } from './policy_form.helpers';
 import { formSetup } from './policy_form.helpers';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
+export const setup = (httpSetup: HttpSetup) => {
+  const renderResult = renderWithRouter(<PolicyAdd />, {
     initialEntries: ['/add_policy'],
-    componentRoutePath: '/add_policy',
-  },
-  doMountAsync: true,
-};
+    httpSetup,
+  });
 
-export const setup = async (httpSetup: HttpSetup) => {
-  const initTestBed = registerTestBed<PolicyFormTestSubjects>(
-    WithAppDependencies(PolicyAdd, httpSetup),
-    testBedConfig
-  );
-
-  return formSetup(initTestBed);
+  return formSetup(renderResult);
 };

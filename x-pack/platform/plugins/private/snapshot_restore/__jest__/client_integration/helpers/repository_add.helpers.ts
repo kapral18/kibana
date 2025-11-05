@@ -5,54 +5,56 @@
  * 2.0.
  */
 
-import type { TestBed } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { screen } from '@testing-library/react';
 import type { HttpSetup } from '@kbn/core/public';
 import type { RepositoryType } from '../../../common/types';
 import { RepositoryAdd } from '../../../public/application/sections/repository_add';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
+import type { RenderWithProvidersResult } from './setup_environment';
 
-export interface RepositoryAddTestBed extends TestBed<RepositoryAddTestSubjects> {
+export interface RepositoryAddTestBed extends RenderWithProvidersResult {
   actions: {
-    clickNextButton: () => void;
-    clickBackButton: () => void;
-    clickSubmitButton: () => void;
-    selectRepositoryType: (type: RepositoryType) => void;
+    clickNextButton: () => Promise<void>;
+    clickBackButton: () => Promise<void>;
+    clickSubmitButton: () => Promise<void>;
+    selectRepositoryType: (type: RepositoryType) => Promise<void>;
   };
 }
 
-export const setup = async (httpSetup: HttpSetup): Promise<RepositoryAddTestBed> => {
-  const initTestBed = registerTestBed<RepositoryAddTestSubjects>(
-    WithAppDependencies(RepositoryAdd, httpSetup),
-    {
-      doMountAsync: true,
-    }
-  );
-  const testBed = await initTestBed();
+export const setup = (httpSetup: HttpSetup): RepositoryAddTestBed => {
+  const renderResult = renderWithRouter(<RepositoryAdd />, {
+    httpSetup,
+  });
+
+  const { user } = renderResult;
 
   // User actions
-  const clickNextButton = () => {
-    testBed.find('nextButton').simulate('click');
+  const clickNextButton = async () => {
+    const button = screen.getByTestId('nextButton');
+    await user.click(button);
   };
 
-  const clickBackButton = () => {
-    testBed.find('backButton').simulate('click');
+  const clickBackButton = async () => {
+    const button = screen.getByTestId('backButton');
+    await user.click(button);
   };
 
-  const clickSubmitButton = () => {
-    testBed.find('submitButton').simulate('click');
+  const clickSubmitButton = async () => {
+    const button = screen.getByTestId('submitButton');
+    await user.click(button);
   };
 
-  const selectRepositoryType = (type: RepositoryType) => {
-    const button = testBed.find(`${type}RepositoryType` as 'fsRepositoryType').find('button');
-    if (!button.length) {
+  const selectRepositoryType = async (type: RepositoryType) => {
+    const button = screen.getByTestId(`${type}RepositoryType`).querySelector('button');
+    if (!button) {
       throw new Error(`Repository type "${type}" button not found.`);
     }
-    button.simulate('click');
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
     actions: {
       clickNextButton,
       clickBackButton,

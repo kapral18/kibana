@@ -5,28 +5,17 @@
  * 2.0.
  */
 
-import type { AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
 import type { HttpSetup } from '@kbn/core/public';
 import { RepositoryEdit } from '../../../public/application/sections/repository_edit';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
 import { REPOSITORY_NAME } from './constant';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
+export const setup = (httpSetup: HttpSetup) => {
+  return renderWithRouter(<RepositoryEdit />, {
     initialEntries: [`/${REPOSITORY_NAME}`],
-    componentRoutePath: '/:name',
-  },
-  doMountAsync: true,
-};
-
-export const setup = async (httpSetup: HttpSetup) => {
-  const initTestBed = registerTestBed<RepositoryEditTestSubjects>(
-    WithAppDependencies(RepositoryEdit, httpSetup),
-    testBedConfig
-  );
-
-  return await initTestBed();
+    httpSetup,
+  });
 };
 
 export type RepositoryEditTestSubjects = TestSubjects | ThreeLevelDepth | NonVisibleTestSubjects;

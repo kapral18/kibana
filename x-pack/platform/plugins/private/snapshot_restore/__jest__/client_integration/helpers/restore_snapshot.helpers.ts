@@ -4,103 +4,81 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { act } from 'react-dom/test-utils';
+import React from 'react';
+import { screen } from '@testing-library/react';
 
 import type { HttpSetup } from '@kbn/core/public';
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import { RestoreSnapshot } from '../../../public/application/sections/restore_snapshot';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
+import type { RenderWithProvidersResult } from './setup_environment';
 import { REPOSITORY_NAME, SNAPSHOT_NAME } from './constant';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    initialEntries: [`/restore/${REPOSITORY_NAME}/${SNAPSHOT_NAME}`],
-    componentRoutePath: '/restore/:repositoryName?/:snapshotId*',
-  },
-  doMountAsync: true,
-};
-
-const setupActions = (testBed: TestBed<RestoreSnapshotFormTestSubject>) => {
-  const { find, component, form, exists } = testBed;
+const setupActions = (renderResult: RenderWithProvidersResult) => {
+  const { user } = renderResult;
 
   return {
     findDataStreamCallout() {
-      return find('dataStreamWarningCallOut');
+      return screen.queryByTestId('dataStreamWarningCallOut');
     },
 
     canGoToADifferentStep() {
-      const canGoNext = find('restoreSnapshotsForm.nextButton').props().disabled !== true;
-      const canGoPrevious = exists('restoreSnapshotsForm.backButton')
-        ? find('restoreSnapshotsForm.nextButton').props().disabled !== true
-        : true;
+      const nextButton = screen.queryByTestId('restoreSnapshotsForm.nextButton');
+      const backButton = screen.queryByTestId('restoreSnapshotsForm.backButton');
+      
+      const canGoNext = nextButton ? !(nextButton as HTMLButtonElement).disabled : false;
+      const canGoPrevious = backButton ? !(backButton as HTMLButtonElement).disabled : true;
       return canGoNext && canGoPrevious;
     },
 
-    toggleModifyIndexSettings() {
-      act(() => {
-        form.toggleEuiSwitch('modifyIndexSettingsSwitch');
-      });
-      component.update();
+    async toggleModifyIndexSettings() {
+      const toggle = screen.getByTestId('modifyIndexSettingsSwitch');
+      await user.click(toggle);
     },
 
-    toggleGlobalState() {
-      act(() => {
-        form.toggleEuiSwitch('includeGlobalStateSwitch');
-      });
-
-      component.update();
+    async toggleGlobalState() {
+      const toggle = screen.getByTestId('includeGlobalStateSwitch');
+      await user.click(toggle);
     },
 
     async toggleFeatureState() {
-      await act(async () => {
-        form.toggleEuiSwitch('includeFeatureStatesSwitch');
-      });
-
-      component.update();
+      const toggle = screen.getByTestId('includeFeatureStatesSwitch');
+      await user.click(toggle);
     },
 
-    toggleIncludeAliases() {
-      act(() => {
-        form.toggleEuiSwitch('includeAliasesSwitch');
-      });
-
-      component.update();
+    async toggleIncludeAliases() {
+      const toggle = screen.getByTestId('includeAliasesSwitch');
+      await user.click(toggle);
     },
 
-    goToStep(step: number) {
+    async goToStep(step: number) {
       while (--step > 0) {
-        find('nextButton').simulate('click');
+        const nextButton = screen.getByTestId('nextButton');
+        await user.click(nextButton);
       }
-      component.update();
     },
 
     async clickRestore() {
-      await act(async () => {
-        find('restoreButton').simulate('click');
-      });
-      component.update();
+      const restoreButton = screen.getByTestId('restoreButton');
+      await user.click(restoreButton);
     },
   };
 };
 
 type Actions = ReturnType<typeof setupActions>;
 
-export type RestoreSnapshotTestBed = TestBed<RestoreSnapshotFormTestSubject> & {
+export type RestoreSnapshotTestBed = RenderWithProvidersResult & {
   actions: Actions;
 };
 
-export const setup = async (httpSetup: HttpSetup): Promise<RestoreSnapshotTestBed> => {
-  const initTestBed = registerTestBed<RestoreSnapshotFormTestSubject>(
-    WithAppDependencies(RestoreSnapshot, httpSetup),
-    testBedConfig
-  );
-
-  const testBed = await initTestBed();
+export const setup = (httpSetup: HttpSetup): RestoreSnapshotTestBed => {
+  const renderResult = renderWithRouter(<RestoreSnapshot />, {
+    initialEntries: [`/restore/${REPOSITORY_NAME}/${SNAPSHOT_NAME}`],
+    httpSetup,
+  });
 
   return {
-    ...testBed,
-    actions: setupActions(testBed),
+    ...renderResult,
+    actions: setupActions(renderResult),
   };
 };
 

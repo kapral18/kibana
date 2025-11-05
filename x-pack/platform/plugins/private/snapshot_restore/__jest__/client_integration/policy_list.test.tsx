@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import { screen, waitFor } from '@testing-library/react';
 import { setupEnvironment } from './helpers';
 import { getPolicy } from '../../test/fixtures';
 import type { PoliciesListTestBed } from './helpers/policy_list.helpers';
@@ -31,7 +32,7 @@ describe('<PolicyList />', () => {
   let testBed: PoliciesListTestBed;
   const { httpSetup, httpRequestsMockHelpers } = setupEnvironment();
 
-  beforeEach(async () => {
+  beforeEach(() => {
     httpRequestsMockHelpers.setLoadPoliciesResponse({
       policies: [
         POLICY_WITH_GLOBAL_STATE_AND_FEATURES,
@@ -43,33 +44,36 @@ describe('<PolicyList />', () => {
       policy: POLICY_WITH_GLOBAL_STATE_AND_FEATURES,
     });
 
-    testBed = await setupPoliciesListPage(httpSetup);
-
-    testBed.component.update();
+    testBed = setupPoliciesListPage(httpSetup);
   });
 
   describe('details flyout', () => {
     test('should show the detail flyout when clicking on a policy', async () => {
-      const { exists, actions } = testBed;
+      const { actions, user } = testBed;
 
-      expect(exists('policyDetail')).toBe(false);
+      expect(screen.queryByTestId('policyDetail')).not.toBeInTheDocument();
 
       await actions.clickPolicyAt(0);
 
-      expect(exists('policyDetail')).toBe(true);
+      await waitFor(() => {
+        expect(screen.getByTestId('policyDetail')).toBeInTheDocument();
+      });
     });
 
     test('should show feature states if include global state is enabled', async () => {
-      const { find, actions } = testBed;
+      const { actions, user } = testBed;
 
       // Assert against first result shown in the table, which should have includeGlobalState enabled
       await actions.clickPolicyAt(0);
 
-      expect(find('includeGlobalState.value').text()).toEqual('Yes');
-      expect(find('policyFeatureStatesSummary.featureStatesList').text()).toEqual('kibana');
+      await waitFor(() => {
+        expect(screen.getByTestId('includeGlobalState.value')).toHaveTextContent('Yes');
+        expect(screen.getByTestId('policyFeatureStatesSummary.featureStatesList')).toHaveTextContent('kibana');
+      });
 
       // Close the flyout
-      find('srPolicyDetailsFlyoutCloseButton').simulate('click');
+      const closeButton = screen.getByTestId('srPolicyDetailsFlyoutCloseButton');
+      await user.click(closeButton);
 
       // Replace the get policy details api call with the payload of the second row which we're about to click
       httpRequestsMockHelpers.setGetPolicyResponse(POLICY_WITHOUT_GLOBAL_STATE.name, {
@@ -79,15 +83,18 @@ describe('<PolicyList />', () => {
       // Now we will assert against the second result of the table which shouldnt have includeGlobalState
       await actions.clickPolicyAt(1);
 
-      expect(find('includeGlobalState.value').text()).toEqual('No');
-      expect(find('policyFeatureStatesSummary.value').text()).toEqual('No');
+      await waitFor(() => {
+        expect(screen.getByTestId('includeGlobalState.value')).toHaveTextContent('No');
+        expect(screen.getByTestId('policyFeatureStatesSummary.value')).toHaveTextContent('No');
+      });
 
       // Close the flyout
-      find('srPolicyDetailsFlyoutCloseButton').simulate('click');
+      const closeButton2 = screen.getByTestId('srPolicyDetailsFlyoutCloseButton');
+      await user.click(closeButton2);
     });
 
     test('When it only has include globalState summary should also mention that it includes all features', async () => {
-      const { find, actions } = testBed;
+      const { actions } = testBed;
 
       // Replace the get policy details api call with the payload of the second row which we're about to click
       httpRequestsMockHelpers.setGetPolicyResponse(POLICY_WITH_JUST_GLOBAL_STATE.name, {
@@ -97,8 +104,10 @@ describe('<PolicyList />', () => {
       // Assert against third result shown in the table, which should have just includeGlobalState enabled
       await actions.clickPolicyAt(2);
 
-      expect(find('includeGlobalState.value').text()).toEqual('Yes');
-      expect(find('policyFeatureStatesSummary.value').text()).toEqual('All features');
+      await waitFor(() => {
+        expect(screen.getByTestId('includeGlobalState.value')).toHaveTextContent('Yes');
+        expect(screen.getByTestId('policyFeatureStatesSummary.value')).toHaveTextContent('All features');
+      });
     });
   });
 });

@@ -5,33 +5,24 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-import type { AsyncTestBedConfig, TestBed } from '@kbn/test-jest-helpers';
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { within, screen } from '@testing-library/react';
 import type { HttpSetup } from '@kbn/core/public';
 import { PolicyList } from '../../../public/application/sections/home/policy_list';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
+import type { RenderWithProvidersResult } from './setup_environment';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    initialEntries: ['/policies'],
-    componentRoutePath: '/policies/:policyName?',
-  },
-  doMountAsync: true,
-};
+const createActions = (renderResult: RenderWithProvidersResult) => {
+  const { user, history } = renderResult;
 
-const createActions = (testBed: TestBed) => {
   const clickPolicyAt = async (index: number) => {
-    const { component, table, router } = testBed;
-    const { rows } = table.getMetaData('policyTable');
-    const repositoryLink = findTestSubject(rows[index].reactWrapper, 'policyLink');
-
-    await act(async () => {
-      const { href } = repositoryLink.props();
-      router.navigateTo(href!);
-    });
-
-    component.update();
+    const table = screen.getByTestId('policyTable');
+    const rows = within(table).getAllByRole('row');
+    // Skip header row
+    const dataRows = rows.slice(1);
+    const policyLink = within(dataRows[index]).getByTestId('policyLink');
+    
+    await user.click(policyLink);
   };
 
   return {
@@ -39,17 +30,18 @@ const createActions = (testBed: TestBed) => {
   };
 };
 
-export type PoliciesListTestBed = TestBed & {
+export type PoliciesListTestBed = RenderWithProvidersResult & {
   actions: ReturnType<typeof createActions>;
 };
 
-export const setupPoliciesListPage = async (httpSetup: HttpSetup) => {
-  const initTestBed = registerTestBed(WithAppDependencies(PolicyList, httpSetup), testBedConfig);
-
-  const testBed = await initTestBed();
+export const setupPoliciesListPage = (httpSetup: HttpSetup): PoliciesListTestBed => {
+  const renderResult = renderWithRouter(<PolicyList />, {
+    initialEntries: ['/policies'],
+    httpSetup,
+  });
 
   return {
-    ...testBed,
-    actions: createActions(testBed),
+    ...renderResult,
+    actions: createActions(renderResult),
   };
 };

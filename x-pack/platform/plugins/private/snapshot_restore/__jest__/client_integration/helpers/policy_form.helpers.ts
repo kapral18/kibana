@@ -5,31 +5,33 @@
  * 2.0.
  */
 
-import type { TestBed, SetupFunc } from '@kbn/test-jest-helpers';
+import { screen } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
+import type { RenderWithProvidersResult } from './setup_environment';
 
-export interface PolicyFormTestBed extends TestBed<PolicyFormTestSubjects> {
+export interface PolicyFormTestBed extends RenderWithProvidersResult {
   actions: {
-    clickNextButton: () => void;
-    clickSubmitButton: () => void;
+    clickNextButton: () => Promise<void>;
+    clickSubmitButton: () => Promise<void>;
   };
 }
 
-export const formSetup = async (
-  initTestBed: SetupFunc<PolicyFormTestSubjects>
-): Promise<PolicyFormTestBed> => {
-  const testBed = await initTestBed();
+export const formSetup = (renderResult: RenderWithProvidersResult): PolicyFormTestBed => {
+  const { user } = renderResult;
 
   // User actions
-  const clickNextButton = () => {
-    testBed.find('nextButton').simulate('click');
+  const clickNextButton = async () => {
+    const button = screen.getByTestId('nextButton');
+    await user.click(button);
   };
 
-  const clickSubmitButton = () => {
-    testBed.find('submitButton').simulate('click');
+  const clickSubmitButton = async () => {
+    const button = screen.getByTestId('submitButton');
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
     actions: {
       clickNextButton,
       clickSubmitButton,

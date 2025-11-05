@@ -5,27 +5,17 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-import type { TestBedConfig, TestBed } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { BASE_PATH } from '../../../public/application/constants';
 import { SnapshotList } from '../../../public/application/sections/home/snapshot_list';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter } from './setup_environment';
+import type { RenderWithProvidersResult } from './setup_environment';
 
-const getTestBedConfig = (query?: string): TestBedConfig => ({
-  memoryRouter: {
-    initialEntries: [`${BASE_PATH}/snapshots${query ?? ''}`],
-    componentRoutePath: `${BASE_PATH}/snapshots/:repositoryName?/:snapshotId*`,
-  },
-});
-
-const initTestBed = (query?: string) =>
-  registerTestBed(WithAppDependencies(SnapshotList), getTestBedConfig(query))();
-
-export interface SnapshotListTestBed extends TestBed {
+export interface SnapshotListTestBed extends RenderWithProvidersResult {
   actions: {
-    setSearchText: (value: string, advanceTime?: boolean) => void;
+    setSearchText: (value: string, advanceTime?: boolean) => Promise<void>;
     searchErrorExists: () => boolean;
     getSearchErrorText: () => string;
   };
@@ -34,34 +24,34 @@ export interface SnapshotListTestBed extends TestBed {
 const searchBarSelector = 'snapshotListSearch';
 const searchErrorSelector = 'snapshotListSearchError';
 
-export const setup = async (query?: string): Promise<SnapshotListTestBed> => {
-  const testBed = await initTestBed(query);
+export const setup = (query?: string): SnapshotListTestBed => {
+  const renderResult = renderWithRouter(<SnapshotList />, {
+    initialEntries: [`${BASE_PATH}/snapshots${query ?? ''}`],
+  });
 
-  const { form, component, find, exists } = testBed;
+  const { user } = renderResult;
 
   const setSearchText = async (value: string, advanceTime = true) => {
-    await act(async () => {
-      form.setInputValue(searchBarSelector, value);
-    });
-    component.update();
+    const searchInput = screen.getByTestId(searchBarSelector);
+    await user.clear(searchInput);
+    await user.type(searchInput, value);
+    
     if (advanceTime) {
-      await act(async () => {
-        jest.advanceTimersByTime(500);
-      });
-      component.update();
+      await jest.advanceTimersByTimeAsync(500);
     }
   };
 
   const searchErrorExists = (): boolean => {
-    return exists(searchErrorSelector);
+    return screen.queryByTestId(searchErrorSelector) !== null;
   };
 
   const getSearchErrorText = (): string => {
-    return find(searchErrorSelector).text();
+    const errorElement = screen.getByTestId(searchErrorSelector);
+    return errorElement.textContent || '';
   };
 
   return {
-    ...testBed,
+    ...renderResult,
     actions: {
       setSearchText,
       searchErrorExists,

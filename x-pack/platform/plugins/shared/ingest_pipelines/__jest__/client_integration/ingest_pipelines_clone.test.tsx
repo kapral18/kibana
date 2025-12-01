@@ -5,23 +5,26 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createMemoryHistory } from 'history';
+import { Router, Route, Routes } from '@kbn/shared-ux-router';
+import { I18nProvider } from '@kbn/i18n-react';
 
-import { setupEnvironment, pageHelpers } from './helpers';
+import { setupEnvironment } from './helpers';
 import { API_BASE_PATH } from '../../common/constants';
-import type { PipelinesCloneTestBed } from './helpers/pipelines_clone.helpers';
 import { PIPELINE_TO_CLONE } from './helpers/pipelines_clone.helpers';
-import { getClonePath } from '../../public/application/services/navigation';
-
-const { setup } = pageHelpers.pipelinesClone;
+import { getClonePath, ROUTES } from '../../public/application/services/navigation';
+import { PipelinesClone } from '../../public/application/sections/pipelines_clone';
+import { WithAppDependencies } from './helpers/setup_environment';
 
 const originalLocation = window.location;
-describe('<PipelinesClone />', () => {
-  let testBed: PipelinesCloneTestBed;
 
+describe('<PipelinesClone />', () => {
   const { httpSetup, httpRequestsMockHelpers } = setupEnvironment();
 
-  beforeEach(async () => {
+  beforeEach(() => {
     httpRequestsMockHelpers.setLoadPipelineResponse(PIPELINE_TO_CLONE.name, PIPELINE_TO_CLONE);
 
     Object.defineProperty(window, 'location', {
@@ -32,11 +35,20 @@ describe('<PipelinesClone />', () => {
       },
     });
 
-    await act(async () => {
-      testBed = await setup(httpSetup);
+    const Component = WithAppDependencies(PipelinesClone, httpSetup);
+    const history = createMemoryHistory({
+      initialEntries: [getClonePath({ clonedPipelineName: PIPELINE_TO_CLONE.name })],
     });
-
-    testBed.component.update();
+    
+    render(
+      <I18nProvider>
+        <Router history={history}>
+          <Routes>
+            <Route path={ROUTES.clone} component={Component} />
+          </Routes>
+        </Router>
+      </I18nProvider>
+    );
   });
 
   afterEach(() => {
@@ -46,23 +58,20 @@ describe('<PipelinesClone />', () => {
     });
   });
 
-  test('should render the correct page header', () => {
-    const { exists, find } = testBed;
-
+  test('should render the correct page header', async () => {
     // Verify page title
-    expect(exists('pageTitle')).toBe(true);
-    expect(find('pageTitle').text()).toEqual('Create pipeline');
+    expect(await screen.findByTestId('pageTitle')).toBeInTheDocument();
+    expect(screen.getByTestId('pageTitle')).toHaveTextContent('Create pipeline');
 
     // Verify documentation link
-    expect(exists('documentationLink')).toBe(true);
-    expect(find('documentationLink').text()).toBe('Create pipeline docs');
+    expect(screen.getByTestId('documentationLink')).toBeInTheDocument();
+    expect(screen.getByTestId('documentationLink')).toHaveTextContent('Create pipeline docs');
   });
 
   describe('form submission', () => {
     it('should send the correct payload', async () => {
-      const { actions } = testBed;
-
-      await actions.clickSubmitButton();
+      const submitButton = await screen.findByTestId('submitButton');
+      await userEvent.click(submitButton);
 
       expect(httpSetup.post).toHaveBeenLastCalledWith(
         API_BASE_PATH,

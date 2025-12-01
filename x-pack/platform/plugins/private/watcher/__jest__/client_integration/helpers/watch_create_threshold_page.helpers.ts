@@ -5,27 +5,17 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
+import { screen, waitFor } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 
 import { WatchEditPage } from '../../../public/application/sections/watch_edit_page';
 import { registerRouter } from '../../../public/application/lib/navigation';
 import { ROUTES, WATCH_TYPES } from '../../../common/constants';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter, type RenderWithRouterResult } from './render';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    onRouter: (router) => registerRouter(router),
-    initialEntries: [`${ROUTES.API_ROOT}/watches/new-watch/${WATCH_TYPES.THRESHOLD}`],
-    componentRoutePath: `${ROUTES.API_ROOT}/watches/new-watch/:type`,
-  },
-  doMountAsync: true,
-};
-
-export interface WatchCreateThresholdTestBed extends TestBed<WatchCreateThresholdTestSubjects> {
+export interface WatchCreateThresholdTestBed extends RenderWithRouterResult {
+  user: UserEvent;
   actions: {
     clickSubmitButton: () => Promise<void>;
     clickAddActionButton: () => Promise<void>;
@@ -37,50 +27,55 @@ export interface WatchCreateThresholdTestBed extends TestBed<WatchCreateThreshol
 }
 
 export const setup = async (httpSetup: HttpSetup): Promise<WatchCreateThresholdTestBed> => {
-  const initTestBed = registerTestBed(WithAppDependencies(WatchEditPage, httpSetup), testBedConfig);
-  const testBed = await initTestBed();
-  const { find, component } = testBed;
+  const renderResult = renderWithRouter(WatchEditPage, {
+    httpSetup,
+    initialEntries: [`${ROUTES.API_ROOT}/watches/new-watch/${WATCH_TYPES.THRESHOLD}`],
+    routePath: `${ROUTES.API_ROOT}/watches/new-watch/:type`,
+    onRouter: (router) => registerRouter(router),
+  });
+
+  const { user } = renderResult;
+
+  // Wait for component to finish initial load
+  await waitFor(
+    () => {
+      const isLoading = screen.queryByTestId('sectionLoading');
+      const hasContent = screen.queryByTestId('pageTitle') || screen.queryByTestId('sectionError');
+      expect(isLoading).not.toBeInTheDocument();
+      expect(hasContent).toBeTruthy();
+    },
+    { timeout: 3000 }
+  );
 
   /**
    * User Actions
    */
 
   const clickSubmitButton = async () => {
-    await act(async () => {
-      find('saveWatchButton').simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId('saveWatchButton');
+    await user.click(button);
   };
 
   const clickAddActionButton = async () => {
-    await act(async () => {
-      find('addWatchActionButton').simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId('addWatchActionButton');
+    await user.click(button);
   };
 
   const clickSimulateButton = async () => {
-    await act(async () => {
-      find('simulateActionButton').simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId('simulateActionButton');
+    await user.click(button);
   };
 
   const clickActionLink = async (
     actionType: 'logging' | 'email' | 'webhook' | 'index' | 'slack' | 'jira' | 'pagerduty'
   ) => {
-    await act(async () => {
-      find(`${actionType}ActionButton`).simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId(`${actionType}ActionButton`);
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       clickSubmitButton,
       clickAddActionButton,
@@ -89,43 +84,3 @@ export const setup = async (httpSetup: HttpSetup): Promise<WatchCreateThresholdT
     },
   };
 };
-
-type WatchCreateThresholdTestSubjects = TestSubjects;
-
-export type TestSubjects =
-  | 'addWatchActionButton'
-  | 'emailBodyInput'
-  | 'emailSubjectInput'
-  | 'indexInput'
-  | 'indicesComboBox'
-  | 'jiraIssueTypeInput'
-  | 'jiraProjectKeyInput'
-  | 'jiraSummaryInput'
-  | 'loggingTextInput'
-  | 'mockComboBox'
-  | 'nameInput'
-  | 'pagerdutyDescriptionInput'
-  | 'pageTitle'
-  | 'saveWatchButton'
-  | 'sectionLoading'
-  | 'simulateActionButton'
-  | 'slackMessageTextarea'
-  | 'slackRecipientComboBox'
-  | 'toEmailAddressInput'
-  | 'triggerIntervalSizeInput'
-  | 'watchActionAccordion'
-  | 'watchActionAccordion.toEmailAddressInput'
-  | 'watchActionsPanel'
-  | 'watchThresholdButton'
-  | 'watchThresholdInput'
-  | 'watchConditionTitle'
-  | 'watchTimeFieldSelect'
-  | 'watchVisualizationChart'
-  | 'webhookBodyEditor'
-  | 'webhookHostInput'
-  | 'webhookPasswordInput'
-  | 'webhookPathInput'
-  | 'webhookPortInput'
-  | 'webhookMethodSelect'
-  | 'webhookSchemeSelect'
-  | 'webhookUsernameInput';

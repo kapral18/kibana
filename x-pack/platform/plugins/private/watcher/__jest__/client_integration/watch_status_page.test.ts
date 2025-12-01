@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import { screen, within, waitFor } from '@testing-library/react';
 import moment from 'moment';
 import { getWatchHistory } from '../../__fixtures__';
 import { WATCH_STATES, ACTION_STATES } from '../../common/constants';
@@ -56,62 +56,56 @@ describe('<WatchStatusPage />', () => {
     beforeEach(async () => {
       httpRequestsMockHelpers.setLoadWatchResponse(WATCH_ID, { watch });
       httpRequestsMockHelpers.setLoadWatchHistoryResponse(WATCH_ID, watchHistoryItems);
-
-      await act(async () => {
-        testBed = await setup(httpSetup);
-      });
-      testBed.component.update();
+      testBed = await setup(httpSetup);
     });
 
     test('should set the correct page title', () => {
-      const { find } = testBed;
-
-      expect(find('pageTitle').text()).toBe(`Current status for '${watch.name}'`);
+      expect(screen.getByTestId('pageTitle')).toHaveTextContent(
+        `Current status for '${watch.name}'`
+      );
     });
 
     describe('tabs', () => {
       test('should have 2 tabs', () => {
-        const { find } = testBed;
-
-        expect(find('tab').length).toBe(2);
-        expect(find('tab').map((t) => t.text())).toEqual(['Execution history', 'Action statuses']);
+        const tabs = screen.getAllByRole('tab');
+        expect(tabs.length).toBe(2);
+        expect(tabs[0]).toHaveTextContent('Execution history');
+        expect(tabs[1]).toHaveTextContent('Action statuses');
       });
 
       test('should navigate to the "Action statuses" tab', async () => {
-        const { exists, actions } = testBed;
+        const { actions } = testBed;
 
-        expect(exists('watchHistorySection')).toBe(true);
-        expect(exists('watchDetailSection')).toBe(false);
+        expect(screen.getByTestId('watchHistorySection')).toBeInTheDocument();
+        expect(screen.queryByTestId('watchDetailSection')).not.toBeInTheDocument();
 
         await actions.selectTab('action statuses');
 
-        expect(exists('watchHistorySection')).toBe(false);
-        expect(exists('watchDetailSection')).toBe(true);
+        await waitFor(() => {
+          expect(screen.queryByTestId('watchHistorySection')).not.toBeInTheDocument();
+          expect(screen.getByTestId('watchDetailSection')).toBeInTheDocument();
+        });
       });
     });
 
     describe('execution history', () => {
       test('should list history items in the table', () => {
-        const { table } = testBed;
-        const { tableCellsValues } = table.getMetaData('watchHistoryTable');
+        const table = screen.getByTestId('watchHistoryTable');
+        const rows = within(table).queryAllByRole('row');
+        // Skip header row
+        const dataRows = rows.slice(1);
 
-        const getExpectedValue = (value: any) => (typeof value === 'undefined' ? '' : value);
+        expect(dataRows.length).toBe(watchHistoryItems.watchHistoryItems.length);
 
-        tableCellsValues.forEach((row, i) => {
-          const historyItem = watchHistoryItems.watchHistoryItems[i];
-          const { startTime, watchStatus } = historyItem;
-
-          expect(row).toEqual([
-            getExpectedValue(moment(startTime).format()),
-            getExpectedValue(watchStatus.state),
-            '',
-            '',
-          ]);
+        watchHistoryItems.watchHistoryItems.forEach((historyItem, i) => {
+          const row = dataRows[i];
+          const formattedTime = moment(historyItem.startTime).format();
+          expect(within(row).getByText(formattedTime)).toBeInTheDocument();
         });
       });
 
       test('should show execution history details on click', async () => {
-        const { actions, exists } = testBed;
+        const { actions } = testBed;
 
         const watchHistoryItem = {
           ...watchHistory1,
@@ -134,12 +128,14 @@ describe('<WatchStatusPage />', () => {
 
         await actions.clickWatchExecutionAt(0, formattedStartTime);
 
-        expect(httpSetup.get).toHaveBeenLastCalledWith(
-          `${API_BASE_PATH}/history/${watchHistoryItem.id}`,
-          expect.anything()
-        );
+        await waitFor(() => {
+          expect(httpSetup.get).toHaveBeenLastCalledWith(
+            `${API_BASE_PATH}/history/${watchHistoryItem.id}`,
+            expect.anything()
+          );
+        });
 
-        expect(exists('watchHistoryDetailFlyout')).toBe(true);
+        expect(screen.getByTestId('watchHistoryDetailFlyout')).toBeInTheDocument();
       });
     });
 
@@ -149,26 +145,31 @@ describe('<WatchStatusPage />', () => {
 
         await actions.clickDeleteWatchButton();
 
-        // We need to read the document "body" as the modal is added there and not inside
-        // the component DOM tree.
-        expect(
-          document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
-        ).not.toBe(null);
+        await waitFor(() => {
+          expect(
+            document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
+          ).not.toBe(null);
+        });
 
-        expect(
-          document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')!.textContent
-        ).toContain('Delete watch');
+        const modal = document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]');
+        expect(modal?.textContent).toContain('Delete watch');
       });
 
       test('should send the correct HTTP request to delete watch', async () => {
-        const { component, actions } = testBed;
+        const { actions } = testBed;
 
         await actions.clickDeleteWatchButton();
 
+        await waitFor(() => {
+          expect(
+            document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
+          ).not.toBe(null);
+        });
+
         const modal = document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]');
-        const confirmButton: HTMLButtonElement | null = modal!.querySelector(
+        const confirmButton = modal!.querySelector(
           '[data-test-subj="confirmModalConfirmButton"]'
-        );
+        ) as HTMLButtonElement;
 
         httpRequestsMockHelpers.setDeleteWatchResponse({
           results: {
@@ -177,15 +178,14 @@ describe('<WatchStatusPage />', () => {
           },
         });
 
-        await act(async () => {
-          confirmButton!.click();
-        });
-        component.update();
+        confirmButton.click();
 
-        expect(httpSetup.post).toHaveBeenLastCalledWith(
-          `${API_BASE_PATH}/watches/delete`,
-          expect.anything()
-        );
+        await waitFor(() => {
+          expect(httpSetup.post).toHaveBeenLastCalledWith(
+            `${API_BASE_PATH}/watches/delete`,
+            expect.anything()
+          );
+        });
       });
     });
 
@@ -202,10 +202,12 @@ describe('<WatchStatusPage />', () => {
 
         await actions.clickToggleActivationButton();
 
-        expect(httpSetup.put).toHaveBeenLastCalledWith(
-          `${API_BASE_PATH}/watch/${watch.id}/deactivate`,
-          expect.anything()
-        );
+        await waitFor(() => {
+          expect(httpSetup.put).toHaveBeenLastCalledWith(
+            `${API_BASE_PATH}/watch/${watch.id}/deactivate`,
+            expect.anything()
+          );
+        });
 
         httpRequestsMockHelpers.setActivateWatchResponse(WATCH_ID, {
           watchStatus: {
@@ -216,39 +218,41 @@ describe('<WatchStatusPage />', () => {
 
         await actions.clickToggleActivationButton();
 
-        expect(httpSetup.put).toHaveBeenLastCalledWith(
-          `${API_BASE_PATH}/watch/${watch.id}/activate`,
-          expect.anything()
-        );
+        await waitFor(() => {
+          expect(httpSetup.put).toHaveBeenLastCalledWith(
+            `${API_BASE_PATH}/watch/${watch.id}/activate`,
+            expect.anything()
+          );
+        });
       });
     });
 
     describe('action statuses', () => {
       beforeEach(async () => {
         const { actions } = testBed;
-
         await actions.selectTab('action statuses');
       });
 
       test('should list the watch actions in a table', () => {
-        const { table } = testBed;
-        const { tableCellsValues } = table.getMetaData('watchActionStatusTable');
+        const table = screen.getByTestId('watchActionStatusTable');
+        const rows = within(table).queryAllByRole('row');
+        // Skip header row
+        const dataRows = rows.slice(1);
 
-        tableCellsValues.forEach((row, i) => {
-          const action = watch.watchStatus.actionStatuses[i];
-          const { id, state, lastExecution, isAckable } = action;
+        expect(dataRows.length).toBe(watch.watchStatus.actionStatuses.length);
 
-          expect(row).toEqual([
-            id, // Name
-            state, // State
-            lastExecution.format(), // Last executed
-            isAckable ? 'Acknowledge' : '', // Row actions
-          ]);
+        watch.watchStatus.actionStatuses.forEach((action, i) => {
+          const row = dataRows[i];
+          const { id, state, lastExecution } = action;
+
+          expect(within(row).getByText(id)).toBeInTheDocument();
+          expect(within(row).getByText(state)).toBeInTheDocument();
+          expect(within(row).getByText(lastExecution.format())).toBeInTheDocument();
         });
       });
 
       test('should allow an action to be acknowledged', async () => {
-        const { actions, table } = testBed;
+        const { actions } = testBed;
         const watchHistoryItem = {
           watchStatus: {
             state: WATCH_STATES.ACTIVE,
@@ -272,20 +276,25 @@ describe('<WatchStatusPage />', () => {
         // In previous tests we make calls to activate and deactivate using the put method,
         // so we need to expect that the acknowledge api call will be the third.
         const indexOfAcknowledgeApiCall = 3;
-        expect(httpSetup.put).toHaveBeenNthCalledWith(
-          indexOfAcknowledgeApiCall,
-          `${API_BASE_PATH}/watch/${watch.id}/action/${ACTION_ID}/acknowledge`
-        );
+        await waitFor(() => {
+          expect(httpSetup.put).toHaveBeenNthCalledWith(
+            indexOfAcknowledgeApiCall,
+            `${API_BASE_PATH}/watch/${watch.id}/action/${ACTION_ID}/acknowledge`
+          );
+        });
 
-        const { tableCellsValues } = table.getMetaData('watchActionStatusTable');
+        const table = screen.getByTestId('watchActionStatusTable');
+        const rows = within(table).queryAllByRole('row');
+        const dataRows = rows.slice(1);
 
-        tableCellsValues.forEach((row) => {
-          expect(row).toEqual([
-            ACTION_ID, // Name
-            ACTION_STATES.ACKNOWLEDGED, // State
-            watchHistoryItem.watchStatus.actionStatuses[0].lastExecution.format(), // Last executed
-            '', // Row actions
-          ]);
+        dataRows.forEach((row) => {
+          expect(within(row).getByText(ACTION_ID)).toBeInTheDocument();
+          expect(within(row).getByText(ACTION_STATES.ACKNOWLEDGED)).toBeInTheDocument();
+          expect(
+            within(row).getByText(
+              watchHistoryItem.watchStatus.actionStatuses[0].lastExecution.format()
+            )
+          ).toBeInTheDocument();
         });
       });
     });

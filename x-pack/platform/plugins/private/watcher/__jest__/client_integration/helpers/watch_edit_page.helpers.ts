@@ -4,64 +4,62 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { act } from 'react-dom/test-utils';
 
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
+import { screen, waitFor } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 
 import { WatchEditPage } from '../../../public/application/sections/watch_edit_page';
 import { registerRouter } from '../../../public/application/lib/navigation';
 import { ROUTES } from '../../../common/constants';
 import { WATCH_ID } from './jest_constants';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter, type RenderWithRouterResult } from './render';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    onRouter: (router) => registerRouter(router),
-    initialEntries: [`${ROUTES.API_ROOT}/watches/watch/${WATCH_ID}/edit`],
-    componentRoutePath: `${ROUTES.API_ROOT}/watches/watch/:id/edit`,
-  },
-  doMountAsync: true,
-};
-
-export interface WatchEditTestBed extends TestBed<WatchEditSubjects> {
+export interface WatchEditTestBed extends RenderWithRouterResult {
+  user: UserEvent;
   actions: {
     clickSubmitButton: () => Promise<void>;
   };
 }
 
 export const setup = async (httpSetup: HttpSetup): Promise<WatchEditTestBed> => {
-  const initTestBed = registerTestBed(WithAppDependencies(WatchEditPage, httpSetup), testBedConfig);
-  const testBed = await initTestBed();
+  const renderResult = renderWithRouter(WatchEditPage, {
+    httpSetup,
+    initialEntries: [`${ROUTES.API_ROOT}/watches/watch/${WATCH_ID}/edit`],
+    routePath: `${ROUTES.API_ROOT}/watches/watch/:id/edit`,
+    onRouter: (router) => registerRouter(router),
+  });
+
+  const { user } = renderResult;
+
+  // Wait for component to finish initial load
+  await waitFor(
+    () => {
+      const isLoading = screen.queryByTestId('sectionLoading');
+      const hasForm =
+        screen.queryByTestId('jsonWatchForm') ||
+        screen.queryByTestId('thresholdWatchForm') ||
+        screen.queryByTestId('sectionError');
+      expect(isLoading).not.toBeInTheDocument();
+      expect(hasForm).toBeTruthy();
+    },
+    { timeout: 3000 }
+  );
 
   /**
    * User Actions
    */
 
   const clickSubmitButton = async () => {
-    await act(async () => {
-      testBed.find('saveWatchButton').simulate('click');
-    });
-
-    testBed.component.update();
+    const button = screen.getByTestId('saveWatchButton');
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       clickSubmitButton,
     },
   };
 };
-
-type WatchEditSubjects = TestSubjects;
-
-export type TestSubjects =
-  | 'idInput'
-  | 'jsonWatchForm'
-  | 'nameInput'
-  | 'pageTitle'
-  | 'jsonEditor'
-  | 'thresholdWatchForm'
-  | 'watchTimeFieldSelect';

@@ -5,27 +5,17 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
+import { screen, waitFor } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 
 import { WatchEditPage } from '../../../public/application/sections/watch_edit_page';
 import { registerRouter } from '../../../public/application/lib/navigation';
 import { ROUTES, WATCH_TYPES } from '../../../common/constants';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter, type RenderWithRouterResult } from './render';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    onRouter: (router) => registerRouter(router),
-    initialEntries: [`${ROUTES.API_ROOT}/watches/new-watch/${WATCH_TYPES.JSON}`],
-    componentRoutePath: `${ROUTES.API_ROOT}/watches/new-watch/:type`,
-  },
-  doMountAsync: true,
-};
-
-export interface WatchCreateJsonTestBed extends TestBed<WatchCreateJsonTestSubjects> {
+export interface WatchCreateJsonTestBed extends RenderWithRouterResult {
+  user: UserEvent;
   actions: {
     selectTab: (tab: 'edit' | 'simulate') => Promise<void>;
     clickSubmitButton: () => Promise<void>;
@@ -34,9 +24,25 @@ export interface WatchCreateJsonTestBed extends TestBed<WatchCreateJsonTestSubje
 }
 
 export const setup = async (httpSetup: HttpSetup): Promise<WatchCreateJsonTestBed> => {
-  const initTestBed = registerTestBed(WithAppDependencies(WatchEditPage, httpSetup), testBedConfig);
-  const testBed = await initTestBed();
-  const { find, component } = testBed;
+  const renderResult = renderWithRouter(WatchEditPage, {
+    httpSetup,
+    initialEntries: [`${ROUTES.API_ROOT}/watches/new-watch/${WATCH_TYPES.JSON}`],
+    routePath: `${ROUTES.API_ROOT}/watches/new-watch/:type`,
+    onRouter: (router) => registerRouter(router),
+  });
+
+  const { user } = renderResult;
+
+  // Wait for component to finish initial load
+  await waitFor(
+    () => {
+      const isLoading = screen.queryByTestId('sectionLoading');
+      const hasForm = screen.queryByTestId('jsonWatchForm') || screen.queryByTestId('sectionError');
+      expect(isLoading).not.toBeInTheDocument();
+      expect(hasForm).toBeTruthy();
+    },
+    { timeout: 3000 }
+  );
 
   /**
    * User Actions
@@ -44,32 +50,23 @@ export const setup = async (httpSetup: HttpSetup): Promise<WatchCreateJsonTestBe
 
   const selectTab = async (tab: 'edit' | 'simulate') => {
     const tabs = ['edit', 'simulate'];
-
-    await act(async () => {
-      find('tab').at(tabs.indexOf(tab)).simulate('click');
-    });
-
-    component.update();
+    const tabButtons = screen.getAllByRole('tab');
+    await user.click(tabButtons[tabs.indexOf(tab)]);
   };
 
   const clickSubmitButton = async () => {
-    await act(async () => {
-      testBed.find('saveWatchButton').simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId('saveWatchButton');
+    await user.click(button);
   };
 
   const clickSimulateButton = async () => {
-    await act(async () => {
-      testBed.find('simulateWatchButton').simulate('click');
-    });
-
-    component.update();
+    const button = screen.getByTestId('simulateWatchButton');
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       selectTab,
       clickSubmitButton,
@@ -77,27 +74,3 @@ export const setup = async (httpSetup: HttpSetup): Promise<WatchCreateJsonTestBe
     },
   };
 };
-
-type WatchCreateJsonTestSubjects = TestSubjects;
-
-export type TestSubjects =
-  | 'actionModesSelect'
-  | 'idInput'
-  | 'ignoreConditionSwitch'
-  | 'jsonEditor'
-  | 'jsonWatchForm'
-  | 'jsonWatchSimulateForm'
-  | 'nameInput'
-  | 'pageTitle'
-  | 'saveWatchButton'
-  | 'scheduledTimeInput'
-  | 'sectionError'
-  | 'sectionLoading'
-  | 'simulateResultsFlyout'
-  | 'simulateResultsFlyoutTitle'
-  | 'simulateWatchButton'
-  | 'tab'
-  | 'triggeredTimeInput'
-  | 'simulateResultsTable'
-  | 'conditionMetStatus'
-  | 'conditionNotMetStatus';

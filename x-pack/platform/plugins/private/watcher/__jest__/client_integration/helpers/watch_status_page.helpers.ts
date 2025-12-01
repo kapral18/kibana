@@ -5,28 +5,18 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
+import { screen, within, waitFor } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 
 import { registerRouter } from '../../../public/application/lib/navigation';
 import { WatchStatusPage } from '../../../public/application/sections/watch_status_page';
 import { ROUTES } from '../../../common/constants';
 import { WATCH_ID } from './jest_constants';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter, type RenderWithRouterResult } from './render';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    onRouter: (router) => registerRouter(router),
-    initialEntries: [`${ROUTES.API_ROOT}/watches/watch/${WATCH_ID}/status`],
-    componentRoutePath: `${ROUTES.API_ROOT}/watches/watch/:id/status`,
-  },
-  doMountAsync: true,
-};
-
-export interface WatchStatusTestBed extends TestBed<WatchStatusTestSubjects> {
+export interface WatchStatusTestBed extends RenderWithRouterResult {
+  user: UserEvent;
   actions: {
     selectTab: (tab: 'execution history' | 'action statuses') => Promise<void>;
     clickToggleActivationButton: () => Promise<void>;
@@ -37,75 +27,66 @@ export interface WatchStatusTestBed extends TestBed<WatchStatusTestSubjects> {
 }
 
 export const setup = async (httpSetup: HttpSetup): Promise<WatchStatusTestBed> => {
-  const initTestBed = registerTestBed(
-    WithAppDependencies(WatchStatusPage, httpSetup),
-    testBedConfig
+  const renderResult = renderWithRouter(WatchStatusPage, {
+    httpSetup,
+    initialEntries: [`${ROUTES.API_ROOT}/watches/watch/${WATCH_ID}/status`],
+    routePath: `${ROUTES.API_ROOT}/watches/watch/:id/status`,
+    onRouter: (router) => registerRouter(router),
+  });
+
+  const { user } = renderResult;
+
+  // Wait for component to finish initial load
+  await waitFor(
+    () => {
+      const isLoading = screen.queryByTestId('sectionLoading');
+      const hasContent = 
+        screen.queryByTestId('watchDetailSection') || 
+        screen.queryByTestId('watchHistorySection') ||
+        screen.queryByTestId('sectionError');
+      expect(isLoading).not.toBeInTheDocument();
+      expect(hasContent).toBeTruthy();
+    },
+    { timeout: 3000 }
   );
-  const testBed = await initTestBed();
 
   /**
    * User Actions
    */
 
   const selectTab = async (tab: 'execution history' | 'action statuses') => {
-    const { component, find } = testBed;
     const tabs = ['execution history', 'action statuses'];
-
-    await act(async () => {
-      find('tab').at(tabs.indexOf(tab)).simulate('click');
-    });
-    component.update();
+    const tabButtons = screen.getAllByRole('tab');
+    await user.click(tabButtons[tabs.indexOf(tab)]);
   };
 
   const clickToggleActivationButton = async () => {
-    const { component } = testBed;
-    const button = testBed.find('toggleWatchActivationButton');
-
-    await act(async () => {
-      button.simulate('click');
-    });
-    component.update();
+    const button = screen.getByTestId('toggleWatchActivationButton');
+    await user.click(button);
   };
 
   const clickAcknowledgeButton = async (index: number) => {
-    const { component, table } = testBed;
-    const { rows } = table.getMetaData('watchActionStatusTable');
-    const currentRow = rows[index];
-    const lastColumn = currentRow.columns[currentRow.columns.length - 1].reactWrapper;
-    const button = findTestSubject(lastColumn, 'acknowledgeWatchButton');
-
-    await act(async () => {
-      button.simulate('click');
-    });
-    component.update();
+    const table = screen.getByTestId('watchActionStatusTable');
+    const rows = within(table).queryAllByRole('row');
+    const dataRows = rows.slice(1);
+    const button = within(dataRows[index]).getByTestId('acknowledgeWatchButton');
+    await user.click(button);
   };
 
   const clickDeleteWatchButton = async () => {
-    const { component } = testBed;
-    const button = testBed.find('deleteWatchButton');
-
-    await act(async () => {
-      button.simulate('click');
-    });
-    component.update();
+    const button = screen.getByTestId('deleteWatchButton');
+    await user.click(button);
   };
 
   const clickWatchExecutionAt = async (index: number, tableCellText: string) => {
-    const { component, table } = testBed;
-    const { rows } = table.getMetaData('watchHistoryTable');
-    const currentRow = rows[index];
-    const firstColumn = currentRow.columns[0].reactWrapper;
-
-    const button = findTestSubject(firstColumn, `watchStartTimeColumn-${tableCellText}`);
-
-    await act(async () => {
-      button.simulate('click');
-    });
-    component.update();
+    const table = screen.getByTestId('watchHistoryTable');
+    const button = within(table).getByTestId(`watchStartTimeColumn-${tableCellText}`);
+    await user.click(button);
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       selectTab,
       clickToggleActivationButton,
@@ -115,26 +96,3 @@ export const setup = async (httpSetup: HttpSetup): Promise<WatchStatusTestBed> =
     },
   };
 };
-
-type WatchStatusTestSubjects = TestSubjects;
-
-export type TestSubjects =
-  | 'acknowledgeWatchButton'
-  | 'actionErrorsButton'
-  | 'actionErrorsFlyout'
-  | 'actionErrorsFlyout.errorMessage'
-  | 'actionErrorsFlyout.title'
-  | 'deleteWatchButton'
-  | 'pageTitle'
-  | 'tab'
-  | 'toggleWatchActivationButton'
-  | 'watchActionStatusTable'
-  | 'watchActionsTable'
-  | 'watchDetailSection'
-  | 'watchHistoryDetailFlyout'
-  | 'watchHistoryDetailFlyout.title'
-  | 'watchHistorySection'
-  | 'watchHistoryErrorDetailFlyout'
-  | 'watchHistoryErrorDetailFlyout.errorMessage'
-  | 'watchHistoryErrorDetailFlyout.title'
-  | 'watchHistoryTable';

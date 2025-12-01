@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import { getRandomString, getRandomNumber } from '@kbn/test-jest-helpers';
 import type { SlmPolicy } from '../../common/types';
 import { DEFAULT_POLICY_SCHEDULE } from '../../public/application/constants';
+import { getRandomString, getRandomNumber } from '../../__jest__/client_integration/helpers/random';
 
 const dateNow = new Date();
 const randomModifiedDateMillis = new Date().setDate(dateNow.getDate() - 1);

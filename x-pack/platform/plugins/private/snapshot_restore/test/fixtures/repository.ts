@@ -5,8 +5,8 @@
  * 2.0.
  */
 
-import { getRandomString } from '@kbn/test-jest-helpers';
 import type { RepositoryType } from '../../common/types';
+import { getRandomString } from '../../__jest__/client_integration/helpers/random';
 const defaultSettings: any = { chunkSize: '10mb', location: '/tmp/es-backups' };
 
 export interface Repository {

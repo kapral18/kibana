@@ -96,7 +96,7 @@ export const WithAppDependencies =
         <KibanaContextProvider services={kibanaContextDependencies}>
           <AppContextProvider value={merge(appDependencies, overrides) as any}>
             <GlobalFlyoutProvider>
-              <Comp {...props} />
+              <Comp history={props.history || history} {...props} />
             </GlobalFlyoutProvider>
           </AppContextProvider>
         </KibanaContextProvider>

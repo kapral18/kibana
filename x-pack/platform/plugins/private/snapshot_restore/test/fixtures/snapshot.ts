@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { getRandomString, getRandomNumber } from '@kbn/test-jest-helpers';
+import { getRandomString, getRandomNumber } from '../../__jest__/client_integration/helpers/random';
 
 export const getSnapshot = ({
   repository = 'my-repo',

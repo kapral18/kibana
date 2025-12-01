@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import type { TrainedModelsDeploymentModalProps } from '../../../public/application/sections/home/index_list/details_page/trained_models_deployment_modal';
 import { TrainedModelsDeploymentModal } from '../../../public/application/sections/home/index_list/details_page/trained_models_deployment_modal';
-import { act } from 'react-dom/test-utils';
 import * as mappingsContext from '../../../public/application/components/mappings_editor/mappings_state_context';
 import type { NormalizedField } from '../../../public/application/components/mappings_editor/types';
 
@@ -109,132 +110,137 @@ const saveMappings = jest.fn().mockReturnValue(undefined);
 const forceSaveMappings = jest.fn().mockReturnValue(undefined);
 
 describe('When semantic_text is enabled', () => {
-  const setup = (defaultProps: Partial<TrainedModelsDeploymentModalProps>) =>
-    registerTestBed(TrainedModelsDeploymentModal, {
-      defaultProps,
-      memoryRouter: { wrapComponent: false },
-    })();
+  const renderComponent = (defaultProps: Partial<TrainedModelsDeploymentModalProps>) => {
+    return renderWithI18n(<TrainedModelsDeploymentModal {...(defaultProps as any)} />);
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('When there are no pending deployments and no errors in the model deployment', () => {
-    mappingsContextMocked.useMappingsState.mockReturnValue(defaultState);
-    const { exists } = setup({
-      errorsInTrainedModelDeployment: {},
-      saveMappings,
-      forceSaveMappings,
-      setErrorsInTrainedModelDeployment: () => undefined,
+  describe('When there are no pending deployments and no errors in the model deployment', () => {
+    beforeEach(() => {
+      mappingsContextMocked.useMappingsState.mockReturnValue(defaultState);
+      renderComponent({
+        errorsInTrainedModelDeployment: {},
+        saveMappings,
+        forceSaveMappings,
+        setErrorsInTrainedModelDeployment: () => undefined,
+      });
     });
 
     it('should not display the modal', () => {
-      expect(exists('trainedModelsDeploymentModal')).toBe(false);
+      expect(screen.queryByTestId('trainedModelsDeploymentModal')).not.toBeInTheDocument();
     });
   });
 
   describe('When there are pending deployments in the model deployment', () => {
-    mappingsContextMocked.useMappingsState.mockReturnValue({
-      ...defaultState,
-      fields: {
-        ...defaultState.fields,
-        byId: {
-          new_field: {
-            id: 'new_field',
-            isMultiField: false,
-            path: ['new_field'],
-            source: {
-              name: 'new_field',
-              type: 'semantic_text',
-              reference_field: 'title',
-              inference_id: 'elser_model_2',
-            },
-          } as NormalizedField,
+    beforeEach(() => {
+      mappingsContextMocked.useMappingsState.mockReturnValue({
+        ...defaultState,
+        fields: {
+          ...defaultState.fields,
+          byId: {
+            new_field: {
+              id: 'new_field',
+              isMultiField: false,
+              path: ['new_field'],
+              source: {
+                name: 'new_field',
+                type: 'semantic_text',
+                reference_field: 'title',
+                inference_id: 'elser_model_2',
+              },
+            } as NormalizedField,
+          },
+          rootLevelFields: ['new_field'],
         },
-        rootLevelFields: ['new_field'],
-      },
-    } as any);
-    const { exists, find } = setup({
-      errorsInTrainedModelDeployment: {},
-      forceSaveMappings,
-      saveMappings,
-      setErrorsInTrainedModelDeployment,
+      } as any);
+      renderComponent({
+        errorsInTrainedModelDeployment: {},
+        forceSaveMappings,
+        saveMappings,
+        setErrorsInTrainedModelDeployment,
+      });
     });
 
     it('should display the modal', () => {
-      expect(exists('trainedModelsDeploymentModal')).toBe(true);
+      expect(screen.getByTestId('trainedModelsDeploymentModal')).toBeInTheDocument();
     });
 
     it('should contain content related to semantic_text', () => {
-      expect(find('trainedModelsDeploymentModalText').text()).toContain(
-        'Some fields are referencing models'
-      );
+      const modalText = screen.getByTestId('trainedModelsDeploymentModalText');
+      expect(modalText).toHaveTextContent('Some fields are referencing models');
     });
 
-    it('should call saveMappings if refresh button is pressed', async () => {
-      await act(async () => {
-        find('tryAgainModalButton').simulate('click');
-      });
-      expect(saveMappings.mock.calls).toHaveLength(1);
+    it('should call saveMappings if refresh button is pressed', () => {
+      const tryAgainButton = screen.getByTestId('tryAgainModalButton');
+      fireEvent.click(tryAgainButton);
+      expect(saveMappings).toHaveBeenCalledTimes(1);
     });
-    it('should disable the force save mappings button if checkbox is not checked', async () => {
-      expect(find('forceSaveMappingsButton').props().disabled).toBe(true);
-    });
-    it('checking checkbox should enable force save mappings button', async () => {
-      find('allowForceSaveMappingsCheckbox')
-        .simulate('change', { target: { checked: true } })
-        .update();
-      expect(find('forceSaveMappingsButton').props().disabled).toBe(false);
-      await act(async () => {
-        find('forceSaveMappingsButton').simulate('click');
-      });
 
-      expect(forceSaveMappings.mock.calls).toHaveLength(1);
+    it('should disable the force save mappings button if checkbox is not checked', () => {
+      const forceSaveButton = screen.getByTestId('forceSaveMappingsButton');
+      expect(forceSaveButton).toBeDisabled();
+    });
+
+    it('checking checkbox should enable force save mappings button', () => {
+      const checkbox = screen.getByTestId('allowForceSaveMappingsCheckbox');
+      fireEvent.click(checkbox);
+
+      const forceSaveButton = screen.getByTestId('forceSaveMappingsButton');
+      expect(forceSaveButton).not.toBeDisabled();
+
+      fireEvent.click(forceSaveButton);
+      expect(forceSaveMappings).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('When there is error in the model deployment', () => {
-    mappingsContextMocked.useMappingsState.mockReturnValue({
-      ...defaultState,
-      fields: {
-        ...defaultState.fields,
-        byId: {
-          new_field: {
-            id: 'new_field',
-            isMultiField: false,
-            path: ['new_field'],
-            source: {
-              name: 'new_field',
-              type: 'semantic_text',
-              reference_field: 'title',
-              inference_id: 'elser_model_2',
-            },
-          } as NormalizedField,
+    beforeEach(() => {
+      mappingsContextMocked.useMappingsState.mockReturnValue({
+        ...defaultState,
+        fields: {
+          ...defaultState.fields,
+          byId: {
+            new_field: {
+              id: 'new_field',
+              isMultiField: false,
+              path: ['new_field'],
+              source: {
+                name: 'new_field',
+                type: 'semantic_text',
+                reference_field: 'title',
+                inference_id: 'elser_model_2',
+              },
+            } as NormalizedField,
+          },
+          rootLevelFields: ['new_field'],
         },
-        rootLevelFields: ['new_field'],
-      },
-    } as any);
-    const { find } = setup({
-      errorsInTrainedModelDeployment: { elser_model_2: 'Error' },
-      saveMappings,
-      forceSaveMappings,
-      setErrorsInTrainedModelDeployment,
+      } as any);
+      renderComponent({
+        errorsInTrainedModelDeployment: { elser_model_2: 'Error' },
+        saveMappings,
+        forceSaveMappings,
+        setErrorsInTrainedModelDeployment,
+      });
     });
 
     it('should display text related to errored deployments', () => {
-      expect(find('trainedModelsDeploymentModalText').text()).toContain('There was an error');
+      const modalText = screen.getByTestId('trainedModelsDeploymentModalText');
+      expect(modalText).toHaveTextContent('There was an error');
     });
 
     it('should display only the errored deployment', () => {
-      expect(find('trainedModelsDeploymentModal').text()).toContain('elser_model_2');
-      expect(find('trainedModelsDeploymentModal').text()).not.toContain('valid-model');
+      const modal = screen.getByTestId('trainedModelsDeploymentModal');
+      expect(modal).toHaveTextContent('elser_model_2');
+      expect(modal).not.toHaveTextContent('valid-model');
     });
 
-    it("should call refresh method if 'Try again' button is pressed", async () => {
-      await act(async () => {
-        find('tryAgainModalButton').simulate('click');
-      });
-      expect(saveMappings.mock.calls).toHaveLength(1);
+    it("should call refresh method if 'Try again' button is pressed", () => {
+      const tryAgainButton = screen.getByTestId('tryAgainModalButton');
+      fireEvent.click(tryAgainButton);
+      expect(saveMappings).toHaveBeenCalledTimes(1);
     });
   });
 });

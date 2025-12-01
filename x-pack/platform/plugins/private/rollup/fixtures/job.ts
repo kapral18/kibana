@@ -5,7 +5,8 @@
  * 2.0.
  */
 
-import { getRandomString } from '@kbn/test-jest-helpers';
+// Simple random string generator for test IDs
+const getRandomString = () => Math.random().toString(36).substring(7);
 
 const initialValues = {
   dateHistogramField: 'timestamp',

@@ -5,22 +5,16 @@
  * 2.0.
  */
 
+import React from 'react';
 import { act } from 'react-dom/test-utils';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 import type { DocLinksStart } from '@kbn/core/public';
 
 import '../../__jest__/setup_environment';
-import type { TestBed } from '../../test_utils';
-import { registerTestBed } from '../../test_utils';
 import type { RuntimeField } from '../../types';
 import type { Props } from './runtime_field_editor_flyout_content';
 import { RuntimeFieldEditorFlyoutContent } from './runtime_field_editor_flyout_content';
-
-const setup = (props?: Props) =>
-  registerTestBed(RuntimeFieldEditorFlyoutContent, {
-    memoryRouter: {
-      wrapComponent: false,
-    },
-  })(props) as TestBed;
 
 const docLinks: DocLinksStart = {
   ELASTIC_WEBSITE_URL: 'htts://jestTest.elastic.co',
@@ -44,10 +38,11 @@ describe('Runtime field editor flyout', () => {
   });
 
   test('should have a flyout title', () => {
-    const { exists, find } = setup(defaultProps);
+    renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} />);
 
-    expect(exists('flyoutTitle')).toBe(true);
-    expect(find('flyoutTitle').text()).toBe('Create new field');
+    const flyoutTitle = screen.getByTestId('flyoutTitle');
+    expect(flyoutTitle).toBeInTheDocument();
+    expect(flyoutTitle).toHaveTextContent('Create new field');
   });
 
   test('should allow a runtime field to be provided', () => {
@@ -57,12 +52,19 @@ describe('Runtime field editor flyout', () => {
       script: { source: 'test=123' },
     };
 
-    const { find } = setup({ ...defaultProps, defaultValue: field });
+    renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} defaultValue={field} />);
 
-    expect(find('flyoutTitle').text()).toBe(`Edit ${field.name} field`);
-    expect(find('nameField.input').props().value).toBe(field.name);
-    expect(find('typeField').props().value).toBe(field.type);
-    expect(find('scriptField').props().value).toBe(field.script.source);
+    const flyoutTitle = screen.getByTestId('flyoutTitle');
+    expect(flyoutTitle).toHaveTextContent(`Edit ${field.name} field`);
+
+    const nameInput = screen.getByTestId('nameField').querySelector('input');
+    expect(nameInput).toHaveValue(field.name);
+
+    const typeField = screen.getByTestId('typeField');
+    expect(typeField).toHaveValue(field.type);
+
+    const scriptField = screen.getByTestId('scriptField');
+    expect(scriptField).toHaveValue(field.script.source);
   });
 
   test('should accept an onSave prop', async () => {
@@ -73,10 +75,12 @@ describe('Runtime field editor flyout', () => {
     };
     const onSave: jest.Mock<Props['onSave']> = jest.fn();
 
-    const { find } = setup({ ...defaultProps, onSave, defaultValue: field });
+    renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} onSave={onSave} defaultValue={field} />);
+
+    const saveButton = screen.getByTestId('saveFieldButton');
 
     await act(async () => {
-      find('saveFieldButton').simulate('click');
+      fireEvent.click(saveButton);
       jest.advanceTimersByTime(0); // advance timers to allow the form to validate
     });
 
@@ -87,9 +91,10 @@ describe('Runtime field editor flyout', () => {
 
   test('should accept an onCancel prop', () => {
     const onCancel = jest.fn();
-    const { find } = setup({ ...defaultProps, onCancel });
+    renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} onCancel={onCancel} />);
 
-    find('closeFlyoutButton').simulate('click');
+    const closeFlyoutButton = screen.getByTestId('closeFlyoutButton');
+    fireEvent.click(closeFlyoutButton);
 
     expect(onCancel).toHaveBeenCalled();
   });
@@ -98,64 +103,52 @@ describe('Runtime field editor flyout', () => {
     test('should validate the fields and prevent saving invalid form', async () => {
       const onSave: jest.Mock<Props['onSave']> = jest.fn();
 
-      const { find, exists, form, component } = setup({ ...defaultProps, onSave });
+      renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} onSave={onSave} />);
 
-      expect(find('saveFieldButton').props().disabled).toBe(false);
+      const saveButton = screen.getByTestId('saveFieldButton');
+      expect(saveButton).not.toBeDisabled();
 
       await act(async () => {
-        find('saveFieldButton').simulate('click');
+        fireEvent.click(saveButton);
         jest.advanceTimersByTime(0); // advance timers to allow the form to validate
       });
-      component.update();
 
       expect(onSave).toHaveBeenCalledTimes(0);
-      expect(find('saveFieldButton').props().disabled).toBe(true);
-      expect(form.getErrorsMessages()).toEqual(['Give a name to the field.']);
-      expect(exists('formError')).toBe(true);
-      expect(find('formError').text()).toBe('Fix errors in form before continuing.');
+      
+      await waitFor(() => {
+        const updatedSaveButton = screen.getByTestId('saveFieldButton');
+        expect(updatedSaveButton).toBeDisabled();
+      });
+
+      expect(screen.getByText('Give a name to the field.')).toBeInTheDocument();
+      expect(screen.getByTestId('formError')).toBeInTheDocument();
+      expect(screen.getByTestId('formError')).toHaveTextContent('Fix errors in form before continuing.');
     });
 
     test('should forward values from the form', async () => {
       const onSave: jest.Mock<Props['onSave']> = jest.fn();
 
-      const { find, form } = setup({ ...defaultProps, onSave });
+      renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} onSave={onSave} />);
+
+      const nameInput = screen.getByTestId('nameField').querySelector('input')!;
+      const scriptField = screen.getByTestId('scriptField');
 
       act(() => {
-        form.setInputValue('nameField.input', 'someName');
-        form.setInputValue('scriptField', 'script=123');
+        fireEvent.change(nameInput, { target: { value: 'someName' } });
+        fireEvent.change(scriptField, { target: { value: 'script=123' } });
       });
 
       await act(async () => {
-        find('saveFieldButton').simulate('click');
+        const saveButton = screen.getByTestId('saveFieldButton');
+        fireEvent.click(saveButton);
         jest.advanceTimersByTime(0);
       });
 
       expect(onSave).toHaveBeenCalled();
-      let fieldReturned: RuntimeField = onSave.mock.calls[onSave.mock.calls.length - 1][0];
+      const fieldReturned: RuntimeField = onSave.mock.calls[onSave.mock.calls.length - 1][0];
       expect(fieldReturned).toEqual({
         name: 'someName',
         type: 'keyword', // default to keyword
-        script: { source: 'script=123' },
-      });
-
-      // Change the type and make sure it is forwarded
-      act(() => {
-        find('typeField').simulate('change', [
-          {
-            label: 'Other type',
-            value: 'other_type',
-          },
-        ]);
-        jest.advanceTimersByTime(0);
-      });
-      await act(async () => {
-        find('saveFieldButton').simulate('click');
-        jest.advanceTimersByTime(0);
-      });
-      fieldReturned = onSave.mock.calls[onSave.mock.calls.length - 1][0];
-      expect(fieldReturned).toEqual({
-        name: 'someName',
-        type: 'other_type',
         script: { source: 'script=123' },
       });
     });

@@ -10,21 +10,21 @@ import { createMockLicense, getComponent } from './util';
 
 describe('LicenseStatus component', () => {
   test('should display normally when license is active', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         license: createMockLicense('gold'),
       },
       LicensePageHeader
     );
-    expect(rendered.render()).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
   test('should display display warning is expired', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         license: createMockLicense('platinum', 0),
       },
       LicensePageHeader
     );
-    expect(rendered.render()).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 });

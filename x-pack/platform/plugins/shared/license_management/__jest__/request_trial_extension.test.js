@@ -5,12 +5,13 @@
  * 2.0.
  */
 
+import { screen } from '@testing-library/react';
 import { RequestTrialExtension } from '../public/application/sections/license_dashboard/request_trial_extension';
 import { createMockLicense, getComponent } from './util';
 
 describe('RequestTrialExtension component', () => {
   test('should not display when license is active and trial has not been used', () => {
-    const rendered = getComponent(
+    getComponent(
       {
         trialStatus: {
           canStartTrial: true,
@@ -19,10 +20,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    expect(rendered.isEmptyRender()).toBeTruthy();
+    expect(screen.queryByText(/Request an extension/i)).not.toBeInTheDocument();
   });
   test('should display when license is active and trial has been used', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         trialStatus: {
           canStartTrial: false,
@@ -31,12 +32,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    const html = rendered.render();
-    expect(html).not.toBeNull();
-    expect(html).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
   test('should not display when license is not active and trial has not been used', () => {
-    const rendered = getComponent(
+    getComponent(
       {
         trialStatus: {
           canStartTrial: true,
@@ -45,10 +44,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    expect(rendered.isEmptyRender()).toBeTruthy();
+    expect(screen.queryByText(/Request an extension/i)).not.toBeInTheDocument();
   });
   test('should display when license is not active and trial has been used', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         trialStatus: {
           canStartTrial: false,
@@ -57,12 +56,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    const html = rendered.render();
-    expect(html).not.toBeNull();
-    expect(html).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
   test('should display when platinum license is not active and trial has been used', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         trialStatus: {
           canStartTrial: false,
@@ -71,12 +68,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    const html = rendered.render();
-    expect(html).not.toBeNull();
-    expect(html).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
   test('should display when enterprise license is not active and trial has been used', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         trialStatus: {
           canStartTrial: false,
@@ -85,12 +80,10 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    const html = rendered.render();
-    expect(html).not.toBeNull();
-    expect(html).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
   test('should not display when platinum license is active and trial has been used', () => {
-    const rendered = getComponent(
+    getComponent(
       {
         trialStatus: {
           canStartTrial: false,
@@ -99,6 +92,6 @@ describe('RequestTrialExtension component', () => {
       },
       RequestTrialExtension
     );
-    expect(rendered.isEmptyRender()).toBeTruthy();
+    expect(screen.queryByText(/Request an extension/i)).not.toBeInTheDocument();
   });
 });

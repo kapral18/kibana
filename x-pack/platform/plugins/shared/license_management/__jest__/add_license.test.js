@@ -10,24 +10,24 @@ import { createMockLicense, getComponent } from './util';
 
 describe('AddLicense component when license is active', () => {
   test('should display correct verbiage', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         license: createMockLicense('basic'),
       },
       AddLicense
     );
-    expect(rendered.render()).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 });
 
 describe('AddLicense component when license is expired', () => {
   test('should display with correct verbiage', () => {
-    const rendered = getComponent(
+    const { container } = getComponent(
       {
         license: createMockLicense('platinum', 0),
       },
       AddLicense
     );
-    expect(rendered.render()).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 });

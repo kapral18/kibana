@@ -10,6 +10,7 @@ import { render, screen } from '@testing-library/react';
 import * as userEventLib from '@testing-library/user-event';
 import type { RenderResult } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
+import { Route, Router } from '@kbn/shared-ux-router';
 
 import type { HttpSetup } from '@kbn/core/public';
 import { scopedHistoryMock } from '@kbn/core/public/mocks';
@@ -75,7 +76,13 @@ export const setupPoliciesListPage = async (
 
   const AppWithDependencies = WithAppDependencies(PolicyList, httpSetup);
 
-  const renderResult = render(<AppWithDependencies history={history} />);
+  const renderResult = render(
+    <Router history={history}>
+      <Route path="/policies/:policyName?">
+        <AppWithDependencies />
+      </Route>
+    </Router>
+  );
 
   return {
     ...renderResult,

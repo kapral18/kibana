@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import type { TestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
 
 import { SECURITY_MODEL } from '../../../common/constants';
@@ -15,7 +13,7 @@ import { RemoteClusterEdit } from '../../../public/application/sections';
 import { createRemoteClustersStore } from '../../../public/application/store';
 import type { AppRouter } from '../../../public/application/services';
 import { registerRouter } from '../../../public/application/services';
-import { createRemoteClustersActions, WithAppDependencies } from '../helpers';
+import { renderWithRouter, WithAppDependencies } from '../helpers';
 
 export const REMOTE_CLUSTER_EDIT_NAME = 'new-york';
 
@@ -26,29 +24,11 @@ export const REMOTE_CLUSTER_EDIT: Cluster = {
   securityModel: SECURITY_MODEL.CERTIFICATE,
 };
 
-const testBedConfig: TestBedConfig = {
-  store: createRemoteClustersStore,
-  memoryRouter: {
+export const setup = (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
+  return renderWithRouter(WithAppDependencies(RemoteClusterEdit, httpSetup, overrides), {
+    store: createRemoteClustersStore(),
     onRouter: (router: AppRouter) => registerRouter(router),
-    // The remote cluster name to edit is read from the router ":id" param
-    // so we first set it in our initial entries
     initialEntries: [`/${REMOTE_CLUSTER_EDIT_NAME}`],
-    // and then we declare the :id param on the component route path
-    componentRoutePath: '/:name',
-  },
-};
-
-export const setup = async (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
-  const initTestBed = registerTestBed(
-    WithAppDependencies(RemoteClusterEdit, httpSetup, overrides),
-    testBedConfig
-  );
-  const testBed = await initTestBed();
-
-  return {
-    ...testBed,
-    actions: {
-      ...createRemoteClustersActions(testBed),
-    },
-  };
+    routePath: '/:name',
+  });
 };

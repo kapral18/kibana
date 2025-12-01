@@ -5,33 +5,17 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
 
 import { RemoteClusterAdd } from '../../../public/application/sections';
 import { createRemoteClustersStore } from '../../../public/application/store';
 import type { AppRouter } from '../../../public/application/services';
 import { registerRouter } from '../../../public/application/services';
-import { createRemoteClustersActions, WithAppDependencies } from '../helpers';
+import { renderWithRouter, WithAppDependencies } from '../helpers';
 
-const testBedConfig = {
-  store: createRemoteClustersStore,
-  memoryRouter: {
+export const setup = (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
+  return renderWithRouter(WithAppDependencies(RemoteClusterAdd, httpSetup, overrides), {
+    store: createRemoteClustersStore(),
     onRouter: (router: AppRouter) => registerRouter(router),
-  },
-};
-
-export const setup = async (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
-  const initTestBed = registerTestBed(
-    WithAppDependencies(RemoteClusterAdd, httpSetup, overrides),
-    testBedConfig
-  );
-  const testBed = await initTestBed();
-
-  return {
-    ...testBed,
-    actions: {
-      ...createRemoteClustersActions(testBed),
-    },
-  };
+  });
 };

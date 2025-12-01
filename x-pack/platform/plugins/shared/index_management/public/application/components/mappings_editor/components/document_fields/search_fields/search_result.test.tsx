@@ -6,18 +6,18 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
+
 import { StateProvider } from '../../../mappings_state_context';
 import type { SearchResult as Result } from '../../../types';
-
-import { mountWithIntl } from '@kbn/test-jest-helpers';
-
 import { SearchResult } from './search_result';
 
 describe('SearchResult', () => {
   it('should render an empty prompt if the result is empty', () => {
     const result: Result[] = [];
 
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResult
           result={result}
@@ -30,12 +30,7 @@ describe('SearchResult', () => {
       </StateProvider>
     );
 
-    expect(
-      tree
-        .find('SearchResult')
-        .find('[data-test-subj="mappingsEditorSearchResultEmptyPrompt"]')
-        .exists()
-    ).toBe(true);
+    expect(screen.getByTestId('mappingsEditorSearchResultEmptyPrompt')).toBeInTheDocument();
   });
 
   it('should render a list of fields if the result is not empty', () => {
@@ -55,7 +50,7 @@ describe('SearchResult', () => {
       },
     ] as Result[];
 
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResult
           result={result}
@@ -68,6 +63,7 @@ describe('SearchResult', () => {
       </StateProvider>
     );
 
-    expect(tree.find('[data-test-subj="mappingsEditorSearchResult"]').exists()).toBe(true);
+    // The virtualList doesn't render the data-test-subj directly, check for the list item instead
+    expect(screen.getByTestId('fieldsListItem')).toBeInTheDocument();
   });
 });

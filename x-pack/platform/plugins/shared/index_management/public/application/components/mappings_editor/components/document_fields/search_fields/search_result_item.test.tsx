@@ -6,10 +6,10 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
 
-import { mountWithIntl } from '@kbn/test-jest-helpers';
 import { StateProvider } from '../../../mappings_state_context';
-
 import { SearchResultItem } from './search_result_item';
 import type { SearchResult } from '../../../types';
 
@@ -29,7 +29,7 @@ describe('SearchResultItem', () => {
   } as SearchResult;
 
   it('should display the field name and a badge to indicate its type', () => {
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResultItem
           item={item}
@@ -40,13 +40,8 @@ describe('SearchResultItem', () => {
       </StateProvider>
     );
 
-    expect(
-      tree.find('SearchResultItem').find('[data-test-subj="fieldName"]').last().text()
-    ).toEqual('foo > bar > baz');
-
-    expect(
-      tree.find('SearchResultItem').find('[data-test-subj="fieldType"]').last().text()
-    ).toEqual('Text');
+    expect(screen.getByTestId('fieldName')).toHaveTextContent('foo > bar > baz');
+    expect(screen.getByTestId('fieldType')).toHaveTextContent('Text');
   });
 
   it('should show multi-field badge if the field is a multi-field', () => {
@@ -58,7 +53,7 @@ describe('SearchResultItem', () => {
       },
     };
 
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResultItem
           item={multiFieldItem}
@@ -69,13 +64,11 @@ describe('SearchResultItem', () => {
       </StateProvider>
     );
 
-    expect(
-      tree.find('SearchResultItem').find('[data-test-subj="fieldType"]').last().text()
-    ).toEqual('Text multi-field');
+    expect(screen.getByTestId('fieldType')).toHaveTextContent('Text multi-field');
   });
 
   it('should render action buttons if "areActionButtonsVisible" is true', () => {
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResultItem
           item={item}
@@ -86,9 +79,7 @@ describe('SearchResultItem', () => {
       </StateProvider>
     );
 
-    expect(tree.find('SearchResultItem').find('[data-test-subj="fieldActions"]').exists()).toBe(
-      true
-    );
+    expect(screen.getByTestId('fieldActions')).toBeInTheDocument();
   });
 
   it('should fall back to source type if the field type is not found in the type definition', () => {
@@ -104,7 +95,7 @@ describe('SearchResultItem', () => {
       },
     };
 
-    const tree = mountWithIntl(
+    renderWithI18n(
       <StateProvider>
         <SearchResultItem
           item={itemWithUnknownType as SearchResult}
@@ -115,8 +106,6 @@ describe('SearchResultItem', () => {
       </StateProvider>
     );
 
-    expect(
-      tree.find('SearchResultItem').find('[data-test-subj="fieldType"]').last().text()
-    ).toEqual('unknown multi-field');
+    expect(screen.getByTestId('fieldType')).toHaveTextContent('unknown multi-field');
   });
 });

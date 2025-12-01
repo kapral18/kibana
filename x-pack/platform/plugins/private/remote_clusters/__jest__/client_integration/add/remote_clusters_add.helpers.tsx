@@ -11,11 +11,16 @@ import { RemoteClusterAdd } from '../../../public/application/sections';
 import { createRemoteClustersStore } from '../../../public/application/store';
 import type { AppRouter } from '../../../public/application/services';
 import { registerRouter } from '../../../public/application/services';
-import { renderWithRouter, WithAppDependencies } from '../helpers';
+import { renderWithRouter, WithAppDependencies, createRemoteClustersActions } from '../helpers';
 
 export const setup = (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
-  return renderWithRouter(WithAppDependencies(RemoteClusterAdd, httpSetup, overrides), {
+  const renderResult = renderWithRouter(WithAppDependencies(RemoteClusterAdd, httpSetup, overrides), {
     store: createRemoteClustersStore(),
     onRouter: (router: AppRouter) => registerRouter(router),
   });
+  
+  return {
+    ...renderResult,
+    actions: createRemoteClustersActions(renderResult.user),
+  };
 };

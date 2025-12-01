@@ -7,3 +7,5 @@
 
 export { setupEnvironment, WithAppDependencies } from './setup_environment';
 export { renderWithRouter } from './render';
+export { createRemoteClustersActions } from './remote_clusters_actions_rtl';
+export type { RemoteClustersActions } from './remote_clusters_actions_rtl';

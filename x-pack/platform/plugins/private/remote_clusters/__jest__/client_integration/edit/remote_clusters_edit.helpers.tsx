@@ -13,7 +13,7 @@ import { RemoteClusterEdit } from '../../../public/application/sections';
 import { createRemoteClustersStore } from '../../../public/application/store';
 import type { AppRouter } from '../../../public/application/services';
 import { registerRouter } from '../../../public/application/services';
-import { renderWithRouter, WithAppDependencies } from '../helpers';
+import { renderWithRouter, WithAppDependencies, createRemoteClustersActions } from '../helpers';
 
 export const REMOTE_CLUSTER_EDIT_NAME = 'new-york';
 
@@ -25,10 +25,15 @@ export const REMOTE_CLUSTER_EDIT: Cluster = {
 };
 
 export const setup = (httpSetup: HttpSetup, overrides?: Record<string, unknown>) => {
-  return renderWithRouter(WithAppDependencies(RemoteClusterEdit, httpSetup, overrides), {
+  const renderResult = renderWithRouter(WithAppDependencies(RemoteClusterEdit, httpSetup, overrides), {
     store: createRemoteClustersStore(),
     onRouter: (router: AppRouter) => registerRouter(router),
     initialEntries: [`/${REMOTE_CLUSTER_EDIT_NAME}`],
     routePath: '/:name',
   });
+  
+  return {
+    ...renderResult,
+    actions: createRemoteClustersActions(renderResult.user),
+  };
 };

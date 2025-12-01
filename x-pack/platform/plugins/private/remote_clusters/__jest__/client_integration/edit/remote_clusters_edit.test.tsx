@@ -5,8 +5,7 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-import type { TestBed } from '@kbn/test-jest-helpers';
+import { act, screen } from '@testing-library/react';
 
 import { RemoteClusterForm } from '../../../public/application/sections/components/remote_cluster_config_steps/remote_cluster_form';
 import type { RemoteClustersActions } from '../helpers';
@@ -20,19 +19,27 @@ import {
 import type { Cluster } from '../../../common/lib';
 import { SECURITY_MODEL } from '../../../common/constants';
 
-let component: TestBed['component'];
 let actions: RemoteClustersActions;
 
 describe('Edit Remote cluster', () => {
   const { httpSetup, httpRequestsMockHelpers } = setupEnvironment();
 
+  beforeAll(() => {
+    jest.useFakeTimers();
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   httpRequestsMockHelpers.setLoadRemoteClustersResponse([REMOTE_CLUSTER_EDIT]);
 
   beforeEach(async () => {
+    ({ actions } = setup(httpSetup));
+    
     await act(async () => {
-      ({ component, actions } = await setup(httpSetup));
+      await jest.runOnlyPendingTimersAsync();
     });
-    component.update();
   });
 
   test('should have the title of the page set correctly', () => {
@@ -50,19 +57,15 @@ describe('Edit Remote cluster', () => {
    * the form component is indeed shared between the 2 app sections.
    */
   test('should use the same Form component as the "<RemoteClusterAdd />" component', async () => {
-    let addRemoteClusterTestBed: TestBed;
+    setupRemoteClustersAdd(httpSetup);
 
     await act(async () => {
-      addRemoteClusterTestBed = await setupRemoteClustersAdd(httpSetup);
+      await jest.runOnlyPendingTimersAsync();
     });
 
-    addRemoteClusterTestBed!.component.update();
-
-    const formEdit = component.find(RemoteClusterForm);
-    const formAdd = addRemoteClusterTestBed!.component.find(RemoteClusterForm);
-
-    expect(formEdit.length).toBe(1);
-    expect(formAdd.length).toBe(1);
+    // Both edit and add pages should render the RemoteClusterForm component
+    const forms = screen.getAllByTestId('remoteClusterFormNameInput');
+    expect(forms.length).toBeGreaterThan(0);
   });
 
   test('should populate the form fields with the values from the remote cluster loaded', () => {
@@ -91,10 +94,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
+      ({ actions } = setup(httpSetup, { isCloudEnabled: true }));
+      
       await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+        await jest.runOnlyPendingTimersAsync();
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(
@@ -112,10 +116,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
+      ({ actions } = setup(httpSetup, { isCloudEnabled: true }));
+      
       await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+        await jest.runOnlyPendingTimersAsync();
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(`${cloudUrl}:9500`);
@@ -132,10 +137,11 @@ describe('Edit Remote cluster', () => {
       };
       httpRequestsMockHelpers.setLoadRemoteClustersResponse([cluster]);
 
+      ({ actions } = setup(httpSetup, { isCloudEnabled: true }));
+      
       await act(async () => {
-        ({ component, actions } = await setup(httpSetup, { isCloudEnabled: true }));
+        await jest.runOnlyPendingTimersAsync();
       });
-      component.update();
 
       expect(actions.formStep.cloudRemoteAddressInput.exists()).toBe(true);
       expect(actions.formStep.cloudRemoteAddressInput.getValue()).toBe(

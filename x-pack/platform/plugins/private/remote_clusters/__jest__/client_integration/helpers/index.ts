@@ -5,7 +5,5 @@
  * 2.0.
  */
 
-export { nextTick, getRandomString, findTestSubject } from '@kbn/test-jest-helpers';
 export { setupEnvironment, WithAppDependencies } from './setup_environment';
-export type { RemoteClustersActions } from './remote_clusters_actions';
-export { createRemoteClustersActions } from './remote_clusters_actions';
+export { renderWithRouter } from './render';

@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import { getRandomString } from '@kbn/test-jest-helpers';
-
 import { SECURITY_MODEL, SNIFF_MODE } from '../common/constants';
+
+const getRandomString = () => Math.random().toString(36).substring(7);
 
 export const getRemoteClusterMock = ({
   name = getRandomString(),

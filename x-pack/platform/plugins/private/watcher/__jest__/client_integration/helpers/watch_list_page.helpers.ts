@@ -5,23 +5,16 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
-
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
 import type { HttpSetup } from '@kbn/core/public';
+import { screen, within, waitFor } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
+
 import { WatchListPage } from '../../../public/application/sections/watch_list_page';
 import { ROUTES, REFRESH_INTERVALS } from '../../../common/constants';
-import { WithAppDependencies } from './setup_environment';
+import { renderWithRouter, type RenderWithRouterResult } from './render';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    initialEntries: [`${ROUTES.API_ROOT}/watches`],
-  },
-  doMountAsync: true,
-};
-
-export interface WatchListTestBed extends TestBed<WatchListTestSubjects> {
+export interface WatchListTestBed extends RenderWithRouterResult {
+  user: UserEvent;
   actions: {
     selectWatchAt: (index: number) => Promise<void>;
     clickWatchActionAt: (index: number, action: 'delete' | 'edit') => Promise<void>;
@@ -31,63 +24,72 @@ export interface WatchListTestBed extends TestBed<WatchListTestSubjects> {
 }
 
 export const setup = async (httpSetup: HttpSetup): Promise<WatchListTestBed> => {
-  const initTestBed = registerTestBed(WithAppDependencies(WatchListPage, httpSetup), testBedConfig);
-  const testBed = await initTestBed();
+  const renderResult = renderWithRouter(WatchListPage, {
+    httpSetup,
+    initialEntries: [`${ROUTES.API_ROOT}/watches`],
+    routePath: `${ROUTES.API_ROOT}/watches`,
+  });
+
+  const { user } = renderResult;
+
+  // Wait for component to finish initial load
+  await waitFor(
+    () => {
+      // Wait for either the table, empty prompt, or error to appear
+      const hasTable = screen.queryByTestId('watchesTable');
+      const hasEmptyPrompt = screen.queryByTestId('emptyPrompt');
+      const hasError = screen.queryByTestId('watcherListSearchError');
+      const isLoading = screen.queryByTestId('sectionLoading');
+      
+      expect(isLoading).not.toBeInTheDocument();
+      expect(hasTable || hasEmptyPrompt || hasError).toBeTruthy();
+    },
+    { timeout: 3000 }
+  );
 
   /**
    * User Actions
    */
 
   const selectWatchAt = async (index: number) => {
-    const { rows } = testBed.table.getMetaData('watchesTable');
-    const row = rows[index];
-    const checkBox = row.reactWrapper.find('input').hostNodes();
-
-    await act(async () => {
-      checkBox.simulate('change', { target: { checked: true } });
-    });
-    testBed.component.update();
+    const table = screen.getByTestId('watchesTable');
+    const rows = within(table).queryAllByRole('row');
+    // Skip header row
+    const dataRows = rows.slice(1);
+    const checkbox = within(dataRows[index]).getByRole('checkbox');
+    await user.click(checkbox);
   };
 
   const clickWatchActionAt = async (index: number, action: 'delete' | 'edit') => {
-    const { component, table } = testBed;
-    const { rows } = table.getMetaData('watchesTable');
-    const currentRow = rows[index];
-    const lastColumn = currentRow.columns[currentRow.columns.length - 1].reactWrapper;
-    const button = findTestSubject(lastColumn, `${action}WatchButton`);
-
-    await act(async () => {
-      button.simulate('click');
-    });
-    component.update();
+    const table = screen.getByTestId('watchesTable');
+    const rows = within(table).queryAllByRole('row');
+    // Skip header row
+    const dataRows = rows.slice(1);
+    const button = within(dataRows[index]).getByTestId(`${action}WatchButton`);
+    await user.click(button);
   };
 
   const searchWatches = async (term: string) => {
-    const { find, component } = testBed;
-    const searchInput = find('watchesTableContainer').find('input.euiFieldSearch');
-
-    // Enter input into the search box
-    // @ts-ignore
-    searchInput.instance().value = term;
-
-    await act(async () => {
-      searchInput.simulate('keyup', { key: 'Enter', keyCode: 13, which: 13 });
-    });
-
-    component.update();
+    const searchInput = screen.getByRole('searchbox');
+    await user.clear(searchInput);
+    await user.type(searchInput, term);
+    await user.keyboard('{Enter}');
   };
 
   const advanceTimeToTableRefresh = async () => {
-    const { component } = testBed;
-    await act(async () => {
-      // Advance timers to simulate another request
-      jest.advanceTimersByTime(REFRESH_INTERVALS.WATCH_LIST);
-    });
-    component.update();
+    jest.advanceTimersByTime(REFRESH_INTERVALS.WATCH_LIST);
+    await waitFor(
+      () => {
+        // Wait for loading to complete
+        expect(screen.queryByTestId('sectionLoading')).not.toBeInTheDocument();
+      },
+      { timeout: 2000 }
+    );
   };
 
   return {
-    ...testBed,
+    ...renderResult,
+    user,
     actions: {
       selectWatchAt,
       clickWatchActionAt,
@@ -96,19 +98,3 @@ export const setup = async (httpSetup: HttpSetup): Promise<WatchListTestBed> => 
     },
   };
 };
-
-type WatchListTestSubjects = TestSubjects;
-
-export type TestSubjects =
-  | 'appTitle'
-  | 'documentationLink'
-  | 'watchesTable'
-  | 'watcherListSearchError'
-  | 'cell'
-  | 'row'
-  | 'deleteWatchButton'
-  | 'createWatchButton'
-  | 'emptyPrompt'
-  | 'emptyPrompt.createWatchButton'
-  | 'editWatchButton'
-  | 'watchesTableContainer';

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { getRandomString } from '@kbn/test-jest-helpers';
+import { getRandomString } from '../__jest__/client_integration/helpers/random';
 import type { ClientWatchStatusModel } from '../common/types';
 import { WATCH_STATES, WATCH_STATE_COMMENTS } from '../common/constants';
 

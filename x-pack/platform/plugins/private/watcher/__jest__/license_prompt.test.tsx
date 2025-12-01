@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import { shallow } from 'enzyme';
+import { render, screen } from '@testing-library/react';
+import { __IntlProvider as IntlProvider } from '@kbn/i18n-react';
 import { sharePluginMock } from '@kbn/share-plugin/public/mocks';
 import type {
   LicenseManagementLocator,
@@ -20,16 +21,29 @@ describe('License prompt', () => {
       ...sharePluginMock.createLocator(),
       useUrl: (params: LicenseManagementLocatorParams) => '/license_management',
     } as LicenseManagementLocator;
-    const component = shallow(
-      <LicensePrompt message="License error" licenseManagementLocator={locator} />
+    
+    render(
+      <IntlProvider locale="en">
+        <LicensePrompt message="License error" licenseManagementLocator={locator} />
+      </IntlProvider>
     );
 
-    expect(component).toMatchSnapshot();
+    expect(screen.getByRole('heading', { name: 'License error' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manage your license' })).toHaveAttribute(
+      'href',
+      '/license_management'
+    );
   });
 
   test('renders a prompt without a link to License Management', () => {
-    const component = shallow(<LicensePrompt message="License error" />);
+    render(
+      <IntlProvider locale="en">
+        <LicensePrompt message="License error" />
+      </IntlProvider>
+    );
 
-    expect(component).toMatchSnapshot();
+    expect(screen.getByRole('heading', { name: 'License error' })).toBeInTheDocument();
+    expect(screen.getByText('Contact your administrator to change your license.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Manage your license' })).not.toBeInTheDocument();
   });
 });

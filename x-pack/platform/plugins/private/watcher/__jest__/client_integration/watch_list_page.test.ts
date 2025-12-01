@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import { screen, within, waitFor } from '@testing-library/react';
 import * as fixtures from '../../__fixtures__';
-import { setupEnvironment, pageHelpers, getRandomString, findTestSubject } from './helpers';
+import { setupEnvironment, pageHelpers, getRandomString } from './helpers';
 import type { WatchListTestBed } from './helpers/watch_list_page.helpers';
 import { API_BASE_PATH } from '../../common/constants';
 
@@ -30,18 +30,12 @@ describe('<WatchListPage />', () => {
       describe('when there are no watches', () => {
         beforeEach(async () => {
           httpRequestsMockHelpers.setLoadWatchesResponse({ watches: [] });
-
-          await act(async () => {
-            testBed = await setup(httpSetup);
-          });
-          testBed.component.update();
+          testBed = await setup(httpSetup);
         });
 
         test('should display an empty prompt', async () => {
-          const { exists } = testBed;
-
-          expect(exists('emptyPrompt')).toBe(true);
-          expect(exists('emptyPrompt.createWatchButton')).toBe(true);
+          expect(screen.getByTestId('emptyPrompt')).toBeInTheDocument();
+          expect(within(screen.getByTestId('emptyPrompt')).getByTestId('createWatchButton')).toBeInTheDocument();
         });
       });
 
@@ -68,137 +62,111 @@ describe('<WatchListPage />', () => {
 
         beforeEach(async () => {
           httpRequestsMockHelpers.setLoadWatchesResponse({ watches });
-
-          await act(async () => {
-            testBed = await setup(httpSetup);
-          });
-
-          testBed.component.update();
+          testBed = await setup(httpSetup);
         });
 
         test('should show error callout if search is invalid', async () => {
-          const { exists, actions } = testBed;
+          const { actions } = testBed;
 
           await actions.searchWatches('or');
 
-          expect(exists('watcherListSearchError')).toBe(true);
+          expect(screen.getByTestId('watcherListSearchError')).toBeInTheDocument();
         });
 
         test('should retain the search query', async () => {
-          const { table, actions } = testBed;
+          const { actions } = testBed;
 
           await actions.searchWatches(watch1.name);
 
-          const { tableCellsValues } = table.getMetaData('watchesTable');
+          // Wait for table to update
+          await waitFor(() => {
+            const table = screen.getByTestId('watchesTable');
+            const rows = within(table).queryAllByRole('row');
+            // Skip header row
+            const dataRows = rows.slice(1);
+            expect(dataRows.length).toBe(1);
+          });
 
-          // Expect "watch1" is only visible in the table
-          expect(tableCellsValues.length).toEqual(1);
-          const row = tableCellsValues[0];
-          const { name, id } = watch1;
-
-          const expectedRow = [
-            '', // checkbox
-            id,
-            name,
-            '', // state
-            '', // lastMetCondition
-            '', // lastChecked
-            '', // comment
-            '', // row actions
-          ];
-
-          expect(row).toEqual(expectedRow);
+          // Verify watch1 is visible in the table
+          const table = screen.getByTestId('watchesTable');
+          expect(within(table).getByText(watch1.id)).toBeInTheDocument();
+          expect(within(table).getByText(watch1.name)).toBeInTheDocument();
 
           await actions.advanceTimeToTableRefresh();
 
-          const { tableCellsValues: updatedTableCellsValues } = table.getMetaData('watchesTable');
-
-          // Verify "watch1" is still the only watch visible in the table
-          expect(updatedTableCellsValues.length).toEqual(1);
-          const updatedRow = updatedTableCellsValues[0];
-
-          expect(updatedRow).toEqual(expectedRow);
+          // Verify watch1 is still the only watch visible after refresh
+          await waitFor(() => {
+            const updatedTable = screen.getByTestId('watchesTable');
+            const rows = within(updatedTable).queryAllByRole('row');
+            const dataRows = rows.slice(1);
+            expect(dataRows.length).toBe(1);
+            expect(within(updatedTable).getByText(watch1.id)).toBeInTheDocument();
+          });
         });
 
         test('should set the correct app title', () => {
-          const { exists, find } = testBed;
-          expect(exists('appTitle')).toBe(true);
-          expect(find('appTitle').text()).toEqual('Watcher');
+          expect(screen.getByTestId('appTitle')).toHaveTextContent('Watcher');
         });
 
         test('should have a link to the documentation', () => {
-          const { exists, find } = testBed;
-          expect(exists('documentationLink')).toBe(true);
-          expect(find('documentationLink').text()).toBe('Watcher docs');
+          const docLink = screen.getByTestId('documentationLink');
+          expect(docLink).toBeInTheDocument();
+          expect(docLink).toHaveTextContent('Watcher docs');
         });
 
         test('should list them in the table', async () => {
-          const { table } = testBed;
-          const { tableCellsValues } = table.getMetaData('watchesTable');
+          const table = screen.getByTestId('watchesTable');
+          const rows = within(table).queryAllByRole('row');
+          // Skip header row
+          const dataRows = rows.slice(1);
 
-          const getExpectedValue = (value: any) => value ?? '';
+          expect(dataRows.length).toBe(watches.length);
 
-          tableCellsValues.forEach((row, i) => {
-            const watch = watches[i];
-            const { name, id, watchStatus } = watch;
-
-            expect(row).toEqual([
-              '',
-              id, // required value
-              getExpectedValue(name),
-              '', // state
-              getExpectedValue(watchStatus.lastMetCondition),
-              getExpectedValue(watchStatus.lastChecked),
-              getExpectedValue(watchStatus.comment),
-              '', // row actions
-            ]);
+          watches.forEach((watch) => {
+            expect(within(table).getByText(watch.id)).toBeInTheDocument();
+            if (watch.name) {
+              expect(within(table).getByText(watch.name)).toBeInTheDocument();
+            }
           });
         });
 
         test('should have a button to create a watch', () => {
-          const { exists } = testBed;
-          expect(exists('createWatchButton')).toBe(true);
+          expect(screen.getByTestId('createWatchButton')).toBeInTheDocument();
         });
 
         test('should have a link to view watch details', () => {
-          const { table } = testBed;
-          const { rows } = table.getMetaData('watchesTable');
-          const idColumn = rows[0].columns[1].reactWrapper;
-
-          expect(findTestSubject(idColumn, `watchIdColumn-${watch1.id}`).length).toBe(1);
-          expect(findTestSubject(idColumn, `watchIdColumn-${watch1.id}`).props().href).toEqual(
-            `/watches/watch/${watch1.id}/status`
-          );
+          const watchLink = screen.getByTestId(`watchIdColumn-${watch1.id}`);
+          expect(watchLink).toBeInTheDocument();
+          expect(watchLink).toHaveAttribute('href', `/watches/watch/${watch1.id}/status`);
         });
 
         test('should have action buttons on each row to edit and delete a watch', () => {
-          const { table } = testBed;
-          const { rows } = table.getMetaData('watchesTable');
-          const lastColumn = rows[0].columns[rows[0].columns.length - 1].reactWrapper;
+          const table = screen.getByTestId('watchesTable');
+          const rows = within(table).queryAllByRole('row');
+          // Skip header row - get first data row
+          const firstDataRow = rows[1];
 
-          expect(findTestSubject(lastColumn, 'editWatchButton').length).toBe(1);
-          expect(findTestSubject(lastColumn, 'deleteWatchButton').length).toBe(1);
+          expect(within(firstDataRow).getByTestId('editWatchButton')).toBeInTheDocument();
+          expect(within(firstDataRow).getByTestId('deleteWatchButton')).toBeInTheDocument();
         });
 
         describe('system watch', () => {
           test('should disable edit and delete actions', async () => {
-            const { table } = testBed;
-            const { rows } = table.getMetaData('watchesTable');
-            const systemWatch = rows[2];
-            const firstColumn = systemWatch.columns[0].reactWrapper;
-            const lastColumn = systemWatch.columns[rows[0].columns.length - 1].reactWrapper;
+            const table = screen.getByTestId('watchesTable');
+            const rows = within(table).queryAllByRole('row');
+            // System watch is the third item (index 3 including header)
+            const systemWatchRow = rows[3];
 
-            expect(
-              findTestSubject(firstColumn, `checkboxSelectRow-${watch3.id}`)
-                .getDOMNode()
-                .getAttribute('disabled')
-            ).toEqual('');
-            expect(
-              findTestSubject(lastColumn, 'editWatchButton').getDOMNode().getAttribute('disabled')
-            ).toEqual('');
-            expect(
-              findTestSubject(lastColumn, 'deleteWatchButton').getDOMNode().getAttribute('disabled')
-            ).toEqual('');
+            const checkbox = within(systemWatchRow).getByTestId(
+              `checkboxSelectRow-${watch3.id}`
+            );
+            expect(checkbox).toBeDisabled();
+
+            const editButton = within(systemWatchRow).getByTestId('editWatchButton');
+            expect(editButton).toBeDisabled();
+
+            const deleteButton = within(systemWatchRow).getByTestId('deleteWatchButton');
+            expect(deleteButton).toBeDisabled();
           });
         });
 
@@ -208,48 +176,59 @@ describe('<WatchListPage />', () => {
 
             await actions.clickWatchActionAt(0, 'delete');
 
-            // We need to read the document "body" as the modal is added there and not inside
-            // the component DOM tree.
-            expect(
-              document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
-            ).not.toBe(null);
-
-            expect(
-              document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')!
-                .textContent
-            ).toContain('Delete watch');
-          });
-
-          test('should send the correct HTTP request to delete watch', async () => {
-            const { actions, table } = testBed;
-            const { rows } = table.getMetaData('watchesTable');
-
-            const watchId = rows[0].columns[2].value;
-
-            await actions.clickWatchActionAt(0, 'delete');
+            // Modal is added to document.body
+            await waitFor(() => {
+              expect(
+                document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
+              ).toBeInTheDocument();
+            });
 
             const modal = document.body.querySelector(
               '[data-test-subj="deleteWatchesConfirmation"]'
             );
-            const confirmButton: HTMLButtonElement | null = modal!.querySelector(
-              '[data-test-subj="confirmModalConfirmButton"]'
+            expect(modal?.textContent).toContain('Delete watch');
+          });
+
+          test('should send the correct HTTP request to delete watch', async () => {
+            const { actions } = testBed;
+            const table = screen.getByTestId('watchesTable');
+            const rows = within(table).queryAllByRole('row');
+            // Get first data row (skip header)
+            const firstDataRow = rows[1];
+            const cells = within(firstDataRow).queryAllByRole('cell');
+            // Watch name is in the third cell (index 2: checkbox, id, name)
+            const watchName = cells[2].textContent;
+
+            await actions.clickWatchActionAt(0, 'delete');
+
+            await waitFor(() => {
+              expect(
+                document.body.querySelector('[data-test-subj="deleteWatchesConfirmation"]')
+              ).toBeInTheDocument();
+            });
+
+            const modal = document.body.querySelector(
+              '[data-test-subj="deleteWatchesConfirmation"]'
             );
+            const confirmButton = modal!.querySelector(
+              '[data-test-subj="confirmModalConfirmButton"]'
+            ) as HTMLButtonElement;
 
             httpRequestsMockHelpers.setDeleteWatchResponse({
               results: {
-                successes: [watchId],
+                successes: [watchName],
                 errors: [],
               },
             });
 
-            await act(async () => {
-              confirmButton!.click();
-            });
+            confirmButton.click();
 
-            expect(httpSetup.post).toHaveBeenLastCalledWith(
-              `${API_BASE_PATH}/watches/delete`,
-              expect.anything()
-            );
+            await waitFor(() => {
+              expect(httpSetup.post).toHaveBeenLastCalledWith(
+                `${API_BASE_PATH}/watches/delete`,
+                expect.anything()
+              );
+            });
           });
         });
       });

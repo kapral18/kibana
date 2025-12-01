@@ -11,9 +11,9 @@ import { setup as watchCreateJsonPageSetup } from './watch_create_json_page.help
 import { setup as watchCreateThresholdPageSetup } from './watch_create_threshold_page.helpers';
 import { setup as watchEditPageSetup } from './watch_edit_page.helpers';
 
-export type { TestBed } from '@kbn/test-jest-helpers';
-export { getRandomString, findTestSubject } from '@kbn/test-jest-helpers';
+export { getRandomString } from './random';
 export { setupEnvironment } from './setup_environment';
+export { findTestSubject, findAllTestSubjects } from './render';
 
 export const pageHelpers = {
   watchListPage: { setup: watchListPageSetup },

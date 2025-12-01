@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import { screen } from '@testing-library/react';
 
 import type { AppDependencies } from '../../../public/types';
 import { setupEnvironment, kibanaVersion, getAppContextMock } from '../helpers';
@@ -37,17 +37,13 @@ describe('Privileges', () => {
         },
       };
 
-      await act(async () => {
-        testBed = await setupAppPage(httpSetup, { services: servicesMock });
-      });
-
-      testBed.component.update();
+      testBed = await setupAppPage(httpSetup, { services: servicesMock });
     });
 
-    test('renders not authorized message', () => {
-      const { exists } = testBed;
-      expect(exists('overview')).toBe(false);
-      expect(exists('missingKibanaPrivilegesMessage')).toBe(true);
+    test('renders not authorized message', async () => {
+      await screen.findByTestId('missingKibanaPrivilegesMessage');
+      expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
+      expect(screen.getByTestId('missingKibanaPrivilegesMessage')).toBeInTheDocument();
     });
   });
 });

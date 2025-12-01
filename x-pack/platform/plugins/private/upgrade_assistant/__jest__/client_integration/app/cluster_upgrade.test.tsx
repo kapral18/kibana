@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { act } from 'react-dom/test-utils';
+import { screen } from '@testing-library/react';
 
 import { setupEnvironment } from '../helpers';
 import type { AppTestBed } from './app.helpers';
@@ -26,11 +26,11 @@ describe('Cluster upgrade', () => {
       testBed = await setupAppPage(httpSetup);
     });
 
-    test('renders overview', () => {
-      const { exists } = testBed;
-      expect(exists('overview')).toBe(true);
-      expect(exists('isUpgradingMessage')).toBe(false);
-      expect(exists('isUpgradeCompleteMessage')).toBe(false);
+    test('renders overview', async () => {
+      await screen.findByTestId('overview');
+      expect(screen.getByTestId('overview')).toBeInTheDocument();
+      expect(screen.queryByTestId('isUpgradingMessage')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('isUpgradeCompleteMessage')).not.toBeInTheDocument();
     });
   });
 
@@ -49,17 +49,14 @@ describe('Cluster upgrade', () => {
         },
       });
 
-      await act(async () => {
-        testBed = await setupAppPage(httpSetup);
-      });
+      testBed = await setupAppPage(httpSetup);
     });
 
     test('renders rolling upgrade message', async () => {
-      const { component, exists } = testBed;
-      component.update();
-      expect(exists('overview')).toBe(false);
-      expect(exists('isUpgradingMessage')).toBe(true);
-      expect(exists('isUpgradeCompleteMessage')).toBe(false);
+      await screen.findByTestId('isUpgradingMessage');
+      expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
+      expect(screen.getByTestId('isUpgradingMessage')).toBeInTheDocument();
+      expect(screen.queryByTestId('isUpgradeCompleteMessage')).not.toBeInTheDocument();
     });
   });
 
@@ -73,17 +70,14 @@ describe('Cluster upgrade', () => {
         },
       });
 
-      await act(async () => {
-        testBed = await setupAppPage(httpSetup);
-      });
+      testBed = await setupAppPage(httpSetup);
     });
 
-    test('renders upgrade complete message', () => {
-      const { component, exists } = testBed;
-      component.update();
-      expect(exists('overview')).toBe(false);
-      expect(exists('isUpgradingMessage')).toBe(false);
-      expect(exists('isUpgradeCompleteMessage')).toBe(true);
+    test('renders upgrade complete message', async () => {
+      await screen.findByTestId('isUpgradeCompleteMessage');
+      expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('isUpgradingMessage')).not.toBeInTheDocument();
+      expect(screen.getByTestId('isUpgradeCompleteMessage')).toBeInTheDocument();
     });
   });
 });

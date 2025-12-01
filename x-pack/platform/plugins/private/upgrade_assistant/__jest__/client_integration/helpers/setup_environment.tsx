@@ -10,9 +10,14 @@ import SemVer from 'semver/classes/semver';
 import { merge } from 'lodash';
 
 import type { HttpSetup } from '@kbn/core/public';
+import {
+  i18nServiceMock,
+  themeServiceMock,
+  analyticsServiceMock,
+} from '@kbn/core/public/mocks';
 import { ReindexService } from '@kbn/reindex-service-plugin/public';
 import type { Authorization, Privileges } from '../../../public/shared_imports';
-import { AuthorizationContext } from '../../../public/shared_imports';
+import { AuthorizationContext, KibanaRenderContextProvider } from '../../../public/shared_imports';
 import { AppContextProvider } from '../../../public/application/app_context';
 import { apiService } from '../../../public/application/lib/api';
 import { breadcrumbService } from '../../../public/application/lib/breadcrumbs';
@@ -24,6 +29,12 @@ import { init as initHttpRequests } from './http_requests';
 const { GlobalFlyoutProvider } = GlobalFlyout;
 
 export const kibanaVersion = new SemVer('8.0.0');
+
+const startServicesMock = {
+  i18n: i18nServiceMock.createStartContract(),
+  theme: themeServiceMock.createStartContract(),
+  analytics: analyticsServiceMock.createAnalyticsServiceStart(),
+};
 
 const createAuthorizationContextValue = (privileges: Privileges) => {
   return {
@@ -41,15 +52,17 @@ export const WithAppDependencies =
     const appContextMock = getAppContextMock(kibanaVersion) as unknown as RootComponentDependencies;
 
     return (
-      <AuthorizationContext.Provider
-        value={createAuthorizationContextValue(privileges as Privileges)}
-      >
-        <AppContextProvider value={merge(appContextMock, overrides)}>
-          <GlobalFlyoutProvider>
-            <Comp {...props} />
-          </GlobalFlyoutProvider>
-        </AppContextProvider>
-      </AuthorizationContext.Provider>
+      <KibanaRenderContextProvider {...startServicesMock}>
+        <AuthorizationContext.Provider
+          value={createAuthorizationContextValue(privileges as Privileges)}
+        >
+          <AppContextProvider value={merge(appContextMock, overrides)}>
+            <GlobalFlyoutProvider>
+              <Comp {...props} />
+            </GlobalFlyoutProvider>
+          </AppContextProvider>
+        </AuthorizationContext.Provider>
+      </KibanaRenderContextProvider>
     );
   };
 

@@ -75,7 +75,9 @@ describe('Runtime field editor flyout', () => {
     };
     const onSave: jest.Mock<Props['onSave']> = jest.fn();
 
-    renderWithI18n(<RuntimeFieldEditorFlyoutContent {...defaultProps} onSave={onSave} defaultValue={field} />);
+    renderWithI18n(
+      <RuntimeFieldEditorFlyoutContent {...defaultProps} onSave={onSave} defaultValue={field} />
+    );
 
     const saveButton = screen.getByTestId('saveFieldButton');
 
@@ -114,7 +116,7 @@ describe('Runtime field editor flyout', () => {
       });
 
       expect(onSave).toHaveBeenCalledTimes(0);
-      
+
       await waitFor(() => {
         const updatedSaveButton = screen.getByTestId('saveFieldButton');
         expect(updatedSaveButton).toBeDisabled();
@@ -122,7 +124,9 @@ describe('Runtime field editor flyout', () => {
 
       expect(screen.getByText('Give a name to the field.')).toBeInTheDocument();
       expect(screen.getByTestId('formError')).toBeInTheDocument();
-      expect(screen.getByTestId('formError')).toHaveTextContent('Fix errors in form before continuing.');
+      expect(screen.getByTestId('formError')).toHaveTextContent(
+        'Fix errors in form before continuing.'
+      );
     });
 
     test('should forward values from the form', async () => {

@@ -67,7 +67,9 @@ describe('Runtime field form', () => {
       type: 'date',
       script: { source: 'test=123' },
     };
-    renderWithI18n(<RuntimeFieldForm onChange={onChange} defaultValue={defaultValue} links={links} />);
+    renderWithI18n(
+      <RuntimeFieldForm onChange={onChange} defaultValue={defaultValue} links={links} />
+    );
 
     expect(onChange).toHaveBeenCalled();
 

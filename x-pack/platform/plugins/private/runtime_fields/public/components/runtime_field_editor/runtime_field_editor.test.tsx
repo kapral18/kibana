@@ -8,14 +8,12 @@
 import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { renderWithI18n } from '@kbn/test-jest-helpers';
 import type { DocLinksStart } from '@kbn/core/public';
 
 import '../../__jest__/setup_environment';
 import type { RuntimeField } from '../../types';
 import type { FormState } from '../runtime_field_form/runtime_field_form';
-import { RuntimeFieldForm } from '../runtime_field_form/runtime_field_form';
 import type { Props } from './runtime_field_editor';
 import { RuntimeFieldEditor } from './runtime_field_editor';
 
@@ -57,7 +55,9 @@ describe('Runtime field editor', () => {
       type: 'date',
       script: { source: 'test=123' },
     };
-    renderWithI18n(<RuntimeFieldEditor onChange={onChange} defaultValue={defaultValue} docLinks={docLinks} />);
+    renderWithI18n(
+      <RuntimeFieldEditor onChange={onChange} defaultValue={defaultValue} docLinks={docLinks} />
+    );
 
     expect(onChange).toHaveBeenCalled();
 
@@ -72,7 +72,7 @@ describe('Runtime field editor', () => {
       jest.advanceTimersByTime(0); // advance timers to allow the form to validate
       ({ data } = await submit);
     });
-    
+
     expect(data).toEqual(defaultValue);
 
     // Make sure that both isValid and isSubmitted state are now "true"
@@ -84,12 +84,18 @@ describe('Runtime field editor', () => {
   test('should accept a list of existing concrete fields and display a callout when shadowing one of the fields', async () => {
     const existingConcreteFields = [{ name: 'myConcreteField', type: 'keyword' }];
 
-    renderWithI18n(<RuntimeFieldEditor onChange={onChange} docLinks={docLinks} ctx={{ existingConcreteFields }} />);
+    renderWithI18n(
+      <RuntimeFieldEditor
+        onChange={onChange}
+        docLinks={docLinks}
+        ctx={{ existingConcreteFields }}
+      />
+    );
 
     expect(screen.queryByTestId('shadowingFieldCallout')).not.toBeInTheDocument();
 
     const nameInput = screen.getByTestId('nameField').querySelector('input')!;
-    
+
     await act(async () => {
       fireEvent.change(nameInput, { target: { value: existingConcreteFields[0].name } });
       jest.advanceTimersByTime(0); // advance timers to allow the form to validate
@@ -104,7 +110,13 @@ describe('Runtime field editor', () => {
     test('should accept an optional list of existing runtime fields and prevent creating duplicates', async () => {
       const existingRuntimeFieldNames = ['myRuntimeField'];
 
-      renderWithI18n(<RuntimeFieldEditor onChange={onChange} docLinks={docLinks} ctx={{ namesNotAllowed: existingRuntimeFieldNames }} />);
+      renderWithI18n(
+        <RuntimeFieldEditor
+          onChange={onChange}
+          docLinks={docLinks}
+          ctx={{ namesNotAllowed: existingRuntimeFieldNames }}
+        />
+      );
 
       const nameInput = screen.getByTestId('nameField').querySelector('input')!;
       const scriptField = screen.getByTestId('scriptField');
@@ -163,7 +175,9 @@ describe('Runtime field editor', () => {
         expect(lastState.isValid).toBe(true);
       });
 
-      expect(screen.queryByText('There is already a field with this name.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('There is already a field with this name.')
+      ).not.toBeInTheDocument();
     });
   });
 });

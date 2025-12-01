@@ -4,127 +4,153 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { act } from 'react-dom/test-utils';
-import type { TestBed, AsyncTestBedConfig } from '@kbn/test-jest-helpers';
-import { registerTestBed, findTestSubject } from '@kbn/test-jest-helpers';
+
+import React from 'react';
+import { render, screen, within } from '@testing-library/react';
+import * as userEventLib from '@testing-library/user-event';
+import type { RenderResult } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
+
 import type { HttpSetup } from '@kbn/core/public';
+import { scopedHistoryMock } from '@kbn/core/public/mocks';
+
 import { KibanaDeprecations } from '../../../public/application/components';
 import { WithAppDependencies } from '../helpers';
 
-const testBedConfig: AsyncTestBedConfig = {
-  memoryRouter: {
-    initialEntries: ['/kibana_deprecations'],
-    componentRoutePath: '/kibana_deprecations',
-  },
-  doMountAsync: true,
-};
-
-export type KibanaTestBed = TestBed & {
-  actions: ReturnType<typeof createActions>;
-};
-
-const createActions = (testBed: TestBed) => {
-  const { component, find, table } = testBed;
-
-  /**
-   * User Actions
-   */
-  const tableActions = {
-    clickRefreshButton: async () => {
-      await act(async () => {
-        find('refreshButton').simulate('click');
-      });
-
-      component.update();
-    },
-
-    clickDeprecationAt: async (index: number) => {
-      const { rows } = table.getMetaData('kibanaDeprecationsTable');
-
-      const deprecationDetailsLink = findTestSubject(
-        rows[index].reactWrapper,
-        'deprecationDetailsLink'
-      );
-
-      await act(async () => {
-        deprecationDetailsLink.simulate('click');
-      });
-      component.update();
-    },
+export interface KibanaTestBed extends RenderResult {
+  user: UserEvent;
+  actions: {
+    table: {
+      clickRefreshButton: () => Promise<void>;
+      clickDeprecationAt: (index: number) => Promise<void>;
+    };
+    flyout: {
+      clickResolveButton: () => Promise<void>;
+    };
+    searchBar: {
+      openTypeFilterDropdown: () => Promise<void>;
+      openStatusFilterDropdown: () => Promise<void>;
+      filterByTitle: (title: string) => Promise<void>;
+    };
   };
-
-  const openFilterByIndex = async (index: number) => {
-    await act(async () => {
-      // EUI doesn't support data-test-subj's on the filter buttons, so we must access via CSS selector
-      find('kibanaDeprecations')
-        .find('.euiSearchBar__filtersHolder')
-        .find('.euiPopover')
-        .find('button.euiFilterButton')
-        .at(index)
-        .simulate('click');
-    });
-
-    component.update();
-
-    // Wait for the filter dropdown to be displayed
-    await new Promise(requestAnimationFrame);
-  };
-
-  const searchBarActions = {
-    openTypeFilterDropdown: async () => {
-      await openFilterByIndex(1);
-    },
-
-    openStatusFilterDropdown: async () => {
-      await openFilterByIndex(0);
-    },
-
-    filterByTitle: async (title: string) => {
-      // We need to read the document "body" as the filter dropdown (an EuiSelectable)
-      // is added in a portalled popover and not inside the component DOM tree.
-      const filterButton: HTMLButtonElement | null = document.body.querySelector(
-        `.euiSelectableListItem[title=${title}]`
-      );
-
-      expect(filterButton).not.toBeNull();
-
-      await act(async () => {
-        filterButton!.click();
-      });
-
-      component.update();
-    },
-  };
-
-  const flyoutActions = {
-    clickResolveButton: async () => {
-      await act(async () => {
-        find('resolveButton').simulate('click');
-      });
-
-      component.update();
-    },
-  };
-
-  return {
-    table: tableActions,
-    flyout: flyoutActions,
-    searchBar: searchBarActions,
-  };
-};
+}
 
 export const setupKibanaPage = async (
   httpSetup: HttpSetup,
   overrides?: Record<string, unknown>
 ): Promise<KibanaTestBed> => {
-  const initTestBed = registerTestBed(
-    WithAppDependencies(KibanaDeprecations, httpSetup, overrides),
-    testBedConfig
+  const user = userEventLib.default.setup({
+    advanceTimers: jest.advanceTimersByTime,
+    pointerEventsCheck: 0,
+  });
+
+  // Create a scoped history mock with initial entries
+  const history = scopedHistoryMock.create();
+
+  // Store listeners for history changes
+  const listeners: Array<(location: any, action: any) => void> = [];
+
+  history.createHref.mockImplementation((location) => {
+    if (typeof location === 'string') {
+      return location;
+    }
+    return location.pathname || '/';
+  });
+
+  // Mock listen to store listeners
+  history.listen.mockImplementation((listener) => {
+    listeners.push(listener);
+    // Return unsubscribe function
+    return () => {
+      const index = listeners.indexOf(listener);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    };
+  });
+
+  // Mock push to actually update the location and notify listeners
+  history.push.mockImplementation((path) => {
+    const pathname = typeof path === 'string' ? path : path.pathname || '/';
+    const search = typeof path === 'string' ? '' : path.search || '';
+    history.location = {
+      ...history.location,
+      pathname,
+      search,
+    };
+    history.action = 'PUSH';
+    // Notify all listeners with location and action
+    listeners.forEach((listener) => listener(history.location, history.action));
+  });
+
+  // Set the initial location
+  history.location.pathname = '/kibana_deprecations';
+
+  const KibanaDeprecationsWithDependencies = WithAppDependencies(
+    KibanaDeprecations,
+    httpSetup,
+    overrides
   );
-  const testBed = await initTestBed();
+
+  const renderResult = render(<KibanaDeprecationsWithDependencies history={history} />);
+
+  const openFilterByIndex = async (index: number) => {
+    const kibanaDeprecationsContainer = screen.getByTestId('kibanaDeprecations');
+    const filterButtons = within(kibanaDeprecationsContainer).getAllByRole('button', {
+      name: /filter/i,
+    });
+    await user.click(filterButtons[index]);
+    // Wait for the filter dropdown to be displayed
+    await new Promise(requestAnimationFrame);
+  };
 
   return {
-    ...testBed,
-    actions: createActions(testBed),
+    ...renderResult,
+    user,
+    actions: {
+      table: {
+        async clickRefreshButton() {
+          const button = await screen.findByTestId('refreshButton');
+          await user.click(button);
+        },
+
+        async clickDeprecationAt(index: number) {
+          const table = screen.getByTestId('kibanaDeprecationsTable');
+          const rows = within(table).getAllByRole('row');
+          // Skip header row
+          const dataRows = rows.slice(1);
+          const deprecationLink = within(dataRows[index]).getByTestId('deprecationDetailsLink');
+          await user.click(deprecationLink);
+        },
+      },
+
+      flyout: {
+        async clickResolveButton() {
+          const button = screen.getByTestId('resolveButton');
+          await user.click(button);
+        },
+      },
+
+      searchBar: {
+        async openTypeFilterDropdown() {
+          await openFilterByIndex(1);
+        },
+
+        async openStatusFilterDropdown() {
+          await openFilterByIndex(0);
+        },
+
+        async filterByTitle(title: string) {
+          // We need to read the document "body" as the filter dropdown (an EuiSelectable)
+          // is added in a portalled popover and not inside the component DOM tree.
+          const filterButton: HTMLButtonElement | null = document.body.querySelector(
+            `.euiSelectableListItem[title=${title}]`
+          );
+
+          expect(filterButton).not.toBeNull();
+          filterButton!.click();
+        },
+      },
+    },
   };
 };

@@ -7,16 +7,52 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { ReindexStatus } from '@kbn/upgrade-assistant-pkg-common';
+import {
+  ReindexStep,
+  type ReindexOperation,
+  type ReindexStatusResponse,
+} from '@kbn/reindex-service-plugin/common';
 import { useConvertIndexToLookup } from './use_convert_index_to_lookup';
 import { getReindexStatus, startReindex } from '../../services';
+import { advanceTimersByTime } from '../../../../__jest__/helpers/fake_timers';
 
 jest.mock('../../services');
 
-const mockedGetReindexStatus = getReindexStatus as jest.Mock;
-const mockedStartReindex = startReindex as jest.Mock;
+const mockedGetReindexStatus = jest.mocked(getReindexStatus);
+const mockedStartReindex = jest.mocked(startReindex);
+
+const SOURCE_INDEX_NAME = 'my-index';
+
+const createReindexOperation = (overrides: Partial<ReindexOperation> = {}): ReindexOperation => ({
+  indexName: SOURCE_INDEX_NAME,
+  newIndexName: `lookup-${SOURCE_INDEX_NAME}`,
+  status: ReindexStatus.inProgress,
+  lastCompletedStep: ReindexStep.created,
+  locked: null,
+  reindexTaskId: null,
+  reindexTaskPercComplete: null,
+  errorMessage: null,
+  runningReindexCount: null,
+  ...overrides,
+});
+
+const createReindexStatusResponse = (
+  overrides: Partial<ReindexStatusResponse> = {}
+): ReindexStatusResponse => ({
+  meta: {
+    indexName: SOURCE_INDEX_NAME,
+    aliases: [],
+    isReadonly: false,
+    isFrozen: false,
+    isInDataStream: false,
+    isFollowerIndex: false,
+    ...overrides.meta,
+  },
+  ...overrides,
+});
 
 const defaultHookArgs = {
-  sourceIndexName: 'my-index',
+  sourceIndexName: SOURCE_INDEX_NAME,
   onSuccess: jest.fn(),
   onClose: jest.fn(),
 };
@@ -33,23 +69,27 @@ describe('useConvertIndexToLookup', () => {
 
   describe('successful conversion', () => {
     it('should pool until completion', async () => {
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus
         .mockResolvedValueOnce({
-          data: { reindexOp: { status: ReindexStatus.inProgress } },
+          data: createReindexStatusResponse({
+            reindexOp: createReindexOperation({ status: ReindexStatus.inProgress }),
+          }),
           error: null,
         })
         .mockResolvedValueOnce({
-          data: { reindexOp: { status: ReindexStatus.inProgress } },
+          data: createReindexStatusResponse({
+            reindexOp: createReindexOperation({ status: ReindexStatus.inProgress }),
+          }),
           error: null,
         })
         .mockResolvedValueOnce({
-          data: {
-            reindexOp: {
+          data: createReindexStatusResponse({
+            reindexOp: createReindexOperation({
               status: ReindexStatus.completed,
               newIndexName: 'lookup-my-index',
-            },
-          },
+            }),
+          }),
           error: null,
         });
 
@@ -62,19 +102,13 @@ describe('useConvertIndexToLookup', () => {
       expect(result.current.isConverting).toBe(true);
 
       // First poll after startReindex
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       // Second poll after 3s
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(3000);
-      });
+      await advanceTimersByTime(3000);
 
       // Third poll after another 3s - completes
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(3000);
-      });
+      await advanceTimersByTime(3000);
 
       expect(defaultHookArgs.onSuccess).toHaveBeenCalledWith('lookup-my-index');
       expect(defaultHookArgs.onClose).toHaveBeenCalled();
@@ -83,9 +117,15 @@ describe('useConvertIndexToLookup', () => {
     });
 
     it('should handle completion without newIndexName', async () => {
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({
-        data: { reindexOp: { status: ReindexStatus.completed } },
+        data: createReindexStatusResponse({
+          reindexOp: createReindexOperation({
+            status: ReindexStatus.completed,
+            // Keep this falsy so the hook does not call onSuccess.
+            newIndexName: '',
+          }),
+        }),
         error: null,
       });
 
@@ -95,9 +135,7 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       expect(defaultHookArgs.onSuccess).not.toHaveBeenCalled();
       expect(defaultHookArgs.onClose).toHaveBeenCalled();
@@ -115,9 +153,7 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       expect(result.current.errorMessage).toBe(error.message);
       expect(result.current.isConverting).toBe(false);
@@ -125,7 +161,7 @@ describe('useConvertIndexToLookup', () => {
 
     it('should handle getReindexStatus failure and stop polling', async () => {
       const error = new Error('Failed to get reindex status');
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({ data: null, error });
 
       const { result } = renderHook(() => useConvertIndexToLookup(defaultHookArgs));
@@ -134,9 +170,7 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       expect(result.current.errorMessage).toBe(error.message);
       expect(result.current.isConverting).toBe(false);
@@ -151,9 +185,11 @@ describe('useConvertIndexToLookup', () => {
 
     it('should handle failed reindex status', async () => {
       const errorMessage = 'Reindex failed';
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({
-        data: { reindexOp: { status: ReindexStatus.failed, errorMessage } },
+        data: createReindexStatusResponse({
+          reindexOp: createReindexOperation({ status: ReindexStatus.failed, errorMessage }),
+        }),
         error: null,
       });
 
@@ -163,9 +199,7 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       expect(result.current.errorMessage).toBe(errorMessage);
       expect(result.current.isConverting).toBe(false);
@@ -188,7 +222,7 @@ describe('useConvertIndexToLookup', () => {
 
     it('should handle a thrown error from getReindexStatus', async () => {
       const thrownError = new Error('Failure during getReindexStatus');
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockRejectedValue(thrownError);
 
       const { result } = renderHook(() => useConvertIndexToLookup(defaultHookArgs));
@@ -204,9 +238,11 @@ describe('useConvertIndexToLookup', () => {
 
   describe('cleanup logic', () => {
     it('should clear poll interval on unmount', async () => {
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({
-        data: { reindexOp: { status: ReindexStatus.inProgress } },
+        data: createReindexStatusResponse({
+          reindexOp: createReindexOperation({ status: ReindexStatus.inProgress }),
+        }),
         error: null,
       });
 
@@ -227,9 +263,11 @@ describe('useConvertIndexToLookup', () => {
     });
 
     it('should clear poll interval when sourceIndexName changes', async () => {
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({
-        data: { reindexOp: { status: ReindexStatus.inProgress } },
+        data: createReindexStatusResponse({
+          reindexOp: createReindexOperation({ status: ReindexStatus.inProgress }),
+        }),
         error: null,
       });
 
@@ -242,9 +280,7 @@ describe('useConvertIndexToLookup', () => {
       });
 
       // Start polling
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
 
       // Change source index
       rerender({
@@ -258,15 +294,17 @@ describe('useConvertIndexToLookup', () => {
       });
 
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(1);
-      expect(mockedGetReindexStatus).toHaveBeenCalledWith('my-index');
+      expect(mockedGetReindexStatus).toHaveBeenCalledWith(SOURCE_INDEX_NAME);
     });
   });
 
   describe('timing verification', () => {
     it('should poll at correct intervals', async () => {
-      mockedStartReindex.mockResolvedValue({ data: {}, error: null });
+      mockedStartReindex.mockResolvedValue({ data: createReindexOperation(), error: null });
       mockedGetReindexStatus.mockResolvedValue({
-        data: { reindexOp: { status: ReindexStatus.inProgress } },
+        data: createReindexStatusResponse({
+          reindexOp: createReindexOperation({ status: ReindexStatus.inProgress }),
+        }),
         error: null,
       });
 
@@ -277,21 +315,15 @@ describe('useConvertIndexToLookup', () => {
       });
 
       // Initial poll
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(0);
-      });
+      await advanceTimersByTime(0);
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(1);
 
       // Poll after exact interval
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(3000);
-      });
+      await advanceTimersByTime(3000);
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(2);
 
       // No poll before interval
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(2999);
-      });
+      await advanceTimersByTime(2999);
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(2);
     });
   });

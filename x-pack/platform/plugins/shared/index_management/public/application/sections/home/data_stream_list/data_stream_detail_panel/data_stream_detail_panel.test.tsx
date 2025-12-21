@@ -24,8 +24,8 @@ jest.mock('./streams_promotion', () => ({
   StreamsPromotion: () => null,
 }));
 
-const mockUseLoadDataStream = useLoadDataStream as jest.MockedFunction<typeof useLoadDataStream>;
-const mockUseAppContext = useAppContext as jest.MockedFunction<typeof useAppContext>;
+const mockUseLoadDataStream = jest.mocked(useLoadDataStream);
+const mockUseAppContext = jest.mocked(useAppContext);
 
 const createMockDataStream = (overrides?: Partial<DataStream>): DataStream => ({
   name: 'test-data-stream',
@@ -307,7 +307,6 @@ describe('DataStreamDetailPanel', () => {
         <DataStreamDetailPanel dataStreamName="test-data-stream" onClose={onCloseMock} />
       );
 
-      // Wait for the component to load
       await waitFor(() => {
         expect(getByTestId('manageDataStreamButton')).toBeInTheDocument();
       });
@@ -342,7 +341,6 @@ describe('DataStreamDetailPanel', () => {
         <DataStreamDetailPanel dataStreamName="test-data-stream" onClose={onCloseMock} />
       );
 
-      // Wait for the component to load
       await waitFor(() => {
         expect(getByTestId('manageDataStreamButton')).toBeInTheDocument();
       });

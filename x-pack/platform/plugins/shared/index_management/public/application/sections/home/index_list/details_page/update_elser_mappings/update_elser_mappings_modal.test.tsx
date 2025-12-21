@@ -58,9 +58,7 @@ const prepareFieldsForEisUpdateMock = jest.mocked(prepareFieldsForEisUpdate);
 const isElserOnMlNodeSemanticFieldMock = jest.mocked(isElserOnMlNodeSemanticField);
 const mappingsContextMock = jest.mocked(mappingsContext);
 const notificationServiceMock = jest.mocked(notificationService);
-const updateIndexMappingsMock = apiService.updateIndexMappings as jest.MockedFunction<
-  typeof apiService.updateIndexMappings
->;
+const updateIndexMappingsMock = jest.mocked(apiService.updateIndexMappings);
 
 const setIsModalOpen = jest.fn();
 const refetchMapping = jest.fn();

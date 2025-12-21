@@ -11,7 +11,7 @@ import { createMemoryHistory } from 'history';
 import { useRedirectPath } from './redirect_path';
 import { useKibana } from '..';
 
-const mockedUseKibana = useKibana as jest.MockedFunction<typeof useKibana>;
+const mockedUseKibana = jest.mocked(useKibana);
 jest.mock('..');
 
 describe('useRedirectPath', () => {

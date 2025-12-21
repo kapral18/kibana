@@ -7,7 +7,6 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
 import type { InferenceAPIConfigResponse } from '@kbn/ml-trained-models-utils';
 import {
   Form,
@@ -15,6 +14,7 @@ import {
 } from '../../../public/application/components/mappings_editor/shared_imports';
 import type { SelectInferenceIdProps } from '../../../public/application/components/mappings_editor/components/document_fields/field_parameters/select_inference_id';
 import { SelectInferenceId } from '../../../public/application/components/mappings_editor/components/document_fields/field_parameters/select_inference_id';
+import { runPendingTimers } from '../../helpers/fake_timers';
 
 const mockDispatch = jest.fn();
 const mockNavigateToUrl = jest.fn();
@@ -171,12 +171,6 @@ const defaultProps: SelectInferenceIdProps = {
   'data-test-subj': 'data-inference-endpoint-list',
 };
 
-const flushPendingTimers = async () => {
-  await act(async () => {
-    await jest.runOnlyPendingTimersAsync();
-  });
-};
-
 const actClick = async (element: Element) => {
   // EUI's popover positioning happens async (via MutationObserver/requestAnimationFrame).
   // When a test ends, RTL unmounts the component but those async callbacks are
@@ -187,7 +181,7 @@ const actClick = async (element: Element) => {
   // clicks, then flushes pending timers so the popover's async work completes
   // before the test ends.
   fireEvent.click(element);
-  await flushPendingTimers();
+  await runPendingTimers();
 };
 
 let consoleErrorSpy: jest.SpyInstance;
@@ -224,7 +218,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await flushPendingTimers();
+  await runPendingTimers();
   jest.useRealTimers();
 });
 
@@ -473,7 +467,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await flushPendingTimers();
+      await runPendingTimers();
 
       const button = screen.getByTestId('inferenceIdButton');
       expect(button).toHaveTextContent('No inference endpoint selected');
@@ -548,7 +542,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await flushPendingTimers();
+      await runPendingTimers();
 
       const button = screen.getByTestId('inferenceIdButton');
       expect(button).toHaveTextContent('.preconfigured-elser');
@@ -568,7 +562,7 @@ describe('SelectInferenceId', () => {
           </TestFormWrapper>
         );
 
-        await flushPendingTimers();
+        await runPendingTimers();
 
         const button = screen.getByTestId('inferenceIdButton');
         expect(button).toHaveTextContent('.elser-2-elastic');

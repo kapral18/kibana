@@ -111,14 +111,14 @@ export class EuiComboBoxTestHarness {
       }
     });
 
-    // Click the first option
+    // Click the matching option (avoid "first item wins")
     const optionsList = screen.queryByTestId(
       new RegExp(`${escapeRegExp(this.#testId)}-optionsList`)
     );
     if (optionsList) {
-      const options = within(optionsList).queryAllByRole('option');
-      if (options[0]) {
-        fireEvent.click(options[0]);
+      const option = within(optionsList).queryByText(searchText);
+      if (option) {
+        fireEvent.click(option);
 
         // Wait for selection to propagate
         await waitFor(() => {
@@ -131,6 +131,8 @@ export class EuiComboBoxTestHarness {
             );
           }
         });
+      } else {
+        throw new Error(`No option text matched: "${searchText}"`);
       }
     }
   }

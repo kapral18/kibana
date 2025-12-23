@@ -9,6 +9,8 @@
 
 export { EuiButtonGroupTestHarness } from './eui_button_group_test_harness';
 export { EuiComboBoxTestHarness } from './eui_combo_box_test_harness';
+export { EuiListTestHarness } from './eui_list_test_harness';
+export { EuiPaginationTestHarness } from './eui_pagination_test_harness';
 export { EuiSuperDatePickerTestHarness } from './eui_super_date_picker_test_harness';
 export { EuiSelectTestHarness } from './eui_select_test_harness';
 export { EuiSuperSelectTestHarness } from './eui_super_select_test_harness';

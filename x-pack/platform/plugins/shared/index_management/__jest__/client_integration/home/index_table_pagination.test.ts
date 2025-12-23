@@ -4,8 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { httpServiceMock } from '@kbn/core/public/mocks';
+import { EuiPaginationTestHarness } from '@kbn/test-eui-helpers';
 
 import { setupEnvironment } from '../helpers/setup_environment';
 import { renderHome } from '../helpers/render_home';
@@ -48,8 +49,8 @@ describe('Index table pagination', () => {
 
     await screen.findByTestId('indexTable');
 
-    const links = screen.getAllByTestId('indexTableIndexNameLink');
-    expect(links[0]).toHaveTextContent('index-010');
+    expect(screen.getByText('index-010')).toBeInTheDocument();
+    expect(screen.queryByText('index-000')).not.toBeInTheDocument();
   });
 
   it('changes pages when a pagination button is clicked', async () => {
@@ -60,18 +61,15 @@ describe('Index table pagination', () => {
     });
 
     await screen.findByTestId('indexTable');
-    expect(screen.getAllByTestId('indexTableIndexNameLink')[0]).toHaveTextContent('index-000');
+    expect(screen.getByText('index-000')).toBeInTheDocument();
+    expect(screen.queryByText('index-010')).not.toBeInTheDocument();
 
-    const pageButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('.euiPaginationButton')
-    );
-    const page2Button = pageButtons.find((btn) => btn.textContent?.trim() === '2');
-    expect(page2Button).toBeDefined();
-
-    fireEvent.click(page2Button!);
+    const pagination = new EuiPaginationTestHarness();
+    pagination.clickButton('2');
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('indexTableIndexNameLink')[0]).toHaveTextContent('index-010');
+      expect(screen.getByText('index-010')).toBeInTheDocument();
+      expect(screen.queryByText('index-000')).not.toBeInTheDocument();
     });
   });
 

@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from '@kbn/shared-ux-router';
 import { Route } from '@kbn/shared-ux-router';
 
@@ -343,8 +343,8 @@ describe('<IndexDetailsPage />', () => {
 
   it('displays index name in the header', async () => {
     await renderPage();
-    const header = document.querySelector('[data-test-subj="indexDetailsHeader"] h1');
-    expect(header?.textContent).toEqual(testIndexName);
+    const header = screen.getByTestId('indexDetailsHeader');
+    expect(within(header).getByRole('heading', { level: 1 })).toHaveTextContent(testIndexName);
   });
 
   it('changes the tab when its header is clicked', async () => {
@@ -497,8 +497,10 @@ describe('<IndexDetailsPage />', () => {
           },
         },
       });
-      const header = document.querySelector('[data-test-subj="indexDetailsHeader"] h1');
-      expect(header?.textContent).toEqual(`${testIndexName} ${testBadges.join(' ')}`);
+      const header = screen.getByTestId('indexDetailsHeader');
+      expect(within(header).getByRole('heading', { level: 1 })).toHaveTextContent(
+        `${testIndexName} ${testBadges.join(' ')}`
+      );
     });
 
     describe('extension service overview content', () => {
@@ -1008,9 +1010,10 @@ describe('<IndexDetailsPage />', () => {
       await renderPage(undefined, {
         services: { extensionsService: { indexDetailsTabs: [additionalTab] } },
       });
-      const tabList = document.querySelector('div[role="tablist"]');
-      const tabs = tabList?.querySelectorAll('button[data-test-subj^="indexDetailsTab"]');
-      const tabNames = Array.from(tabs || []).map((tab) => tab.textContent);
+      const tabList = screen.getByRole('tablist');
+      const tabNames = within(tabList)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent);
       expect(tabNames).toEqual(['Test tab', 'Overview', 'Mappings', 'Settings', 'Statistics']);
     });
 
@@ -1018,9 +1021,10 @@ describe('<IndexDetailsPage />', () => {
       await renderPage(undefined, {
         services: { extensionsService: { indexDetailsTabs: [{ ...additionalTab, order: 100 }] } },
       });
-      const tabList = document.querySelector('div[role="tablist"]');
-      const tabs = tabList?.querySelectorAll('button[data-test-subj^="indexDetailsTab"]');
-      const tabNames = Array.from(tabs || []).map((tab) => tab.textContent);
+      const tabList = screen.getByRole('tablist');
+      const tabNames = within(tabList)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent);
       expect(tabNames).toEqual(['Overview', 'Mappings', 'Settings', 'Statistics', 'Test tab']);
     });
   });

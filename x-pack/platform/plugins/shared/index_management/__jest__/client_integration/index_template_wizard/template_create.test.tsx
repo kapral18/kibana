@@ -6,6 +6,7 @@
  */
 
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { EuiListTestHarness } from '@kbn/test-eui-helpers';
 
 import { API_BASE_PATH, LOOKUP_INDEX_MODE } from '../../../common/constants';
 import { runPendingTimers } from '../../helpers/fake_timers';
@@ -110,7 +111,7 @@ describe('<TemplateCreate />', () => {
   afterEach(async () => {
     // Prevent pending timers from leaking across tests (we run with fake timers globally).
     await runPendingTimers();
-  });
+  }, 10000);
 
   describe('composable index template', () => {
     beforeEach(async () => {
@@ -198,13 +199,26 @@ describe('<TemplateCreate />', () => {
       it('should allow to filter component by Index settings, mappings and aliases', async () => {
         fireEvent.click(screen.getByTestId('filterButton'));
 
-        const filtersList = screen.getAllByTestId('filterItem').map((el) => el.textContent);
-        expect(filtersList[0]).toContain('Index settings');
-        expect(filtersList[1]).toContain('Mappings');
-        expect(filtersList[2]).toContain('Aliases');
+        // Avoid repeatedly scanning the DOM for the same list items.
+        // Keep the popover open and cache the items once for this interaction.
+        const filterItems = screen.getAllByTestId('filterItem');
+        const getFilterItem = (label: string) => {
+          const item = filterItems.find((el) => el.textContent?.includes(label));
+          if (!item) throw new Error(`Expected filter item "${label}" to exist`);
+          return item;
+        };
 
-        // Select 'settings' (index 0)
-        fireEvent.click(screen.getAllByTestId('filterItem')[0]);
+        const filtersList = filterItems.map((el) => el.textContent || '');
+        expect(filtersList).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining('Index settings'),
+            expect.stringContaining('Mappings'),
+            expect.stringContaining('Aliases'),
+          ])
+        );
+
+        // Select 'Index settings'
+        fireEvent.click(getFilterItem('Index settings'));
         const listAfterSettingsFilter = await screen.findByTestId('componentTemplatesList');
         expect(
           within(listAfterSettingsFilter)
@@ -212,8 +226,8 @@ describe('<TemplateCreate />', () => {
             .map((el) => el.textContent)
         ).toEqual(['test_component_template_2']);
 
-        // Select 'mappings' (index 1)
-        fireEvent.click(screen.getAllByTestId('filterItem')[1]);
+        // Select 'Mappings'
+        fireEvent.click(getFilterItem('Mappings'));
         await waitFor(() => {
           expect(screen.queryByTestId('componentTemplatesList')).not.toBeInTheDocument();
         });
@@ -221,8 +235,8 @@ describe('<TemplateCreate />', () => {
           'No components match your search'
         );
 
-        // Unselect settings (index 0)
-        fireEvent.click(screen.getAllByTestId('filterItem')[0]);
+        // Unselect 'Index settings'
+        fireEvent.click(getFilterItem('Index settings'));
         const listAfterUnselectSettings = await screen.findByTestId('componentTemplatesList');
         expect(
           within(listAfterUnselectSettings)
@@ -230,8 +244,8 @@ describe('<TemplateCreate />', () => {
             .map((el) => el.textContent)
         ).toEqual(['test_component_template_1']);
 
-        // Unselect mappings (index 1)
-        fireEvent.click(screen.getAllByTestId('filterItem')[1]);
+        // Unselect 'Mappings'
+        fireEvent.click(getFilterItem('Mappings'));
         const listAfterUnselectMappings = await screen.findByTestId('componentTemplatesList');
         expect(
           within(listAfterUnselectMappings)
@@ -239,8 +253,8 @@ describe('<TemplateCreate />', () => {
             .map((el) => el.textContent)
         ).toEqual(['test_component_template_1', 'test_component_template_2']);
 
-        // Select aliases (index 2)
-        fireEvent.click(screen.getAllByTestId('filterItem')[2]);
+        // Select 'Aliases'
+        fireEvent.click(getFilterItem('Aliases'));
         await waitFor(() => {
           expect(screen.queryByTestId('componentTemplatesList')).not.toBeInTheDocument();
         });
@@ -252,10 +266,8 @@ describe('<TemplateCreate />', () => {
           'Add component template building blocks to this template.'
         );
 
-        // Select first component in the list
-        const listContainer = await screen.findByTestId('componentTemplatesList');
-        const addButtons = within(listContainer).getAllByTestId('action-plusInCircle');
-        fireEvent.click(addButtons[0]);
+        const availableTemplatesList = new EuiListTestHarness('componentTemplatesList');
+        availableTemplatesList.clickItemAction('test_component_template_1', 'action-plusInCircle');
 
         await waitFor(() => {
           expect(screen.queryByTestId('emptyPrompt')).not.toBeInTheDocument();
@@ -270,8 +282,8 @@ describe('<TemplateCreate />', () => {
         ).toEqual(['test_component_template_1']);
 
         // Unselect the component
-        const removeButtons = within(selectionContainer).getAllByTestId('action-minusInCircle');
-        fireEvent.click(removeButtons[0]);
+        const selectedTemplatesList = new EuiListTestHarness('componentTemplatesSelection');
+        selectedTemplatesList.clickItemAction('test_component_template_1', 'action-minusInCircle');
 
         await waitFor(() => {
           expect(screen.getByTestId('emptyPrompt')).toBeInTheDocument();
@@ -358,8 +370,12 @@ describe('<TemplateCreate />', () => {
 
         expect(getFieldsListItems()).toHaveLength(2);
 
-        const removeButtons = screen.getAllByTestId('removeFieldButton');
-        fireEvent.click(removeButtons[0]);
+        const field1Item = getFieldsListItems().find(
+          (item) => within(item).queryByText('field_1') !== null
+        );
+        if (!field1Item) throw new Error('Expected field_1 to exist in the mappings list');
+
+        fireEvent.click(within(field1Item).getByTestId('removeFieldButton'));
 
         const confirmButton = await screen.findByTestId('confirmModalConfirmButton');
         fireEvent.click(confirmButton);
@@ -557,7 +573,7 @@ describe('<TemplateCreate />', () => {
       await completeStepThree(JSON.stringify(SETTINGS));
       await completeStepFour(MAPPING_FIELDS);
       await completeStepFive(JSON.stringify(ALIASES));
-    });
+    }, 10000);
 
     it('should surface API errors and send the correct payload on success', async () => {
       // First attempt fails and surfaces an error

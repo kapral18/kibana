@@ -73,7 +73,9 @@ const superSelectOptionLabelById: Record<string, string> = {
 
 const selectOpenListboxOptionById = async (optionId: string) => {
   const listbox = await screen.findByRole('listbox');
-  const option = listbox.querySelector<HTMLElement>(`[role="option"][id="${optionId}"]`);
+  const option = within(listbox)
+    .getAllByRole<HTMLElement>('option')
+    .find((el) => el.id === optionId);
   if (!option) throw new Error(`Option with id="${optionId}" not found in listbox`);
 
   fireEvent.click(option);
@@ -91,7 +93,9 @@ const selectSuperSelectOption = async (testSubj: string, optionId: string) => {
 
   const listbox = await screen.findByRole('listbox');
   // Prefer selecting by the option's id attribute within the listbox (stable + scoped).
-  const optionById = listbox.querySelector<HTMLElement>(`[role="option"][id="${optionId}"]`);
+  const optionById = within(listbox)
+    .getAllByRole<HTMLElement>('option')
+    .find((el) => el.id === optionId);
   if (optionById) {
     fireEvent.click(optionById);
   } else {
@@ -111,9 +115,7 @@ const selectAnalyzer = async (testSubj: string, value: string) => {
 };
 
 const toggleUseSameSearchAnalyzer = (flyout: HTMLElement) => {
-  const checkbox = flyout.querySelector<HTMLInputElement>('input[type="checkbox"]');
-  if (!checkbox) throw new Error('Checkbox not found');
-  fireEvent.click(checkbox);
+  fireEvent.click(within(flyout).getByRole('checkbox'));
 };
 
 describe('Mappings editor: text datatype', () => {
@@ -243,9 +245,7 @@ describe('Mappings editor: text datatype', () => {
       expect(frenchAnalyzerSelect).toHaveValue('french');
 
       // "Use same analyzer for search" should be checked
-      const useSameAnalyzerCheckbox =
-        flyoutReopened.querySelector<HTMLInputElement>('input[type="checkbox"]');
-      expect(useSameAnalyzerCheckbox!.checked).toBe(true);
+      expect(within(flyoutReopened).getByRole('checkbox')).toBeChecked();
 
       // searchAnalyzer should not exist when checkbox is checked
       expect(within(flyoutReopened).queryByTestId('searchAnalyzer')).not.toBeInTheDocument();
@@ -270,9 +270,8 @@ describe('Mappings editor: text datatype', () => {
       await toggleAdvancedSettings(flyout);
 
       // Verify "use same analyzer" checkbox is checked initially
-      let useSameAnalyzerCheckbox =
-        flyout.querySelector<HTMLInputElement>('input[type="checkbox"]');
-      expect(useSameAnalyzerCheckbox!.checked).toBe(true);
+      let useSameAnalyzerCheckbox = within(flyout).getByRole('checkbox');
+      expect(useSameAnalyzerCheckbox).toBeChecked();
       expect(within(flyout).queryByTestId('searchAnalyzer')).not.toBeInTheDocument();
 
       // Uncheck the checkbox
@@ -289,8 +288,8 @@ describe('Mappings editor: text datatype', () => {
       expect(searchAnalyzerHarness.selectedOption).toContain('Index default');
 
       // Verify checkbox is now unchecked
-      useSameAnalyzerCheckbox = flyout.querySelector<HTMLInputElement>('input[type="checkbox"]');
-      expect(useSameAnalyzerCheckbox!.checked).toBe(false);
+      useSameAnalyzerCheckbox = within(flyout).getByRole('checkbox');
+      expect(useSameAnalyzerCheckbox).not.toBeChecked();
     });
 
     test('should update and persist indexAnalyzer value', async () => {
@@ -496,9 +495,7 @@ describe('Mappings editor: text datatype', () => {
 
       // TextField doesn't forward data-test-subj to the input element (similar to CheckBoxField)
       // Query by value instead
-      const allTextInputs = Array.from(
-        flyout.querySelectorAll<HTMLInputElement>('input[type="text"]')
-      );
+      const allTextInputs = within(flyout).getAllByRole<HTMLInputElement>('textbox');
       const indexAnalyzerCustom = allTextInputs.find(
         (inp) => inp.value === defaultMappings.properties.myField.analyzer
       );
@@ -529,9 +526,7 @@ describe('Mappings editor: text datatype', () => {
 
       // After toggling, the searchAnalyzer becomes a select with default value 'index_default'
       await waitFor(() => {
-        const textInputsAfterToggle = Array.from(
-          flyout.querySelectorAll<HTMLInputElement>('input[type="text"]')
-        );
+        const textInputsAfterToggle = within(flyout).queryAllByRole<HTMLInputElement>('textbox');
         const stillHasCustomSearchAnalyzer = textInputsAfterToggle.some(
           (inp) => inp.value === defaultMappings.properties.myField.search_analyzer
         );
@@ -666,9 +661,7 @@ describe('Mappings editor: text datatype', () => {
       // The field has a custom analyzer from index settings, so indexAnalyzer should render
       // as a native select (not SuperSelect) that lists the custom analyzers
       await waitFor(() => {
-        const selects = Array.from(
-          flyout.querySelectorAll<HTMLSelectElement>('select[data-test-subj="select"]')
-        );
+        const selects = within(flyout).queryAllByTestId('select') as HTMLSelectElement[];
         const customAnalyzerSelect = selects.find(
           (sel) => sel.value === defaultMappings.properties.myField.analyzer
         );
@@ -676,9 +669,9 @@ describe('Mappings editor: text datatype', () => {
       });
 
       // Find the sub-select (native select) for the custom analyzer
-      const allControls = Array.from(
-        flyout.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
-      );
+      const allControls = within(flyout).queryAllByTestId('select') as Array<
+        HTMLInputElement | HTMLSelectElement
+      >;
       const customAnalyzerSelect = allControls.find(
         (el) =>
           el.tagName === 'SELECT' &&
@@ -690,7 +683,7 @@ describe('Mappings editor: text datatype', () => {
       expect(customAnalyzerSelect).toHaveValue(defaultMappings.properties.myField.analyzer);
 
       // Access the list of option of the custom analyzer select
-      const subSelectOptions = Array.from(customAnalyzerSelect.querySelectorAll('option')).map(
+      const subSelectOptions = Array.from(customAnalyzerSelect.options).map(
         (option) => (option as HTMLOptionElement).text
       );
 

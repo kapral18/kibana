@@ -6,6 +6,7 @@
  */
 
 import { screen } from '@testing-library/react';
+import { within } from '@testing-library/react';
 import { notificationServiceMock } from '@kbn/core/public/mocks';
 
 import { breadcrumbService } from '../../../public/application/services/breadcrumbs';
@@ -99,7 +100,9 @@ describe('Data Streams - Project level max retention', () => {
 
     // EUI form error messages are in div.euiFormErrorText
     const form = screen.getByTestId('editDataRetentionModal');
-    const errorMessages = form.querySelectorAll('.euiFormErrorText');
+    const errorMessages = within(form).queryAllByText(
+      (_content, element) => element?.classList.contains('euiFormErrorText') ?? false
+    );
     expect(errorMessages.length).toBeGreaterThan(0);
   });
 });

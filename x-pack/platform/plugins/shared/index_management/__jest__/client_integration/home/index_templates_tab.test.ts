@@ -7,6 +7,7 @@
 
 import { screen, within, waitFor, fireEvent } from '@testing-library/react';
 import { getRandomString } from '@kbn/test-jest-helpers';
+import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 import * as fixtures from '../../../test/fixtures';
 import {
@@ -27,18 +28,8 @@ const removeWhiteSpaceOnArrayValues = (array: any[]) =>
     return value.trim().replace(/\s/g, ' ');
   });
 
-/**
- * Helper to extract table cell values from a template table.
- */
-const getTableCellsValues = (tableTestId: string): string[][] => {
-  const table = screen.getByTestId(tableTestId);
-  const rows = within(table).getAllByRole('row');
-  // Skip header row (index 0)
-  return rows.slice(1).map((row) => {
-    const cells = within(row).getAllByRole('cell');
-    return cells.map((cell) => cell.textContent?.trim().replace(/\s+/g, ' ') || '');
-  });
-};
+const getTableCellsValues = (tableTestId: string): string[][] =>
+  new EuiTableTestHarness(tableTestId).normalizedCellValues;
 
 /**
  * Helper to check if an element exists.
@@ -100,28 +91,48 @@ const createActions = () => {
 
   const clickActionMenu = async (templateName: string) => {
     // EUI uses overflow menu with id "<template_name>-actions" when > 2 actions
-    const actionsButton = document.querySelector(`div[id="${templateName}-actions"] button`);
-    if (actionsButton) {
-      fireEvent.click(actionsButton);
-      await waitFor(() => {
-        expect(document.querySelectorAll('button.euiContextMenuItem').length).toBeGreaterThan(0);
-      });
-    }
+    const actionsContainer = document.getElementById(`${templateName}-actions`);
+    if (!actionsContainer) return;
+
+    fireEvent.click(within(actionsContainer).getByRole('button'));
+
+    // Wait for context menu items to appear
+    await waitFor(() => {
+      expect(queryContextMenuItemButton('Edit')).toBeTruthy();
+    });
+  };
+
+  const getActionLabel = (action: 'edit' | 'clone' | 'delete') => {
+    const labelMap: Record<typeof action, string> = {
+      edit: 'Edit',
+      clone: 'Clone',
+      delete: 'Delete',
+    };
+    return labelMap[action];
+  };
+
+  const queryContextMenuItemButton = (label: string): HTMLButtonElement | null => {
+    // Avoid `findByText('Edit')` etc since EUI can render multiple "Edit" screen-reader-only spans.
+    const candidates = screen.queryAllByText(label);
+    const textEl = candidates.find((el) => el.classList.contains('euiContextMenuItem__text'));
+    return (textEl?.closest('button') as HTMLButtonElement | null) ?? null;
   };
 
   const findActionButton = (action: 'edit' | 'clone' | 'delete'): HTMLElement | null => {
-    const buttons = document.querySelectorAll('button.euiContextMenuItem');
-    const actionIndex = ['edit', 'clone', 'delete'].indexOf(action);
-    return (buttons[actionIndex] as HTMLElement) || null;
+    return queryContextMenuItemButton(getActionLabel(action));
   };
 
   const clickTemplateAction = async (templateName: string, action: 'edit' | 'clone' | 'delete') => {
     await clickActionMenu(templateName);
-    const buttons = document.querySelectorAll('button.euiContextMenuItem');
-    const actionIndex = ['edit', 'clone', 'delete'].indexOf(action);
-    fireEvent.click(buttons[actionIndex]);
+    const label = getActionLabel(action);
+    const button = await waitFor(() => {
+      const el = queryContextMenuItemButton(label);
+      if (!el) throw new Error('Context menu item not ready');
+      return el;
+    });
+    fireEvent.click(button);
     await waitFor(() => {
-      expect(document.querySelectorAll('button.euiContextMenuItem').length).toBe(0);
+      expect(queryContextMenuItemButton(label)).toBeNull();
     });
   };
 
@@ -526,15 +537,8 @@ describe('Index Templates tab', () => {
 
         await actions.clickTemplateAction(templateName, 'delete');
 
-        // We need to read the document "body" as the modal is added there and not inside
-        // the component DOM tree.
-        expect(
-          document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]')
-        ).not.toBe(null);
-
-        expect(
-          document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]')!.textContent
-        ).toContain('Delete template');
+        const modal = await screen.findByTestId('deleteTemplatesConfirmation');
+        expect(modal).toHaveTextContent('Delete template');
       });
 
       test('should show a warning message when attempting to delete a system template', async () => {
@@ -563,12 +567,8 @@ describe('Index Templates tab', () => {
 
         await actions.clickTemplateAction(templateName, 'delete');
 
-        const modal = document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]');
-        const confirmButton: HTMLButtonElement | null = modal!.querySelector(
-          '[data-test-subj="confirmModalConfirmButton"]'
-        );
-
-        fireEvent.click(confirmButton!);
+        const modal = await screen.findByTestId('deleteTemplatesConfirmation');
+        fireEvent.click(within(modal).getByTestId('confirmModalConfirmButton'));
 
         await waitFor(() => {
           expect(httpSetup.post).toHaveBeenCalledWith(
@@ -595,15 +595,8 @@ describe('Index Templates tab', () => {
 
         await actions.clickTemplateAction(templateName, 'delete');
 
-        // We need to read the document "body" as the modal is added there and not inside
-        // the component DOM tree.
-        expect(
-          document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]')
-        ).not.toBe(null);
-
-        expect(
-          document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]')!.textContent
-        ).toContain('Delete template');
+        const modal = await screen.findByTestId('deleteTemplatesConfirmation');
+        expect(modal).toHaveTextContent('Delete template');
       });
 
       test('should show a warning message when attempting to delete a system template', async () => {
@@ -627,12 +620,8 @@ describe('Index Templates tab', () => {
 
         await actions.clickTemplateAction(templateName, 'delete');
 
-        const modal = document.body.querySelector('[data-test-subj="deleteTemplatesConfirmation"]');
-        const confirmButton: HTMLButtonElement | null = modal!.querySelector(
-          '[data-test-subj="confirmModalConfirmButton"]'
-        );
-
-        fireEvent.click(confirmButton!);
+        const modal = await screen.findByTestId('deleteTemplatesConfirmation');
+        fireEvent.click(within(modal).getByTestId('confirmModalConfirmButton'));
 
         await waitFor(() => {
           expect(httpSetup.post).toHaveBeenCalledWith(

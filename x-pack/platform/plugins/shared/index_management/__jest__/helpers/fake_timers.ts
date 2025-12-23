@@ -17,6 +17,11 @@ export const runPendingTimers = async (times: number = 1) => {
     await act(async () => {
       await jest.runOnlyPendingTimersAsync();
     });
+
+    // Optimization: stop early once the timer queue is drained.
+    // IMPORTANT: We still run the first flush even if getTimerCount() is 0 because
+    // runOnlyPendingTimersAsync() can be required to settle queued async work under fake timers.
+    if (jest.getTimerCount() === 0) return;
   }
 };
 

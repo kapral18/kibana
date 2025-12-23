@@ -30,6 +30,36 @@ beforeEach(() => {
 });
 
 describe('Mappings editor: edit field', () => {
+  const getDocumentFields = () => screen.getByTestId('documentFields');
+  const getFieldsListItems = () =>
+    within(getDocumentFields()).getAllByTestId((content) => content.startsWith('fieldsListItem '));
+
+  const getFieldListItemByName = (name: string) => {
+    const items = getFieldsListItems();
+    const item = items.find((it) => {
+      const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+      return fieldNameEls.some((el) => {
+        if ((el.textContent || '').trim() !== name) return false;
+
+        // Ensure this fieldName belongs to THIS list item, not a nested child item.
+        let node: HTMLElement | null = el as HTMLElement;
+        while (node && node !== it) {
+          const subj = node.getAttribute('data-test-subj');
+          if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+          node = node.parentElement;
+        }
+
+        return true;
+      });
+    });
+
+    if (!item) {
+      throw new Error(`Expected field list item "${name}" to exist`);
+    }
+
+    return item;
+  };
+
   const setup = (props: any) => {
     const Component = WithAppDependencies(MappingsEditor, {});
     return render(
@@ -73,21 +103,15 @@ describe('Mappings editor: edit field', () => {
     const userExpandButton = within(userField!).getByTestId('toggleExpandButton');
     fireEvent.click(userExpandButton);
 
-    const addressField = await screen.findByText('address', {
-      selector: '[data-test-subj*="fieldName"]',
-    });
-    const addressListItem = addressField.closest(
-      '[data-test-subj*="fieldsListItem"]'
-    ) as HTMLElement;
+    const addressListItem = getFieldListItemByName('address');
 
     // Expand address field
-    const addressExpandButton = within(addressListItem).getByTestId('toggleExpandButton');
+    const addressExpandButton = within(addressListItem).getByRole('button', {
+      name: /field address/i,
+    });
     fireEvent.click(addressExpandButton);
 
-    const streetField = await screen.findByText('street', {
-      selector: '[data-test-subj*="fieldName"]',
-    });
-    const streetListItem = streetField.closest('[data-test-subj*="fieldsListItem"]') as HTMLElement;
+    const streetListItem = getFieldListItemByName('street');
 
     // Click edit button for street field
     const streetEditButton = within(streetListItem).getByTestId('editFieldButton');
@@ -124,12 +148,7 @@ describe('Mappings editor: edit field', () => {
     await screen.findByTestId('fieldsList');
 
     // Find the userName field by text
-    const userNameFieldText = await screen.findByText('userName', {
-      selector: '[data-test-subj*="fieldName"]',
-    });
-    const userNameListItem = userNameFieldText.closest(
-      '[data-test-subj*="fieldsListItem"]'
-    ) as HTMLElement;
+    const userNameListItem = getFieldListItemByName('userName');
     expect(userNameListItem).toBeInTheDocument();
 
     // Open the flyout to edit the field
@@ -186,12 +205,7 @@ describe('Mappings editor: edit field', () => {
     await screen.findByTestId('fieldsList');
 
     // Find the myField field by text
-    const myFieldText = await screen.findByText('myField', {
-      selector: '[data-test-subj*="fieldName"]',
-    });
-    const myFieldListItem = myFieldText.closest(
-      '[data-test-subj*="fieldsListItem"]'
-    ) as HTMLElement;
+    const myFieldListItem = getFieldListItemByName('myField');
 
     // Open the flyout to edit the field
     const editButton = within(myFieldListItem).getByTestId('editFieldButton');

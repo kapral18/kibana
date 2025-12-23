@@ -53,7 +53,11 @@ const renderComponentTemplateEdit = (httpSetup: any, coreStart?: any, queryParam
  */
 const getEnabledNextButton = () => {
   const nextButtons = screen.getAllByTestId('nextButton');
-  return nextButtons.find((btn) => !btn.hasAttribute('disabled')) || nextButtons[0];
+  const enabled = nextButtons.find((btn) => !btn.hasAttribute('disabled'));
+  if (!enabled) {
+    throw new Error('Expected at least one enabled "nextButton"');
+  }
+  return enabled;
 };
 
 const completeStep = {
@@ -205,9 +209,7 @@ describe('<ComponentTemplateEdit />', () => {
       const versionInput = within(versionRow).getByRole('spinbutton');
       fireEvent.change(versionInput, { target: { value: '1' } });
 
-      const nextButtons = screen.getAllByTestId('nextButton');
-      const enabledNextButton =
-        nextButtons.find((btn) => !btn.hasAttribute('disabled')) || nextButtons[0];
+      const enabledNextButton = getEnabledNextButton();
       await waitFor(() => expect(enabledNextButton).toBeEnabled());
       fireEvent.click(enabledNextButton);
 
@@ -276,9 +278,7 @@ describe('<ComponentTemplateEdit />', () => {
       const versionInput = within(versionRow).getByRole('spinbutton');
       fireEvent.change(versionInput, { target: { value: '1' } });
 
-      const nextButtons = screen.getAllByTestId('nextButton');
-      const enabledNextButton =
-        nextButtons.find((btn) => !btn.hasAttribute('disabled')) || nextButtons[0];
+      const enabledNextButton = getEnabledNextButton();
       await waitFor(() => expect(enabledNextButton).toBeEnabled());
       fireEvent.click(enabledNextButton);
 
@@ -318,9 +318,7 @@ describe('<ComponentTemplateEdit />', () => {
       const versionInput = within(versionRow).getByRole('spinbutton');
       fireEvent.change(versionInput, { target: { value: '1' } });
 
-      const nextButtons = screen.getAllByTestId('nextButton');
-      const enabledNextButton =
-        nextButtons.find((btn) => !btn.hasAttribute('disabled')) || nextButtons[0];
+      const enabledNextButton = getEnabledNextButton();
       await waitFor(() => expect(enabledNextButton).toBeEnabled());
       fireEvent.click(enabledNextButton);
 
@@ -387,9 +385,7 @@ describe('<ComponentTemplateEdit />', () => {
       const versionInput = within(versionRow).getByRole('spinbutton');
       fireEvent.change(versionInput, { target: { value: '1' } });
 
-      const nextButtons = screen.getAllByTestId('nextButton');
-      const enabledNextButton =
-        nextButtons.find((btn) => !btn.hasAttribute('disabled')) || nextButtons[0];
+      const enabledNextButton = getEnabledNextButton();
       await waitFor(() => expect(enabledNextButton).toBeEnabled());
       fireEvent.click(enabledNextButton);
 

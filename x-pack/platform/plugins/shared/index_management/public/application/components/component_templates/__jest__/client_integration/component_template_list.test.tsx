@@ -12,6 +12,7 @@ import { Route } from '@kbn/shared-ux-router';
 import { i18nServiceMock, themeServiceMock, analyticsServiceMock } from '@kbn/core/public/mocks';
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { coreMock } from '@kbn/core/public/mocks';
+import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 import { breadcrumbService, IndexManagementBreadcrumb } from '../../../../services/breadcrumbs';
 import type { ComponentTemplateListItem } from '../../shared_imports';
@@ -51,11 +52,19 @@ const renderComponentTemplateList = (
   );
 };
 
-const getTableRows = () => screen.queryAllByTestId('componentTemplateTableRow');
+const getTable = () => new EuiTableTestHarness('componentTemplatesTable');
 const clickUsageCountHeader = () => {
   const usageHeader = screen.getByRole('columnheader', { name: /Usage count/i });
   const sortButton = within(usageHeader).getByRole('button');
   fireEvent.click(sortButton);
+};
+
+const getUsageCount = (row: HTMLElement) => {
+  // Avoid querying all cells and indexing into them.
+  // In this table, the "Usage count" cell is the only cell whose full text is either a number or "Not in use".
+  const usageCell = within(row).getByRole('cell', { name: /^(Not in use|\d+)$/ });
+  const text = (usageCell.textContent || '').trim();
+  return text === 'Not in use' ? 0 : Number(text);
 };
 
 const componentTemplate1: ComponentTemplateListItem = {
@@ -123,27 +132,23 @@ describe('<ComponentTemplateList />', () => {
 
     test('should render the list view', async () => {
       const filtered = componentTemplates.filter(({ isDeprecated }) => !isDeprecated);
-      await waitFor(() => expect(getTableRows()).toHaveLength(filtered.length));
-      const rows = getTableRows();
+      const table = getTable();
+      await waitFor(() => expect(table.rows).toHaveLength(filtered.length));
+      const rows = table.rows;
       const names = rows.map((row) => within(row).getByTestId('templateDetailsLink').textContent);
       expect(names).toEqual(filtered.map(({ name }) => name));
       expect(screen.queryByTestId('deprecatedComponentTemplateBadge')).not.toBeInTheDocument();
     });
 
     test('should sort "Usage count" column by number', async () => {
+      const table = getTable();
       clickUsageCountHeader();
-      let rows = getTableRows();
-      const usageNumbers = rows.map((row) => {
-        const text = within(row).getAllByRole('cell')[1].textContent?.trim();
-        return text === 'Not in use' ? 0 : Number(text);
-      });
+      let rows = table.rows;
+      const usageNumbers = rows.map((row) => getUsageCount(row));
 
       clickUsageCountHeader();
-      rows = getTableRows();
-      const usageNumbers2 = rows.map((row) => {
-        const text = within(row).getAllByRole('cell')[1].textContent?.trim();
-        return text === 'Not in use' ? 0 : Number(text);
-      });
+      rows = table.rows;
+      const usageNumbers2 = rows.map((row) => getUsageCount(row));
 
       expect(usageNumbers.length).toBe(2); // deprecated row filtered out
       expect(usageNumbers2.length).toBe(2);
@@ -175,9 +180,9 @@ describe('<ComponentTemplateList />', () => {
     });
 
     test('should delete a component template', async () => {
-      // Select first row (only non-used template)
-      const rows = getTableRows();
-      fireEvent.click(within(rows[0]).getByRole('checkbox'));
+      const table = getTable();
+      const row = table.getRowByCellText(componentTemplate1.name);
+      fireEvent.click(within(row).getByRole('checkbox'));
       const bulkDeleteButton = screen.getByTestId('deleteComponentTemplatexButton');
       fireEvent.click(bulkDeleteButton);
 
@@ -202,9 +207,9 @@ describe('<ComponentTemplateList />', () => {
       renderComponentTemplateList(httpSetup, coreStart, { filter });
       await screen.findByTestId('componentTemplatesTable');
 
-      const rows = getTableRows();
-      expect(rows).toHaveLength(1);
-      expect(within(rows[0]).getByTestId('templateDetailsLink').textContent).toBe(
+      const table = getTable();
+      await waitFor(() => expect(table.rows).toHaveLength(1));
+      expect(within(table.soleRow).getByTestId('templateDetailsLink')).toHaveTextContent(
         'test_component_template_2'
       );
     });

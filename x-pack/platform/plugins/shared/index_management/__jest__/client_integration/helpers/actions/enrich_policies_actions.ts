@@ -130,11 +130,10 @@ export const createCreateEnrichPolicyActions = () => {
 
   const completeConfigurationStep = async ({ indices }: { indices?: string } = {}) => {
     // Fill in policy name
-    const nameInput = screen.getByTestId('policyNameField').querySelector('input');
-    if (nameInput) {
-      fireEvent.change(nameInput, { target: { value: 'test_policy' } });
-      fireEvent.blur(nameInput);
-    }
+    const nameRow = screen.getByTestId('policyNameField');
+    const nameInput = within(nameRow).getByRole('textbox');
+    fireEvent.change(nameInput, { target: { value: 'test_policy' } });
+    fireEvent.blur(nameInput);
 
     // Set policy type
     const typeSelect = screen.getByTestId('policyTypeField');

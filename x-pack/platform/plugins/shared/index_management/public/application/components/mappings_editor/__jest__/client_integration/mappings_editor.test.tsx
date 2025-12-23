@@ -106,8 +106,27 @@ describe('Mappings editor: core', () => {
     const addButton = screen.getByTestId('addButton');
     fireEvent.click(addButton);
 
-    await screen.findByText(name, {
-      selector: '[data-test-subj*="fieldName"]',
+    await waitFor(() => {
+      const documentFields = screen.getByTestId('documentFields');
+      const listItems = within(documentFields).getAllByTestId((content) =>
+        content.startsWith('fieldsListItem ')
+      );
+      const found = listItems.some((it) => {
+        const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+        return fieldNameEls.some((el) => {
+          if ((el.textContent || '').trim() !== name) return false;
+
+          let node: HTMLElement | null = el as HTMLElement;
+          while (node && node !== it) {
+            const subj = node.getAttribute('data-test-subj');
+            if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+            node = node.parentElement;
+          }
+
+          return true;
+        });
+      });
+      expect(found).toBe(true);
     });
 
     const cancelButton = await screen.findByTestId('cancelButton');
@@ -330,10 +349,28 @@ describe('Mappings editor: core', () => {
         expect(items).toHaveLength(1);
       });
 
-      const fieldNameElement = await screen.findByText(newField.name, {
-        selector: '[data-test-subj*="fieldName"]',
+      await waitFor(() => {
+        const documentFields = screen.getByTestId('documentFields');
+        const listItems = within(documentFields).getAllByTestId((content) =>
+          content.startsWith('fieldsListItem ')
+        );
+        const found = listItems.some((it) => {
+          const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+          return fieldNameEls.some((el) => {
+            if ((el.textContent || '').trim() !== newField.name) return false;
+
+            let node: HTMLElement | null = el as HTMLElement;
+            while (node && node !== it) {
+              const subj = node.getAttribute('data-test-subj');
+              if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+              node = node.parentElement;
+            }
+
+            return true;
+          });
+        });
+        expect(found).toBe(true);
       });
-      expect(fieldNameElement).toBeInTheDocument();
 
       // Navigate to dynamic templates tab
       await selectTab('templates');
@@ -379,10 +416,28 @@ describe('Mappings editor: core', () => {
       // Go back to fields and make sure our created field is there
       await selectTab('fields');
 
-      const field = await screen.findByText(newField.name, {
-        selector: '[data-test-subj*="fieldName"]',
+      await waitFor(() => {
+        const documentFields = screen.getByTestId('documentFields');
+        const listItems = within(documentFields).getAllByTestId((content) =>
+          content.startsWith('fieldsListItem ')
+        );
+        const found = listItems.some((it) => {
+          const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+          return fieldNameEls.some((el) => {
+            if ((el.textContent || '').trim() !== newField.name) return false;
+
+            let node: HTMLElement | null = el as HTMLElement;
+            while (node && node !== it) {
+              const subj = node.getAttribute('data-test-subj');
+              if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+              node = node.parentElement;
+            }
+
+            return true;
+          });
+        });
+        expect(found).toBe(true);
       });
-      expect(field).toBeInTheDocument();
 
       // Go back to advanced settings tab make sure dynamic mappings is disabled
       await selectTab('advanced');
@@ -672,8 +727,27 @@ describe('Mappings editor: core', () => {
         const addButton = screen.getByTestId('addButton');
         fireEvent.click(addButton);
 
-        await screen.findByText(newField.name, {
-          selector: '[data-test-subj*="fieldName"]',
+        await waitFor(() => {
+          const documentFields = screen.getByTestId('documentFields');
+          const listItems = within(documentFields).getAllByTestId((content) =>
+            content.startsWith('fieldsListItem ')
+          );
+          const found = listItems.some((it) => {
+            const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+            return fieldNameEls.some((el) => {
+              if ((el.textContent || '').trim() !== newField.name) return false;
+
+              let node: HTMLElement | null = el as HTMLElement;
+              while (node && node !== it) {
+                const subj = node.getAttribute('data-test-subj');
+                if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+                node = node.parentElement;
+              }
+
+              return true;
+            });
+          });
+          expect(found).toBe(true);
         });
 
         updatedMappings = {

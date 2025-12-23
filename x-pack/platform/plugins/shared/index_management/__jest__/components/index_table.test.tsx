@@ -10,6 +10,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
+import { EuiPaginationTestHarness, EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 import type { AppDependencies } from '../../public/application/app_context';
 import { AppContextProvider } from '../../public/application/app_context';
@@ -116,6 +117,35 @@ const openMenuAndClickOption = async (rowIndex: number, optionTestSubj: string) 
   const menu = await screen.findByTestId('indexContextMenu');
   const option = within(menu).getByTestId(optionTestSubj);
   fireEvent.click(option);
+};
+
+const clickRowCheckboxAtRowIndex = (rowIndex: number) => {
+  const checkboxes = screen.getAllByTestId('indexTableRowCheckbox');
+  const checkbox = checkboxes[rowIndex];
+
+  if (!checkbox) {
+    throw new Error(`Expected to find checkbox at row index ${rowIndex}`);
+  }
+
+  fireEvent.click(checkbox);
+};
+
+const clickRowCheckboxByName = (indexName: string) => {
+  const rowIndex = getRowIndexByName(indexName);
+
+  if (rowIndex < 0) {
+    throw new Error(`Expected index "${indexName}" to exist in the table`);
+  }
+
+  clickRowCheckboxAtRowIndex(rowIndex);
+};
+
+const getRowIndicesByStatus = (statusText: string) => {
+  const statusCells = screen.getAllByTestId('indexTableCell-status');
+  return statusCells
+    .map((cell, idx) => ({ idx, text: (cell.textContent || '').trim() }))
+    .filter(({ text }) => text === statusText)
+    .map(({ idx }) => idx);
 };
 
 const openMenuAndGetButtonText = async (rowIndex: number) => {
@@ -231,18 +261,18 @@ describe('index table', () => {
     await renderIndexApp();
 
     // Page 1 first row
-    expect(getNamesText()[0]).toBe('testy0');
-
-    const pageButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('.euiPaginationButton')
+    const indexTable = new EuiTableTestHarness('indexTable');
+    expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
+      'testy0'
     );
-    const page2Button = pageButtons.find((btn) => btn.textContent?.trim() === '2');
-    expect(page2Button).toBeDefined();
 
-    fireEvent.click(page2Button!);
+    const pagination = new EuiPaginationTestHarness();
+    pagination.clickButton('2');
 
     await waitFor(() => {
-      expect(getNamesText()[0]).toBe('testy6');
+      expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
+        'testy6'
+      );
     });
   });
 
@@ -268,7 +298,7 @@ describe('index table', () => {
 
     expect(screen.queryByTestId('indexActionsContextMenuButton')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[0]);
+    clickRowCheckboxByName('testy0');
 
     expect(await screen.findByTestId('indexActionsContextMenuButton')).toBeInTheDocument();
   });
@@ -278,12 +308,12 @@ describe('index table', () => {
 
     expect(screen.queryByTestId('indexActionsContextMenuButton')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[0]);
+    clickRowCheckboxByName('testy0');
     expect(await screen.findByTestId('indexActionsContextMenuButton')).toHaveTextContent(
       'Manage index'
     );
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[1]);
+    clickRowCheckboxByName('testy1');
     expect(screen.getByTestId('indexActionsContextMenuButton')).toHaveTextContent(
       'Manage 2 indices'
     );
@@ -332,6 +362,7 @@ describe('index table', () => {
 
   test('should sort when header is clicked', async () => {
     await renderIndexApp();
+    const indexTable = new EuiTableTestHarness('indexTable');
 
     const headerCell = screen.getByTestId('indexTableHeaderCell-name');
     const sortButton = within(headerCell).getByRole('button');
@@ -339,13 +370,17 @@ describe('index table', () => {
     fireEvent.click(sortButton);
     await runPendingTimers();
 
-    expect(getNamesText()[0]).toBe('.admin0');
+    expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
+      '.admin0'
+    );
 
     fireEvent.click(sortButton);
     await runPendingTimers();
 
     // Descending lexical sort means `testy9` will come before `testy29` (`"9"` > `"2"`).
-    expect(getNamesText()[0]).toBe('testy9');
+    expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
+      'testy9'
+    );
   });
 
   test('should show the right context menu options when one index is selected and open', async () => {
@@ -441,8 +476,10 @@ describe('index table', () => {
   test('should show the right context menu options when one open and one closed index is selected', async () => {
     await renderIndexApp();
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[0]);
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[1]);
+    clickRowCheckboxByName('testy0');
+    const [closedRowIndex] = getRowIndicesByStatus('closed');
+    expect(closedRowIndex).toBeGreaterThanOrEqual(0);
+    clickRowCheckboxAtRowIndex(closedRowIndex);
 
     const manageButton = await screen.findByTestId('indexActionsContextMenuButton');
     fireEvent.click(manageButton);
@@ -459,8 +496,8 @@ describe('index table', () => {
   test('should show the right context menu options when more than one open index is selected', async () => {
     await renderIndexApp();
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[0]);
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[2]);
+    clickRowCheckboxByName('testy0');
+    clickRowCheckboxByName('testy2');
 
     const manageButton = await screen.findByTestId('indexActionsContextMenuButton');
     fireEvent.click(manageButton);
@@ -484,8 +521,10 @@ describe('index table', () => {
   test('should show the right context menu options when more than one closed index is selected', async () => {
     await renderIndexApp();
 
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[1]);
-    fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[3]);
+    const closedRowIndices = getRowIndicesByStatus('closed');
+    expect(closedRowIndices.length).toBeGreaterThanOrEqual(2);
+    clickRowCheckboxAtRowIndex(closedRowIndices[0]);
+    clickRowCheckboxAtRowIndex(closedRowIndices[1]);
 
     const manageButton = await screen.findByTestId('indexActionsContextMenuButton');
     fireEvent.click(manageButton);
@@ -623,7 +662,7 @@ describe('index table', () => {
       });
 
       // Select a row and open the menu (view options can still exist, but index actions should not)
-      fireEvent.click(screen.getAllByTestId('indexTableRowCheckbox')[0]);
+      clickRowCheckboxByName('testy0');
       const manageButton = await screen.findByTestId('indexActionsContextMenuButton');
       fireEvent.click(manageButton);
       await screen.findByTestId('indexContextMenu');

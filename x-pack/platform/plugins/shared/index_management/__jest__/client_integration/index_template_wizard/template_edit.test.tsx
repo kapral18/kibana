@@ -311,9 +311,11 @@ describe('<TemplateEdit />', () => {
       });
 
       it('should send the correct payload with changed values', async () => {
-        // Now on mappings step - edit the first field
-        const editButtons = screen.getAllByTestId('editFieldButton');
-        fireEvent.click(editButtons[0]);
+        // Now on mappings step - edit the text_datatype field (avoid "first item wins")
+        const fieldItem = screen.getByTestId(
+          (content) => content.startsWith('fieldsListItem ') && content.includes('text_datatype')
+        );
+        fireEvent.click(within(fieldItem).getByTestId('editFieldButton'));
 
         await screen.findByTestId('mappingsEditorFieldEdit');
 
@@ -404,9 +406,8 @@ describe('<TemplateEdit />', () => {
       ).not.toBeInTheDocument();
 
       const selectedList = screen.getByTestId('componentTemplatesSelection');
-      const selectedTemplates = within(selectedList).getAllByTestId('name');
-      expect(selectedTemplates).toHaveLength(1);
-      expect(selectedTemplates[0]).toHaveTextContent(NONEXISTENT_COMPONENT_TEMPLATE.name);
+      const selectedTemplate = within(selectedList).getByTestId('name');
+      expect(selectedTemplate).toHaveTextContent(NONEXISTENT_COMPONENT_TEMPLATE.name);
     });
 
     it('the composedOf and ignoreMissingComponentTemplates fields should be included in the final payload', async () => {

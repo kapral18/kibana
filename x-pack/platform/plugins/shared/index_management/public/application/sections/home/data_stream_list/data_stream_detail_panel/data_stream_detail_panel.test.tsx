@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { waitFor } from '@testing-library/react';
+import { waitFor, within } from '@testing-library/react';
 import { renderWithI18n } from '@kbn/test-jest-helpers';
 import userEvent from '@testing-library/user-event';
 
@@ -371,7 +371,7 @@ describe('DataStreamDetailPanel', () => {
       const content = getByTestId('content');
       expect(content).toBeInTheDocument();
       // When loading, the content should contain the SectionLoading component
-      expect(content.querySelector('.euiLoadingSpinner')).toBeInTheDocument();
+      expect(within(content).getByTestId('sectionLoading')).toBeInTheDocument();
     });
 
     it('displays error state when data fails to load', async () => {

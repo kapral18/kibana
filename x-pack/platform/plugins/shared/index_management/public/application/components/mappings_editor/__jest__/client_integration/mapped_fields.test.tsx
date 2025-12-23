@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import { runPendingTimers } from '../../../../../../__jest__/helpers/fake_timers';
 import { MappingsEditor } from '../../mappings_editor';
@@ -27,6 +27,36 @@ beforeEach(() => {
 });
 
 describe('Mappings editor: mapped fields', () => {
+  const getDocumentFields = () => screen.getByTestId('documentFields');
+  const getFieldsListItems = () =>
+    within(getDocumentFields()).getAllByTestId((content) => content.startsWith('fieldsListItem '));
+
+  const getFieldListItemByName = (name: string) => {
+    const items = getFieldsListItems();
+    const item = items.find((it) => {
+      const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+      return fieldNameEls.some((el) => {
+        if ((el.textContent || '').trim() !== name) return false;
+
+        // Ensure this fieldName belongs to THIS list item, not a nested child item.
+        let node: HTMLElement | null = el as HTMLElement;
+        while (node && node !== it) {
+          const subj = node.getAttribute('data-test-subj');
+          if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+          node = node.parentElement;
+        }
+
+        return true;
+      });
+    });
+
+    if (!item) {
+      throw new Error(`Expected field list item "${name}" to exist`);
+    }
+
+    return item;
+  };
+
   const setup = (props: any) => {
     const Component = WithAppDependencies(MappingsEditor, {});
     return render(
@@ -80,60 +110,39 @@ describe('Mappings editor: mapped fields', () => {
       await screen.findByTestId('fieldsList');
 
       // Find top-level fields
-      const myFieldText = await screen.findByText('myField', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(myFieldText).toBeInTheDocument();
-
-      const myObjectText = await screen.findByText('myObject', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(myObjectText).toBeInTheDocument();
+      await waitFor(() => expect(() => getFieldListItemByName('myField')).not.toThrow());
+      await waitFor(() => expect(() => getFieldListItemByName('myObject')).not.toThrow());
 
       // Expand myField to see its multi-fields
-      const myFieldListItem = myFieldText.closest(
-        '[data-test-subj*="fieldsListItem"]'
-      ) as HTMLElement;
-      const myFieldExpandButton = within(myFieldListItem).getByTestId('toggleExpandButton');
+      const myFieldListItem = getFieldListItemByName('myField');
+      const myFieldExpandButton = within(myFieldListItem).getByRole('button', {
+        name: /field myField/i,
+      });
       fireEvent.click(myFieldExpandButton);
 
       // Verify multi-fields appear
-      const rawField = await screen.findByText('raw', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(rawField).toBeInTheDocument();
-
-      const simpleAnalyzerField = await screen.findByText('simpleAnalyzer', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(simpleAnalyzerField).toBeInTheDocument();
+      await waitFor(() => expect(() => getFieldListItemByName('raw')).not.toThrow());
+      await waitFor(() => expect(() => getFieldListItemByName('simpleAnalyzer')).not.toThrow());
 
       // Expand myObject to see nested properties
-      const myObjectListItem = myObjectText.closest(
-        '[data-test-subj*="fieldsListItem"]'
-      ) as HTMLElement;
-      const myObjectExpandButton = within(myObjectListItem).getByTestId('toggleExpandButton');
+      const myObjectListItem = getFieldListItemByName('myObject');
+      const myObjectExpandButton = within(myObjectListItem).getByRole('button', {
+        name: /field myObject/i,
+      });
       fireEvent.click(myObjectExpandButton);
 
       // Verify nested field appears
-      const deeplyNestedField = await screen.findByText('deeplyNested', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(deeplyNestedField).toBeInTheDocument();
+      await waitFor(() => expect(() => getFieldListItemByName('deeplyNested')).not.toThrow());
 
       // Expand deeplyNested
-      const deeplyNestedListItem = deeplyNestedField.closest(
-        '[data-test-subj*="fieldsListItem"]'
-      ) as HTMLElement;
-      const deeplyNestedExpandButton =
-        within(deeplyNestedListItem).getByTestId('toggleExpandButton');
+      const deeplyNestedListItem = getFieldListItemByName('deeplyNested');
+      const deeplyNestedExpandButton = within(deeplyNestedListItem).getByRole('button', {
+        name: /field deeplyNested/i,
+      });
       fireEvent.click(deeplyNestedExpandButton);
 
       // Verify deeply nested title field
-      const titleField = await screen.findByText('title', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(titleField).toBeInTheDocument();
+      await waitFor(() => expect(() => getFieldListItemByName('title')).not.toThrow());
     });
 
     test('should indicate when a field is shadowed by a runtime field', async () => {
@@ -178,15 +187,13 @@ describe('Mappings editor: mapped fields', () => {
       await screen.findByTestId('mappingsEditor');
       await screen.findByTestId('fieldsList');
 
-      // Find the root myField
-      const myFieldTexts = screen.getAllByText('myField', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-
-      // The first myField at root level should have shadowed indicator
-      const rootMyFieldListItem = myFieldTexts[0].closest(
-        '[data-test-subj*="fieldsListItem"]'
-      ) as HTMLElement;
+      // Find the root myField list item (avoid "first item wins")
+      const rootMyFieldListItem = screen.getByTestId(
+        (content) =>
+          content.startsWith('fieldsListItem ') &&
+          content.includes('myField') &&
+          !content.includes('.')
+      );
 
       // Look for the shadowed indicator badge
       const shadowedIndicator = within(rootMyFieldListItem).queryByTestId('isShadowedIndicator');
@@ -220,12 +227,8 @@ describe('Mappings editor: mapped fields', () => {
       await screen.findByTestId('fieldsList');
 
       // Verify initial fields
-      expect(
-        screen.getByText('myField', { selector: '[data-test-subj*="fieldName"]' })
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText('myObject', { selector: '[data-test-subj*="fieldName"]' })
-      ).toBeInTheDocument();
+      expect(() => getFieldListItemByName('myField')).not.toThrow();
+      expect(() => getFieldListItemByName('myObject')).not.toThrow();
 
       // Update props with new mappings
       const newMappings = { properties: { hello: { type: 'text' } } };
@@ -237,18 +240,11 @@ describe('Mappings editor: mapped fields', () => {
         </I18nProvider>
       );
 
-      const helloField = await screen.findByText('hello', {
-        selector: '[data-test-subj*="fieldName"]',
-      });
-      expect(helloField).toBeInTheDocument();
+      await waitFor(() => expect(() => getFieldListItemByName('hello')).not.toThrow());
 
       // Old fields should be gone
-      expect(
-        screen.queryByText('myField', { selector: '[data-test-subj*="fieldName"]' })
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByText('myObject', { selector: '[data-test-subj*="fieldName"]' })
-      ).not.toBeInTheDocument();
+      expect(() => getFieldListItemByName('myField')).toThrow();
+      expect(() => getFieldListItemByName('myObject')).toThrow();
     });
   });
 });

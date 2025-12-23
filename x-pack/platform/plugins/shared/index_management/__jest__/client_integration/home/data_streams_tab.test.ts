@@ -13,6 +13,7 @@ import {
   waitForElementToBeRemoved,
 } from '@testing-library/react';
 import { httpServiceMock } from '@kbn/core/public/mocks';
+import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
 import { httpService } from '../../../public/application/services/http';
 
 import {
@@ -502,9 +503,9 @@ describe('Data Streams tab', () => {
         }
 
         await screen.findByTestId('dataStreamTable');
-        const table = screen.getByTestId('dataStreamTable');
-        const rows = within(table).getAllByRole('row');
-        const dataRow = rows[1]; // First data row (skip header)
+        const table = new EuiTableTestHarness('dataStreamTable');
+        const dataRow = table.getRowByCellText('dataStream1');
+
         const deleteButton = within(dataRow).getByTestId('deleteDataStream');
         expect(deleteButton).toBeInTheDocument();
       });

@@ -29,8 +29,12 @@ describe('Mappings editor: scaled float datatype', () => {
     jest.clearAllMocks();
   });
 
+  interface Mappings {
+    properties: Record<string, Record<string, unknown>>;
+  }
+
   test('should require a scaling factor to be provided', async () => {
-    const defaultMappings = {
+    const defaultMappings: Mappings = {
       properties: {
         myField: {
           type: 'byte',
@@ -38,7 +42,10 @@ describe('Mappings editor: scaled float datatype', () => {
       },
     };
 
-    const updatedMappings = { ...defaultMappings };
+    const updatedMappings: Mappings = {
+      ...defaultMappings,
+      properties: { ...defaultMappings.properties },
+    };
 
     const Component = WithAppDependencies(MappingsEditor, {});
     render(
@@ -102,7 +109,7 @@ describe('Mappings editor: scaled float datatype', () => {
     updatedMappings.properties.myField = {
       ...defaultScaledFloatParameters,
       scaling_factor: 123,
-    } as any;
+    };
 
     const [callData] = onChangeHandler.mock.calls[onChangeHandler.mock.calls.length - 1];
     const actualMappings = callData.getData();

@@ -22,7 +22,7 @@ describe('useRedirectPath', () => {
       services: {
         application: mockStart.application,
       },
-    } as any);
+    } as unknown as ReturnType<typeof useKibana>);
   });
   it('should redirect to redirect path if a redirect path is specified in the url', () => {
     const history = createMemoryHistory();

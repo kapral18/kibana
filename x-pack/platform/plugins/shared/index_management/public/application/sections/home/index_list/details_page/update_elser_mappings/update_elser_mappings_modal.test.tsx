@@ -21,7 +21,7 @@ import {
 } from './update_elser_mappings_modal';
 import * as apiService from '../../../../../services/api';
 import { notificationService } from '../../../../../services/notification';
-import type { NormalizedFields } from '../../../../../components/mappings_editor/types';
+import type { NormalizedFields, State } from '../../../../../components/mappings_editor/types';
 
 jest.mock('../../../../../components/mappings_editor/lib/utils', () => ({
   deNormalize: jest.fn(),
@@ -116,7 +116,7 @@ describe('UpdateElserMappingsModal', () => {
 
     mappingsContextMock.useMappingsState.mockReturnValue({
       mappingViewFields: fieldsById,
-    } as any);
+    } as unknown as State);
 
     isElserOnMlNodeSemanticFieldMock.mockImplementation((field) => {
       return field.source.inference_id === '.elser-2-elasticsearch';

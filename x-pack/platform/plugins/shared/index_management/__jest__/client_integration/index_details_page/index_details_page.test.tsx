@@ -11,6 +11,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from '@kbn/shared-ux-router';
 import { Route } from '@kbn/shared-ux-router';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
+import type { RouteComponentProps } from 'react-router-dom';
+import type { History } from 'history';
 
 import type { IndexDetailsTab, IndexDetailsTabId } from '../../../common/constants';
 import { IndexDetailsSection } from '../../../common/constants';
@@ -59,15 +61,15 @@ describe('<IndexDetailsPage />', () => {
   jest.spyOn(documentationService, 'setup');
 
   // Simple inline render - no separate helper file
-  const renderPage = async (initialEntry?: string, deps: any = {}) => {
+  const renderPage = async (initialEntry?: string, deps: Record<string, unknown> = {}) => {
     const route = initialEntry ?? `/indices/index_details?indexName=${testIndexName}`;
-    let capturedHistory: any;
+    let capturedHistory!: History;
     const Comp = WithAppDependencies(
       () => (
         <MemoryRouter initialEntries={[route]}>
           <Route
             path="/indices/index_details"
-            render={(props) => (
+            render={(props: RouteComponentProps) => (
               <DetailsPage
                 {...props}
                 match={{
@@ -77,10 +79,7 @@ describe('<IndexDetailsPage />', () => {
                     indexDetailsSection: IndexDetailsSection.Settings,
                   },
                 }}
-                history={
-                  ((capturedHistory = (props as any).history) as unknown as typeof props.history) ??
-                  props.history
-                }
+                history={(capturedHistory = props.history)}
               />
             )}
           />
@@ -188,7 +187,14 @@ describe('<IndexDetailsPage />', () => {
           <MemoryRouter initialEntries={['/indices/index_details']}>
             <Route
               path="/indices/index_details"
-              render={(props) => <DetailsPage {...(props as any)} />}
+              render={(props) => (
+                <DetailsPage
+                  {...(props as unknown as RouteComponentProps<{
+                    indexName: string;
+                    indexDetailsSection: IndexDetailsSection;
+                  }>)}
+                />
+              )}
             />
           </MemoryRouter>
         ),
@@ -1062,17 +1068,24 @@ describe('<IndexDetailsPage />', () => {
   });
 
   describe('Semantic Text Banner', () => {
-    const mockIndexMappingResponseWithoutSemanticText: any = {
-      ...testIndexMappings.mappings,
+    interface IndexMappings {
+      properties: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+
+    const baseMappings = testIndexMappings.mappings as unknown as IndexMappings;
+
+    const mockIndexMappingResponseWithoutSemanticText: IndexMappings = {
+      ...baseMappings,
       properties: {
-        ...testIndexMappings.mappings.properties,
+        ...baseMappings.properties,
         name: {
           type: 'text',
         },
       },
     };
 
-    const mockIndexMappingResponseWithSemanticText: any = {
+    const mockIndexMappingResponseWithSemanticText: IndexMappings = {
       ...mockIndexMappingResponseWithoutSemanticText,
       properties: {
         ...mockIndexMappingResponseWithoutSemanticText.properties,
@@ -1410,10 +1423,17 @@ describe('<IndexDetailsPage />', () => {
 
       it('can add new fields and can save mappings', async () => {
         // After save, mappings reload should include the new field.
-        const mockIndexMappingResponse: any = {
-          ...testIndexMappings.mappings,
+        interface IndexMappings {
+          properties: Record<string, unknown>;
+          [key: string]: unknown;
+        }
+
+        const baseMappings = testIndexMappings.mappings as unknown as IndexMappings;
+
+        const mockIndexMappingResponse: IndexMappings = {
+          ...baseMappings,
           properties: {
-            ...testIndexMappings.mappings.properties,
+            ...baseMappings.properties,
             name: {
               type: 'text',
             },
@@ -1507,7 +1527,7 @@ describe('<IndexDetailsPage />', () => {
               task_settings: {},
             },
           ],
-        } as any);
+        });
 
         await renderPage(undefined, {
           docLinks: {
@@ -1600,8 +1620,8 @@ describe('<IndexDetailsPage />', () => {
       });
 
       it('handles errors from json.stringify function', async () => {
-        const circularReference: any = { mappings: { properties: {} } };
-        circularReference.myself = circularReference;
+        const circularReference: Record<string, unknown> = { mappings: { properties: {} } };
+        (circularReference as { myself?: unknown }).myself = circularReference;
 
         httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, circularReference);
 

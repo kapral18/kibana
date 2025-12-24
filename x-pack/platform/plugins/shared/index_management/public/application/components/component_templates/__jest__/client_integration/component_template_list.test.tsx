@@ -13,6 +13,7 @@ import { i18nServiceMock, themeServiceMock, analyticsServiceMock } from '@kbn/co
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { coreMock } from '@kbn/core/public/mocks';
 import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
+import type { CoreStart, HttpSetup } from '@kbn/core/public';
 
 import { breadcrumbService, IndexManagementBreadcrumb } from '../../../../services/breadcrumbs';
 import type { ComponentTemplateListItem } from '../../shared_imports';
@@ -29,8 +30,8 @@ const startServicesMock = {
 };
 
 const renderComponentTemplateList = (
-  httpSetup: any,
-  coreStart: any,
+  httpSetup: HttpSetup,
+  coreStart: CoreStart,
   options: { filter?: string } = {}
 ) => {
   const route = `${BASE_PATH}/component_templates${

@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { coreMock } from '@kbn/core/public/mocks';
@@ -54,7 +55,9 @@ describe('<ComponentTemplateDetails />', () => {
   let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
-  const renderComponentTemplateDetails = (props: any) => {
+  type FlyoutContentProps = ComponentProps<typeof ComponentTemplateDetailsFlyoutContent>;
+
+  const renderComponentTemplateDetails = (props: FlyoutContentProps) => {
     const Comp = WithAppDependencies(ComponentTemplateDetailsFlyoutContent, httpSetup);
     return render(
       <KibanaRenderContextProvider {...startServicesMock}>

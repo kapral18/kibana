@@ -10,6 +10,7 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { Route } from '@kbn/shared-ux-router';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
+import type { HttpSetup } from '@kbn/core/public';
 
 import * as fixtures from '../../../test/fixtures';
 import { API_BASE_PATH } from '../../../common/constants';
@@ -56,7 +57,7 @@ jest.mock('@kbn/code-editor');
 /**
  * Helper to render TemplateEdit component with routing (RTL).
  */
-const renderTemplateEdit = (httpSetup: any, templateName: string = TEMPLATE_NAME) => {
+const renderTemplateEdit = (httpSetup: HttpSetup, templateName: string = TEMPLATE_NAME) => {
   const EditWithRouter = () => (
     <MemoryRouter initialEntries={[`/edit_template/${templateName}`]}>
       <Route path="/edit_template/:name" component={TemplateEdit} />
@@ -66,11 +67,21 @@ const renderTemplateEdit = (httpSetup: any, templateName: string = TEMPLATE_NAME
   return render(React.createElement(WithAppDependencies(EditWithRouter, httpSetup)));
 };
 
+type AllowAutoCreateValue = 'TRUE' | 'FALSE' | 'NO_OVERWRITE';
+
+interface StepOneOptions {
+  indexPatterns?: string[];
+  priority?: number;
+  allowAutoCreate?: AllowAutoCreateValue;
+  version?: number;
+  lifecycle?: { value: number | string; unit?: string };
+}
+
 /**
  * Helper to fill form step-by-step.
  */
 const completeStep = {
-  async one({ indexPatterns, priority, allowAutoCreate, version, lifecycle }: any = {}) {
+  async one({ indexPatterns, priority, allowAutoCreate, version, lifecycle }: StepOneOptions = {}) {
     if (indexPatterns) {
       await screen.findByTestId('indexPatternsField');
       const indexPatternsComboBox = new EuiComboBoxTestHarness('indexPatternsField');

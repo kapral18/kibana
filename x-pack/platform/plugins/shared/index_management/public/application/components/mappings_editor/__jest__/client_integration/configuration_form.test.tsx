@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import type { AppDependencies } from '../../../..';
@@ -26,8 +27,13 @@ jest.mock('@kbn/es-ui-shared-plugin/static/forms/components', () => {
   };
 });
 
-const setup = (props: any = { onUpdate() {} }, appDependencies?: any) => {
-  const Component = WithAppDependencies(ConfigurationForm, appDependencies);
+type ConfigurationFormProps = ComponentProps<typeof ConfigurationForm>;
+
+const setup = (
+  props: Partial<ConfigurationFormProps> = { esNodesPlugins: [] },
+  appDependencies?: Partial<AppDependencies>
+) => {
+  const Component = WithAppDependencies(ConfigurationForm, appDependencies, {});
   return render(
     <I18nProvider>
       <Component {...props} />

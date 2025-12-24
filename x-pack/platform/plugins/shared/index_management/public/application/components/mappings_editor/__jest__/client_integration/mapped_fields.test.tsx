@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import { MappingsEditor } from '../../mappings_editor';
@@ -48,7 +49,9 @@ describe('Mappings editor: mapped fields', () => {
     return item;
   };
 
-  const setup = (props: any) => {
+  type MappingsEditorProps = ComponentProps<typeof MappingsEditor>;
+
+  const setup = (props: Partial<MappingsEditorProps>) => {
     const Component = WithAppDependencies(MappingsEditor, {});
     return render(
       <I18nProvider>

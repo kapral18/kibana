@@ -12,6 +12,7 @@ import { Route } from '@kbn/shared-ux-router';
 import { i18nServiceMock, themeServiceMock, analyticsServiceMock } from '@kbn/core/public/mocks';
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { coreMock } from '@kbn/core/public/mocks';
+import type { CoreStart, HttpSetup } from '@kbn/core/public';
 
 import { breadcrumbService, IndexManagementBreadcrumb } from '../../../../services/breadcrumbs';
 import { setupEnvironment } from './helpers';
@@ -29,7 +30,11 @@ const startServicesMock = {
 
 jest.mock('@kbn/code-editor');
 
-const renderComponentTemplateEdit = (httpSetup: any, coreStart?: any, queryParams: string = '') => {
+const renderComponentTemplateEdit = (
+  httpSetup: HttpSetup,
+  coreStart?: CoreStart,
+  queryParams: string = ''
+) => {
   const routePath = `${BASE_PATH}/edit_component_template/comp-1${queryParams}`;
   const EditWithRouter = () => (
     <MemoryRouter initialEntries={[routePath]}>
@@ -68,6 +73,11 @@ const getVersionSpinButton = () => {
   return within(versionRow).getByRole('spinbutton');
 };
 
+interface MappingField {
+  name: string;
+  type: string;
+}
+
 const completeStep = {
   async settings(settingsJson?: string) {
     if (settingsJson) {
@@ -79,7 +89,7 @@ const completeStep = {
     fireEvent.click(enabledNextButton);
     await screen.findByTestId('stepMappings');
   },
-  async mappings(mappingFields?: any[]) {
+  async mappings(mappingFields?: MappingField[]) {
     if (mappingFields) {
       for (const field of mappingFields) {
         const { name, type } = field;

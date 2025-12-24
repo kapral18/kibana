@@ -19,8 +19,12 @@ import { httpService } from '../../../public/application/services/http';
 interface RenderHomeOptions {
   /** Initial route entries for MemoryRouter */
   initialEntries?: string[];
-  /** App services context overrides */
-  appServicesContext?: Record<string, unknown>;
+  /** App dependencies overrides (merged into base AppDependencies) */
+  dependenciesOverrides?: unknown;
+  /**
+   * @deprecated Use `dependenciesOverrides` instead.
+   */
+  appServicesContext?: unknown;
 }
 
 /**
@@ -38,20 +42,24 @@ interface RenderHomeOptions {
  * ```
  */
 export const renderHome = async (httpSetup: HttpSetup, options?: RenderHomeOptions) => {
-  const { initialEntries = ['/indices?includeHiddenIndices=true'], appServicesContext } =
-    options || {};
+  const {
+    initialEntries = ['/indices?includeHiddenIndices=true'],
+    dependenciesOverrides,
+    appServicesContext,
+  } = options || {};
 
   // CRITICAL: Set up httpService BEFORE creating the component
   // This ensures httpService.httpClient is available when components try to use it during render
   httpService.setup(httpSetup);
 
   const services = createServices();
-  const store = indexManagementStore(services as any);
+  const store = indexManagementStore(services);
 
-  // Ensure app context uses the same services as the store
-  const context = {
+  // Ensure app context uses the same services as the store.
+  // Force `services` to match the store even if overrides were provided.
+  const overridingDependencies: Record<string, unknown> = {
+    ...((dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>),
     services,
-    ...appServicesContext,
   };
 
   const HomeWithRouter = () => (
@@ -62,7 +70,7 @@ export const renderHome = async (httpSetup: HttpSetup, options?: RenderHomeOptio
 
   const result = render(
     <Provider store={store}>
-      {React.createElement(WithAppDependencies(HomeWithRouter, httpSetup, context))}
+      {React.createElement(WithAppDependencies(HomeWithRouter, httpSetup, overridingDependencies))}
     </Provider>
   );
 

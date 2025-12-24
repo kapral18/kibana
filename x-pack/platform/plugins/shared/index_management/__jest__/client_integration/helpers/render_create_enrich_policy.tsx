@@ -17,8 +17,12 @@ import { indexManagementStore } from '../../../public/application/store';
 import { WithAppDependencies, createServices } from './setup_environment';
 
 interface RenderCreateEnrichPolicyOptions {
-  /** App services context overrides */
-  appServicesContext?: Record<string, unknown>;
+  /** App dependencies overrides (merged into base AppDependencies) */
+  dependenciesOverrides?: unknown;
+  /**
+   * @deprecated Use `dependenciesOverrides` instead.
+   */
+  appServicesContext?: unknown;
 }
 
 /**
@@ -38,9 +42,9 @@ export const renderCreateEnrichPolicy = async (
   httpSetup: HttpSetup,
   options?: RenderCreateEnrichPolicyOptions
 ) => {
-  const { appServicesContext = {} } = options || {};
+  const { dependenciesOverrides, appServicesContext } = options || {};
   const services = createServices();
-  const store = indexManagementStore(services as any);
+  const store = indexManagementStore(services);
 
   const CreateEnrichPolicyWithRouter = () => (
     <MemoryRouter initialEntries={['/enrich_policies/create']}>
@@ -51,14 +55,17 @@ export const renderCreateEnrichPolicy = async (
     </MemoryRouter>
   );
 
-  const context = {
+  // Force `services` to match the store even if overrides were provided.
+  const overridingDependencies: Record<string, unknown> = {
+    ...((dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>),
     services,
-    ...appServicesContext,
   };
 
   const result = render(
     <Provider store={store}>
-      {React.createElement(WithAppDependencies(CreateEnrichPolicyWithRouter, httpSetup, context))}
+      {React.createElement(
+        WithAppDependencies(CreateEnrichPolicyWithRouter, httpSetup, overridingDependencies)
+      )}
     </Provider>
   );
 

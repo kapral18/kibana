@@ -10,6 +10,7 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { Route } from '@kbn/shared-ux-router';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
+import type { HttpSetup } from '@kbn/core/public';
 
 import { API_BASE_PATH } from '../../../common/constants';
 import { getComposableTemplate } from '../../../test/fixtures';
@@ -30,7 +31,7 @@ const templateToClone = getComposableTemplate({
 /**
  * Helper to render template clone component with routing (RTL).
  */
-const renderTemplateClone = (httpSetup: any) => {
+const renderTemplateClone = (httpSetup: HttpSetup) => {
   const CloneWithRouter = () => (
     <MemoryRouter initialEntries={[`/clone_template/${TEMPLATE_NAME}`]}>
       <Route path="/clone_template/:name" component={TemplateClone} />
@@ -40,11 +41,21 @@ const renderTemplateClone = (httpSetup: any) => {
   return render(React.createElement(WithAppDependencies(CloneWithRouter, httpSetup)));
 };
 
+type AllowAutoCreateValue = 'TRUE' | 'FALSE' | 'DO_NOT_OVERWRITE';
+
+interface StepOneOptions {
+  indexPatterns?: string[];
+  priority?: number;
+  allowAutoCreate?: AllowAutoCreateValue;
+  version?: number;
+  lifecycle?: { value: number | string };
+}
+
 /**
  * Helper to fill form step-by-step.
  */
 const completeStep = {
-  async one({ indexPatterns, priority, allowAutoCreate, version, lifecycle }: any = {}) {
+  async one({ indexPatterns, priority, allowAutoCreate, version, lifecycle }: StepOneOptions = {}) {
     if (indexPatterns) {
       await screen.findByTestId('indexPatternsField');
       const indexPatternsComboBox = new EuiComboBoxTestHarness('indexPatternsField');

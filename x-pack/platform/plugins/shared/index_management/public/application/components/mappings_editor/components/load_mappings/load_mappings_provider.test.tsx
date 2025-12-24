@@ -16,7 +16,7 @@ jest.mock('lodash', () => {
 
   return {
     ...original,
-    debounce: (fn: any) => fn,
+    debounce: <T extends (...args: unknown[]) => unknown>(fn: T) => fn,
   };
 });
 

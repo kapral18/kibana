@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
@@ -52,7 +53,9 @@ describe('Mappings editor: edit field', () => {
     return item;
   };
 
-  const setup = (props: any) => {
+  type MappingsEditorProps = ComponentProps<typeof MappingsEditor>;
+
+  const setup = (props: Partial<MappingsEditorProps>) => {
     const Component = WithAppDependencies(MappingsEditor, {});
     return render(
       <I18nProvider>

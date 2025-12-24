@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import type { ComponentType, MemoExoticComponent } from 'react';
+import type { ComponentType } from 'react';
 import React from 'react';
 import SemVer from 'semver/classes/semver';
 
@@ -30,26 +30,31 @@ const { Provider: KibanaReactContextProvider } = createKibanaReactContext({
   },
 });
 
-const defaultProps: MappingsEditorProps = {
+const mappingsEditorDefaultProps: MappingsEditorProps = {
   docLinks: docLinksServiceMock.createStartContract(),
   onChange: () => undefined,
   esNodesPlugins: [],
 };
 
 export const WithAppDependencies =
-  (
-    Comp: MemoExoticComponent<ComponentType<MappingsEditorProps>>,
-    appDependencies?: Partial<AppDependencies>
+  <P extends object>(
+    Comp: ComponentType<P>,
+    appDependencies?: unknown,
+    defaultProps?: Partial<P>
   ) =>
-  (props: Partial<MappingsEditorProps>) =>
-    (
+  (props: Partial<P>) => {
+    const resolvedDefaultProps =
+      defaultProps ?? (mappingsEditorDefaultProps as unknown as Partial<P>);
+
+    return (
       <KibanaReactContextProvider>
         <AppContextProvider value={appDependencies as AppDependencies}>
           <MappingsEditorProvider>
             <GlobalFlyoutProvider>
-              <Comp {...defaultProps} {...props} />
+              <Comp {...(resolvedDefaultProps as P)} {...(props as P)} />
             </GlobalFlyoutProvider>
           </MappingsEditorProvider>
         </AppContextProvider>
       </KibanaReactContextProvider>
     );
+  };

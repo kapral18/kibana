@@ -12,6 +12,7 @@ import { Route } from '@kbn/shared-ux-router';
 import { i18nServiceMock, themeServiceMock, analyticsServiceMock } from '@kbn/core/public/mocks';
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
+import type { HttpSetup } from '@kbn/core/public';
 
 import { breadcrumbService, IndexManagementBreadcrumb } from '../../../../services/breadcrumbs';
 import { setupEnvironment } from './helpers';
@@ -31,7 +32,7 @@ const startServicesMock = {
 
 jest.mock('@kbn/code-editor');
 
-const renderComponentTemplateCreate = (httpSetup: any) => {
+const renderComponentTemplateCreate = (httpSetup: HttpSetup) => {
   const routePath = `${BASE_PATH}/create_component_template`;
   const CreateWithRouter = () => (
     <MemoryRouter initialEntries={[routePath]}>
@@ -49,8 +50,19 @@ const renderComponentTemplateCreate = (httpSetup: any) => {
 /**
  * Helper to fill form step-by-step.
  */
+interface LifecycleConfig {
+  enabled: boolean;
+  value?: number | string;
+  unit?: string;
+}
+
+interface MappingField {
+  name: string;
+  type: string;
+}
+
 const completeStep = {
-  async logistics({ name, lifecycle }: { name: string; lifecycle?: any }) {
+  async logistics({ name, lifecycle }: { name: string; lifecycle?: LifecycleConfig }) {
     if (name) {
       const nameRow = screen.getByTestId('nameField');
       const nameInput = within(nameRow).getByRole('textbox');
@@ -85,7 +97,7 @@ const completeStep = {
     fireEvent.click(screen.getByTestId('nextButton'));
     await screen.findByTestId('stepMappings');
   },
-  async mappings(mappingFields?: any[]) {
+  async mappings(mappingFields?: MappingField[]) {
     if (mappingFields) {
       for (const field of mappingFields) {
         const { name, type } = field;

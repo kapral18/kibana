@@ -21,6 +21,12 @@ beforeEach(() => {
 
 const onChangeHandler = jest.fn();
 
+interface TestMappings {
+  properties: Record<string, Record<string, unknown>>;
+  _meta?: Record<string, unknown>;
+  _source?: Record<string, unknown>;
+}
+
 const openFieldEditor = async () => {
   const editButton = screen.getByTestId('editFieldButton');
   fireEvent.click(editButton);
@@ -428,7 +434,7 @@ describe('Mappings editor: text datatype', () => {
     }, 9000);
 
     test('analyzer parameter: custom analyzer (external plugin)', async () => {
-      const defaultMappings = {
+      const defaultMappings: TestMappings = {
         _meta: {},
         _source: {},
         properties: {
@@ -441,7 +447,7 @@ describe('Mappings editor: text datatype', () => {
         },
       };
 
-      let updatedMappings: any = {
+      let updatedMappings: TestMappings = {
         ...defaultMappings,
         properties: {
           myField: {
@@ -481,19 +487,21 @@ describe('Mappings editor: text datatype', () => {
       // Query by value instead
       const allTextInputs = within(flyout).getAllByRole<HTMLInputElement>('textbox');
       const indexAnalyzerCustom = allTextInputs.find(
-        (inp) => inp.value === defaultMappings.properties.myField.analyzer
+        (inp) => inp.value === String(defaultMappings.properties.myField.analyzer)
       );
       const searchAnalyzerCustom = allTextInputs.find(
-        (inp) => inp.value === defaultMappings.properties.myField.search_analyzer
+        (inp) => inp.value === String(defaultMappings.properties.myField.search_analyzer)
       );
       const searchQuoteAnalyzerCustom = allTextInputs.find(
-        (inp) => inp.value === defaultMappings.properties.myField.search_quote_analyzer
+        (inp) => inp.value === String(defaultMappings.properties.myField.search_quote_analyzer)
       );
 
-      expect(indexAnalyzerCustom).toHaveValue(defaultMappings.properties.myField.analyzer);
-      expect(searchAnalyzerCustom).toHaveValue(defaultMappings.properties.myField.search_analyzer);
+      expect(indexAnalyzerCustom).toHaveValue(String(defaultMappings.properties.myField.analyzer));
+      expect(searchAnalyzerCustom).toHaveValue(
+        String(defaultMappings.properties.myField.search_analyzer)
+      );
       expect(searchQuoteAnalyzerCustom).toHaveValue(
-        defaultMappings.properties.myField.search_quote_analyzer
+        String(defaultMappings.properties.myField.search_quote_analyzer)
       );
 
       const updatedIndexAnalyzer = 'newCustomIndexAnalyzer';
@@ -593,7 +601,7 @@ describe('Mappings editor: text datatype', () => {
 
       const customAnalyzers = Object.keys(indexSettings.analysis.analyzer);
 
-      const defaultMappings = {
+      const defaultMappings: TestMappings = {
         properties: {
           myField: {
             type: 'text',
@@ -602,7 +610,7 @@ describe('Mappings editor: text datatype', () => {
         },
       };
 
-      let updatedMappings: any = {
+      let updatedMappings: TestMappings = {
         ...defaultMappings,
         properties: {
           myField: {
@@ -656,11 +664,11 @@ describe('Mappings editor: text datatype', () => {
         (el) =>
           el.tagName === 'SELECT' &&
           el.getAttribute('data-test-subj') === 'select' &&
-          (el as HTMLSelectElement).value === defaultMappings.properties.myField.analyzer
+          (el as HTMLSelectElement).value === String(defaultMappings.properties.myField.analyzer)
       ) as HTMLSelectElement;
 
       expect(customAnalyzerSelect).toBeDefined();
-      expect(customAnalyzerSelect).toHaveValue(defaultMappings.properties.myField.analyzer);
+      expect(customAnalyzerSelect).toHaveValue(String(defaultMappings.properties.myField.analyzer));
 
       // Access the list of option of the custom analyzer select
       const subSelectOptions = Array.from(customAnalyzerSelect.options).map(

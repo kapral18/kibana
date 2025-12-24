@@ -65,7 +65,7 @@ jest.mock('../../../public/application/components/mappings_editor/shared_imports
     }: {
       children: React.ReactNode;
       onSubmit: React.FormEventHandler;
-      FormWrapper?: React.ComponentType<any>;
+      FormWrapper?: React.ComponentType<React.PropsWithChildren<Record<string, unknown>>>;
       form?: unknown;
       [key: string]: unknown;
     }) => {

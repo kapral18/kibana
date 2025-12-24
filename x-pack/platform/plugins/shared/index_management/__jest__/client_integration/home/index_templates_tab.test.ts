@@ -18,14 +18,9 @@ import { API_BASE_PATH } from '../../../common/constants';
 import { renderHome } from '../helpers/render_home';
 import { setupEnvironment } from '../helpers/setup_environment';
 
-const removeWhiteSpaceOnArrayValues = (array: any[]) =>
-  array.map((value) => {
-    if (typeof value !== 'string') {
-      return value;
-    }
-    // Convert non breaking spaces (&nbsp;) to ordinary space
-    return value.trim().replace(/\s/g, ' ');
-  });
+const removeWhiteSpaceOnArrayValues = (array: string[]) =>
+  // Convert non breaking spaces (&nbsp;) to ordinary space
+  array.map((value) => value.trim().replace(/\s/g, ' '));
 
 const getTableCellsValues = (tableTestId: string): string[][] =>
   new EuiTableTestHarness(tableTestId).normalizedCellValues;

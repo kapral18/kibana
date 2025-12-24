@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import { EuiComboBoxTestHarness, EuiSuperSelectTestHarness } from '@kbn/test-eui-helpers';
@@ -13,6 +14,7 @@ import { EuiComboBoxTestHarness, EuiSuperSelectTestHarness } from '@kbn/test-eui
 import { WithAppDependencies } from './helpers/setup_environment';
 import { MappingsEditor } from '../../mappings_editor';
 import { TYPE_DEFINITION } from '../../constants';
+import type { AppDependencies } from '../../../..';
 
 // Helper to map type values to their display labels
 const getTypeLabel = (typeValue: string): string => {
@@ -33,7 +35,19 @@ describe('Mappings editor: core', () => {
   /**
    * Variable to store the mappings data forwarded to the consumer component
    */
-  let data: any;
+  interface TestMappings {
+    dynamic?: boolean;
+    numeric_detection?: boolean;
+    date_detection?: boolean;
+    properties?: Record<string, Record<string, unknown>>;
+    dynamic_templates?: unknown[];
+    _source?: { enabled?: boolean; includes?: string[]; excludes?: string[] };
+    _meta?: Record<string, unknown>;
+    _routing?: { required?: boolean };
+    [key: string]: unknown;
+  }
+
+  let data: TestMappings | undefined;
   let onChangeHandler: jest.Mock = jest.fn();
 
   const appDependencies = {
@@ -51,10 +65,12 @@ describe('Mappings editor: core', () => {
     plugins: {
       ml: { mlApi: {} },
     },
-  } as any;
+  } as unknown as Partial<AppDependencies>;
 
   // RTL setup
-  const setup = (props: any, ctx = appDependencies) => {
+  type MappingsEditorProps = ComponentProps<typeof MappingsEditor>;
+
+  const setup = (props: Partial<MappingsEditorProps>, ctx: unknown = appDependencies) => {
     const Component = WithAppDependencies(MappingsEditor, ctx);
     return render(
       <I18nProvider>
@@ -474,7 +490,7 @@ describe('Mappings editor: core', () => {
      * as it is the only place where it is consumed by the mappings editor.
      * The test that covers it is in the "text_datatype.test.tsx": "analyzer parameter: custom analyzer (from index settings)"
      */
-    let defaultMappings: any;
+    let defaultMappings: TestMappings;
 
     const ctx = {
       config: {
@@ -528,7 +544,7 @@ describe('Mappings editor: core', () => {
         // Test that root-level mappings "properties" are rendered as root-level "DOM tree items"
         const fieldElements = screen.getAllByTestId(/^fieldsListItem/);
         const fields = fieldElements.map((el) => within(el).getByTestId(/fieldName/).textContent);
-        expect(fields.sort()).toEqual(Object.keys(defaultMappings.properties).sort());
+        expect(fields.sort()).toEqual(Object.keys(defaultMappings.properties!).sort());
 
         /**
          * Dynamic templates
@@ -555,10 +571,10 @@ describe('Mappings editor: core', () => {
         expect(isNumericDetectionEnabled).toBe(defaultMappings.numeric_detection);
 
         expect(getComboBoxValue('sourceField.includesField')).toEqual(
-          defaultMappings._source.includes
+          defaultMappings._source!.includes
         );
         expect(getComboBoxValue('sourceField.excludesField')).toEqual(
-          defaultMappings._source.excludes
+          defaultMappings._source!.excludes
         );
 
         const metaFieldValue = getJsonEditorValue('advancedConfiguration.metaField');
@@ -567,7 +583,7 @@ describe('Mappings editor: core', () => {
         const isRoutingRequired = getToggleValue(
           'advancedConfiguration.routingRequiredToggle.input'
         );
-        expect(isRoutingRequired).toBe(defaultMappings._routing.required);
+        expect(isRoutingRequired).toBe(defaultMappings._routing!.required);
       });
 
       test('props.onChange() => should forward the changes to the consumer component', async () => {
@@ -636,8 +652,8 @@ describe('Mappings editor: core', () => {
             dynamic: false,
             // The "enabled": true is removed as this is the default in Es
             _source: {
-              includes: defaultMappings._source.includes,
-              excludes: defaultMappings._source.excludes,
+              includes: defaultMappings._source!.includes,
+              excludes: defaultMappings._source!.excludes,
             },
           };
           delete updatedMappings.date_detection;
@@ -778,7 +794,7 @@ describe('Mappings editor: core', () => {
         expect(sourceValueButton.textContent).toContain('Stored _source');
       });
 
-      ['logsdb', 'time_series'].forEach((indexMode) => {
+      (['logsdb', 'time_series'] as const).forEach((indexMode) => {
         it(`defaults to 'synthetic' with ${indexMode} index mode prop when 'canUseSyntheticSource' is set to true`, async () => {
           setup(
             {

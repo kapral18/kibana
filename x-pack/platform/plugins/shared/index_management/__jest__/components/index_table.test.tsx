@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
 import { EuiPaginationTestHarness, EuiTableTestHarness } from '@kbn/test-eui-helpers';
+import { usageCollectionPluginMock } from '@kbn/usage-collection-plugin/public/mocks';
 
 import type { AppDependencies } from '../../public/application/app_context';
 import { AppContextProvider } from '../../public/application/app_context';
@@ -163,7 +164,7 @@ const openMenuAndGetButtonText = async (rowIndex: number) => {
 };
 
 const renderIndexApp = async (options?: {
-  dependenciesOverride?: Partial<AppDependencies>;
+  dependenciesOverride?: Record<string, unknown>;
   loadIndicesResponse?: unknown;
   reloadIndicesResponse?: unknown;
   delayResponse?: boolean;
@@ -181,11 +182,13 @@ const renderIndexApp = async (options?: {
   httpRequestsMockHelpers.setReloadIndicesResponse(reloadIndicesResponse ?? indices);
 
   // Mock initialization of services
-  const services = {
+  const services: AppDependencies['services'] = {
     extensionsService: new ExtensionsService(),
     uiMetricService: new UiMetricService('index_management'),
+    notificationService,
+    httpService,
   };
-  services.uiMetricService.setup({ reportUiCounter() {} } as any);
+  services.uiMetricService.setup(usageCollectionPluginMock.createSetupContract());
   setExtensionsService(services.extensionsService);
   setUiMetricService(services.uiMetricService);
 
@@ -193,7 +196,7 @@ const renderIndexApp = async (options?: {
   breadcrumbService.setup(() => undefined);
   notificationService.setup(notificationServiceMock.createStartContract());
 
-  const store = indexManagementStore(services as any);
+  const store = indexManagementStore(services);
 
   const appDependencies = {
     services,
@@ -652,7 +655,7 @@ describe('index table', () => {
     test('Common index actions should be hidden when feature is turned off', async () => {
       await renderIndexApp({
         dependenciesOverride: {
-          config: { enableIndexActions: false, enableLegacyTemplates: true } as any,
+          config: { enableIndexActions: false, enableLegacyTemplates: true },
         },
       });
 

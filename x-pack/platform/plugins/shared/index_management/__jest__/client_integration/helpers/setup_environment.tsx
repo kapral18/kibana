@@ -24,17 +24,20 @@ import {
   chromeServiceMock,
   i18nServiceMock,
   analyticsServiceMock,
+  coreMock,
 } from '@kbn/core/public/mocks';
 
 import { GlobalFlyout } from '@kbn/es-ui-shared-plugin/public';
-import { usageCollectionPluginMock } from '@kbn/usage-collection-plugin/server/mocks';
+import { usageCollectionPluginMock } from '@kbn/usage-collection-plugin/public/mocks';
 import { createKibanaReactContext } from '@kbn/kibana-react-plugin/public';
 import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { sharePluginMock } from '@kbn/share-plugin/public/mocks';
 import { settingsServiceMock } from '@kbn/core-ui-settings-browser-mocks';
 import { cloudMock } from '@kbn/cloud-plugin/public/mocks';
 import { EuiThemeProvider } from '@elastic/eui';
+import { ReindexService } from '@kbn/reindex-service-plugin/public';
 import { MAJOR_VERSION } from '../../../common';
+import type { AppDependencies } from '../../../public/application/app_context';
 import { AppContextProvider } from '../../../public/application/app_context';
 import { httpService } from '../../../public/application/services/http';
 import { breadcrumbService } from '../../../public/application/services/breadcrumbs';
@@ -54,18 +57,19 @@ import { init as initHttpRequests } from './http_requests';
 const { GlobalFlyoutProvider } = GlobalFlyout;
 
 export const createServices = () => {
-  const services = {
+  const services: AppDependencies['services'] = {
     extensionsService: new ExtensionsService(),
     uiMetricService: new UiMetricService('index_management'),
     notificationService,
+    httpService,
   };
-  services.uiMetricService.setup({ reportUiCounter() {} } as any);
+  services.uiMetricService.setup(usageCollectionPluginMock.createSetupContract());
   setExtensionsService(services.extensionsService);
   setUiMetricService(services.uiMetricService);
   return services;
 };
 
-const createAppDependencies = () => {
+const createAppDependencies = (httpSetup: HttpSetup): AppDependencies => {
   const services = createServices();
 
   const history = scopedHistoryMock.create();
@@ -90,38 +94,49 @@ const createAppDependencies = () => {
     core: {
       getUrlForApp: applicationService.getUrlForApp,
       executionContext: executionContextServiceMock.createStartContract(),
-      http: httpServiceMock.createSetupContract(),
+      http: httpSetup,
       application: applicationService,
       chrome: chromeServiceMock.createStartContract(),
       fatalErrors: fatalErrorsServiceMock.createSetupContract(),
+      i18n: i18nServiceMock.createStartContract(),
+      theme: themeServiceMock.createStartContract(),
     },
     plugins: {
       usageCollection: usageCollectionPluginMock.createSetupContract(),
       isFleetEnabled: false,
       share: sharePluginMock.createStartContract(),
       cloud: cloudMock.createSetup(),
+      reindexService: { reindexService: new ReindexService(httpSetup) },
     },
     // Default stateful configuration
     config: {
       enableLegacyTemplates: true,
       enableIndexActions: true,
       enableIndexStats: true,
+      enableSizeAndDocCount: true,
       enableDataStreamStats: true,
       editableIndexSettings: 'all',
       enableMappingsSourceFieldSection: true,
       enableTogglingDataRetention: true,
+      enableProjectLevelRetentionChecks: true,
       enableSemanticText: true,
+      enforceAdaptiveAllocations: false,
+      enableFailureStoreRetentionDisabling: true,
     },
-    overlays: {
-      openConfirm: jest.fn(),
-    },
+    overlays: coreMock.createStart().overlays,
     privs: {
       monitor: true,
       manageEnrich: true,
       monitorEnrich: true,
       manageIndexTemplates: true,
     },
-  } as any;
+    setBreadcrumbs: jest.fn(),
+    uiSettings: uiSettingsServiceMock.createSetupContract(),
+    settings: settingsServiceMock.createStartContract(),
+    docLinks: docLinksServiceMock.createStartContract(),
+    kibanaVersion,
+    canUseSyntheticSource: false,
+  };
 };
 
 export const kibanaVersion = new SemVer(MAJOR_VERSION);
@@ -140,8 +155,12 @@ export const setupEnvironment = () => {
 };
 
 export const WithAppDependencies =
-  (Comp: any, httpSetup: HttpSetup, overridingDependencies: any = {}) =>
-  (props: any) => {
+  <P extends object = Record<string, never>>(
+    Comp: React.ComponentType<P>,
+    httpSetup: HttpSetup,
+    overridingDependencies: Record<string, unknown> = {}
+  ) =>
+  (props: P) => {
     // CRITICAL: Set up httpService BEFORE anything else
     // The component might try to use httpService.httpClient during render
     // and if it's not set up, the component will crash
@@ -154,12 +173,10 @@ export const WithAppDependencies =
     };
 
     const mergedDependencies = merge(
-      {
-        services: { httpService },
-      },
-      createAppDependencies(),
+      {},
+      createAppDependencies(httpSetup),
       overridingDependencies
-    );
+    ) as AppDependencies;
 
     const { Provider: KibanaReactContextProvider } = createKibanaReactContext({
       uiSettings: uiSettingsServiceMock.createSetupContract(),

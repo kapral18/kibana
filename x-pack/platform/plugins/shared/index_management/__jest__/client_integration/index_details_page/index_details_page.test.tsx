@@ -7,14 +7,17 @@
 
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from '@kbn/shared-ux-router';
 import { Route } from '@kbn/shared-ux-router';
+import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
 
 import type { IndexDetailsTab, IndexDetailsTabId } from '../../../common/constants';
 import { IndexDetailsSection } from '../../../common/constants';
 import { API_BASE_PATH, INTERNAL_API_BASE_PATH } from '../../../common';
 
 import { DetailsPage } from '../../../public/application/sections/home/index_list/details_page/details_page';
+import { TYPE_DEFINITION } from '../../../public/application/components/mappings_editor/constants';
 import {
   breadcrumbService,
   IndexManagementBreadcrumb,
@@ -36,6 +39,11 @@ import { setupEnvironment, WithAppDependencies } from '../helpers/setup_environm
 
 jest.mock('@kbn/code-editor');
 
+const getTypeLabel = (typeValue: string): string => {
+  const typeDef = TYPE_DEFINITION[typeValue as keyof typeof TYPE_DEFINITION];
+  return typeDef?.label || typeValue;
+};
+
 const requestOptions = {
   asSystemRequest: undefined,
   body: undefined,
@@ -53,6 +61,7 @@ describe('<IndexDetailsPage />', () => {
   // Simple inline render - no separate helper file
   const renderPage = async (initialEntry?: string, deps: any = {}) => {
     const route = initialEntry ?? `/indices/index_details?indexName=${testIndexName}`;
+    let capturedHistory: any;
     const Comp = WithAppDependencies(
       () => (
         <MemoryRouter initialEntries={[route]}>
@@ -68,6 +77,10 @@ describe('<IndexDetailsPage />', () => {
                     indexDetailsSection: IndexDetailsSection.Settings,
                   },
                 }}
+                history={
+                  ((capturedHistory = (props as any).history) as unknown as typeof props.history) ??
+                  props.history
+                }
               />
             )}
           />
@@ -81,6 +94,7 @@ describe('<IndexDetailsPage />', () => {
     );
     render(<Comp />);
     await screen.findByTestId('indexDetailsHeader');
+    return { history: capturedHistory };
   };
 
   beforeEach(() => {
@@ -525,6 +539,7 @@ describe('<IndexDetailsPage />', () => {
     it('updates the breadcrumbs to index details settings', async () => {
       await renderPage();
       fireEvent.click(screen.getByTestId('indexDetailsTab-settings'));
+      await screen.findByTestId('indexDetailsSettingsCodeBlock');
       await waitFor(() => {
         expect(breadcrumbService.setBreadcrumbs).toHaveBeenLastCalledWith(
           IndexManagementBreadcrumb.indexDetails,
@@ -536,6 +551,7 @@ describe('<IndexDetailsPage />', () => {
     it('loads settings from the API', async () => {
       await renderPage();
       fireEvent.click(screen.getByTestId('indexDetailsTab-settings'));
+      await screen.findByTestId('indexDetailsSettingsCodeBlock');
       await waitFor(() => {
         expect(httpSetup.get).toHaveBeenLastCalledWith(
           `${API_BASE_PATH}/settings/${testIndexName}`,
@@ -617,6 +633,9 @@ describe('<IndexDetailsPage />', () => {
         fireEvent.click(screen.getByTestId('indexDetailsSettingsEditModeSwitch'));
         const editor = await screen.findByTestId('indexDetailsSettingsEditor');
 
+        const getMock = jest.mocked(httpSetup.get);
+        const requestsBefore = getMock.mock.calls.length;
+
         const updatedSettings = { ...testIndexEditableSettingsAll, 'index.priority': '2' };
         // Set attribute and trigger change with value in event
         fireEvent.change(editor, {
@@ -638,6 +657,11 @@ describe('<IndexDetailsPage />', () => {
             }
           );
         });
+        // The save flow triggers a settings reload; wait for that async cycle to settle.
+        await waitFor(() => {
+          expect(getMock.mock.calls.length).toBeGreaterThan(requestsBefore);
+        });
+        await screen.findByTestId('indexDetailsSettingsCodeBlock');
       });
 
       it('reloads the settings after an update', async () => {
@@ -916,6 +940,9 @@ describe('<IndexDetailsPage />', () => {
       fireEvent.click(screen.getByTestId('indexDetailsSettingsEditModeSwitch'));
       const editor = await screen.findByTestId('indexDetailsSettingsEditor');
 
+      const getMock = jest.mocked(httpSetup.get);
+      const requestsBefore = getMock.mock.calls.length;
+
       const updatedSettings = { ...testIndexEditableSettingsAll, 'index.priority': '2' };
       fireEvent.change(editor, {
         target: {
@@ -936,6 +963,11 @@ describe('<IndexDetailsPage />', () => {
           }
         );
       });
+      // The save flow triggers a settings reload; wait for that async cycle to settle.
+      await waitFor(() => {
+        expect(getMock.mock.calls.length).toBeGreaterThan(requestsBefore);
+      });
+      await screen.findByTestId('indexDetailsSettingsCodeBlock');
     });
 
     it('loads stats with the encoded index name', async () => {
@@ -1029,8 +1061,583 @@ describe('<IndexDetailsPage />', () => {
     });
   });
 
-  // Complex mappings tests - skipped for incremental migration
-  describe.skip('Mappings tab', () => {});
-  describe.skip('Semantic Text Banner', () => {});
-  describe.skip('navigates back to the indices list', () => {});
+  describe('Semantic Text Banner', () => {
+    const mockIndexMappingResponseWithoutSemanticText: any = {
+      ...testIndexMappings.mappings,
+      properties: {
+        ...testIndexMappings.mappings.properties,
+        name: {
+          type: 'text',
+        },
+      },
+    };
+
+    const mockIndexMappingResponseWithSemanticText: any = {
+      ...mockIndexMappingResponseWithoutSemanticText,
+      properties: {
+        ...mockIndexMappingResponseWithoutSemanticText.properties,
+        sem_text: {
+          type: 'semantic_text',
+          inference_id: '.elser-2-elasticsearch',
+        },
+        title: {
+          type: 'text',
+          copy_to: ['sem_text'],
+        },
+      },
+    };
+
+    it('semantic text banner is visible if there is no semantic_text field in the mapping', async () => {
+      httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, {
+        mappings: mockIndexMappingResponseWithoutSemanticText,
+      });
+
+      await renderPage(undefined, {
+        core: { application: { capabilities: { ml: { canGetTrainedModels: true } } } },
+      });
+
+      fireEvent.click(screen.getByTestId('indexDetailsTab-mappings'));
+      await screen.findByTestId('fieldsList');
+
+      expect(screen.getByTestId('indexDetailsMappingsSemanticTextBanner')).toBeInTheDocument();
+    });
+
+    it('semantic text banner is not visible if there exists a semantic_text field in the mapping', async () => {
+      httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, {
+        mappings: mockIndexMappingResponseWithSemanticText,
+      });
+
+      await renderPage(undefined, {
+        core: { application: { capabilities: { ml: { canGetTrainedModels: true } } } },
+      });
+
+      fireEvent.click(screen.getByTestId('indexDetailsTab-mappings'));
+      await screen.findByTestId('fieldsList');
+
+      expect(
+        screen.queryByTestId('indexDetailsMappingsSemanticTextBanner')
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Mappings tab', () => {
+    let user: ReturnType<typeof userEvent.setup>;
+
+    beforeEach(() => {
+      user = userEvent.setup();
+    });
+
+    const getFieldsList = () => screen.getByTestId('fieldsList');
+
+    const getFieldsListItems = () =>
+      within(getFieldsList()).getAllByTestId((content) => content.startsWith('fieldsListItem '));
+
+    const getFieldListItemByName = (name: string) => {
+      const listItems = getFieldsListItems();
+      const item = listItems.find((it) => {
+        const fieldNameEls = within(it).queryAllByTestId(/fieldName/);
+        return fieldNameEls.some((el) => {
+          if ((el.textContent || '').trim() !== name) return false;
+
+          let node: HTMLElement | null = el as HTMLElement;
+          while (node && node !== it) {
+            const subj = node.getAttribute('data-test-subj');
+            if (typeof subj === 'string' && subj.startsWith('fieldsListItem ')) return false;
+            node = node.parentElement;
+          }
+
+          return true;
+        });
+      });
+      if (!item) throw new Error(`Expected field list item to exist: "${name}"`);
+      return item;
+    };
+
+    const expectFieldToExist = async (name: string) => {
+      await waitFor(() => expect(() => getFieldListItemByName(name)).not.toThrow());
+    };
+
+    const expectFieldToNotExist = async (name: string) => {
+      await waitFor(() => expect(() => getFieldListItemByName(name)).toThrow());
+    };
+
+    const clickMappingsTab = async () => {
+      await user.click(screen.getByTestId('indexDetailsTab-mappings'));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId('fieldsList') ||
+            screen.queryByTestId('indexDetailsMappingsEmptyPrompt') ||
+            screen.queryByTestId('indexDetailsMappingsError')
+        ).toBeTruthy();
+      });
+    };
+
+    const clickToggleView = async (label: 'List' | 'JSON') => {
+      const group = screen.getByTestId('indexDetailsMappingsToggleViewButton');
+      const labelEl = within(group).getByText(label);
+      const button = labelEl.closest('button') ?? labelEl;
+      await user.click(button);
+    };
+
+    const openFilterPopover = async () => {
+      await user.click(screen.getByTestId('indexDetailsMappingsFilterByFieldTypeButton'));
+      await screen.findByTestId('indexDetailsMappingsFilterByFieldTypeSearch');
+      // Ensure list is rendered
+      await waitFor(() => expect(screen.queryAllByTestId('filterItem').length).toBeGreaterThan(0));
+    };
+
+    const selectFilterFieldType = async (dataType: string) => {
+      await user.click(screen.getByTestId(`indexDetailsMappingsSelectFilter-${dataType}`));
+    };
+
+    const clearFilterFieldType = async () => {
+      const clear = screen.getByTestId('clearFilters');
+      await user.click(clear);
+    };
+
+    const setSearchBarValue = async (value: string) => {
+      const input = screen.getByTestId('indexDetailsMappingsFieldSearch');
+      await user.clear(input);
+      await user.type(input, value);
+    };
+
+    it('updates the breadcrumbs to index details mappings', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      await waitFor(() => {
+        expect(breadcrumbService.setBreadcrumbs).toHaveBeenLastCalledWith(
+          IndexManagementBreadcrumb.indexDetails,
+          { text: 'Mappings' }
+        );
+      });
+    });
+
+    it('loads mappings from the API', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      await waitFor(() => {
+        expect(httpSetup.get).toHaveBeenLastCalledWith(
+          `${API_BASE_PATH}/mapping/${testIndexName}`,
+          requestOptions
+        );
+      });
+    });
+
+    it('filter, searchbar, toggle button, add field button exists', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      expect(screen.getByTestId('indexDetailsMappingsAddField')).toBeInTheDocument();
+      expect(screen.getByTestId('indexDetailsMappingsToggleViewButton')).toBeInTheDocument();
+      expect(screen.getByTestId('indexDetailsMappingsFieldSearch')).toBeInTheDocument();
+      expect(screen.getByTestId('indexDetailsMappingsFilter')).toBeInTheDocument();
+      expect(screen.queryByTestId('indexDetailsMappingsEmptyPrompt')).not.toBeInTheDocument();
+    });
+
+    it('displays the mappings in the table view', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      await expectFieldToExist('@timestamp');
+    });
+
+    it('search bar is disabled in JSON view', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      await clickToggleView('JSON');
+      const input = screen.getByTestId('indexDetailsMappingsFieldSearch') as HTMLInputElement;
+      expect(input).toBeDisabled();
+    });
+
+    it('displays the mappings in the code block', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      await clickToggleView('JSON');
+      const codeBlock = await screen.findByTestId('indexDetailsMappingsCodeBlock');
+      expect(codeBlock.textContent).toEqual(JSON.stringify(testIndexMappings, null, 2));
+    });
+
+    it('search bar is enabled in Tree view', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      const input = screen.getByTestId('indexDetailsMappingsFieldSearch') as HTMLInputElement;
+      expect(input).not.toBeDisabled();
+    });
+
+    it('sets the docs link href from the documentation service', async () => {
+      await renderPage();
+      await clickMappingsTab();
+      const docsLink = await screen.findByTestId('indexDetailsMappingsDocsLink');
+      expect(docsLink.getAttribute('href')).toContain('mapping');
+    });
+
+    describe('No saved mapping fields', () => {
+      beforeEach(async () => {
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, {
+          mappings: {
+            properties: {},
+          },
+        });
+        await renderPage();
+        await clickMappingsTab();
+      });
+
+      it('displays empty mappings prompt', async () => {
+        expect(screen.getByTestId('indexDetailsMappingsAddField')).toBeInTheDocument();
+        expect(screen.getByTestId('indexDetailsMappingsEmptyPrompt')).toBeInTheDocument();
+      });
+
+      it('hides filter, search and toggle while adding fields', async () => {
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsAddField'));
+        await screen.findByTestId('indexDetailsMappingsPendingBlock');
+
+        expect(screen.queryByTestId('indexDetailsMappingsFieldSearch')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('indexDetailsMappingsToggleViewButton')
+        ).not.toBeInTheDocument();
+        expect(screen.queryByTestId('indexDetailsMappingsFilter')).not.toBeInTheDocument();
+        expect(screen.getByTestId('indexDetailsMappingsSaveMappings')).toBeInTheDocument();
+      });
+
+      it('does not display empty prompt after adding a field', async () => {
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsAddField'));
+        await screen.findByTestId('indexDetailsMappingsPendingBlock');
+
+        expect(screen.queryByTestId('indexDetailsMappingsEmptyPrompt')).not.toBeInTheDocument();
+
+        // Close add-field flow
+        fireEvent.click(await screen.findByTestId('cancelButton'));
+        await waitFor(() =>
+          expect(screen.queryByTestId('indexDetailsMappingsPendingBlock')).not.toBeInTheDocument()
+        );
+      });
+    });
+
+    describe('Filter field by filter Type', () => {
+      beforeEach(async () => {
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, {
+          mappings: {
+            ...testIndexMappings.mappings,
+            properties: {
+              ...testIndexMappings.mappings.properties,
+              name: { type: 'text' },
+            },
+          },
+        });
+
+        await renderPage();
+        await clickMappingsTab();
+      });
+
+      test('popover is visible and shows list of available field types', async () => {
+        await openFilterPopover();
+        expect(
+          screen.getByTestId('indexDetailsMappingsFilterByFieldTypeSearch')
+        ).toBeInTheDocument();
+        expect(screen.getByTestId('clearFilters')).toBeInTheDocument();
+      });
+
+      test('can select a field type and list view changes', async () => {
+        await openFilterPopover();
+        await selectFilterFieldType('text');
+
+        await expectFieldToExist('name');
+        await expectFieldToNotExist('@timestamp');
+      });
+
+      test('can clear selected field types', async () => {
+        await expectFieldToExist('@timestamp');
+        await expectFieldToExist('name');
+
+        await openFilterPopover();
+        expect(screen.getByTestId('clearFilters')).toBeDisabled();
+
+        await selectFilterFieldType('text');
+        expect(screen.getByTestId('clearFilters')).not.toBeDisabled();
+
+        await expectFieldToExist('name');
+        await expectFieldToNotExist('@timestamp');
+
+        await clearFilterFieldType();
+
+        await expectFieldToExist('@timestamp');
+        await expectFieldToExist('name');
+      });
+
+      test('can search field with filter', async () => {
+        await expectFieldToExist('@timestamp');
+        await expectFieldToExist('name');
+
+        await openFilterPopover();
+        await selectFilterFieldType('text');
+
+        await setSearchBarValue('na');
+
+        // Search view renders SearchResultItem(s), not FieldsListItem(s).
+        await waitFor(() => {
+          const resultItem = screen.getByTestId('fieldsListItem');
+          expect(within(resultItem).getByTestId('fieldName')).toHaveTextContent('name');
+        });
+        expect(screen.queryByText('@timestamp')).not.toBeInTheDocument();
+      });
+    });
+
+    describe('Add a new field', () => {
+      beforeEach(async () => {
+        await renderPage(undefined, {
+          core: { application: { capabilities: { ml: { canGetTrainedModels: true } } } },
+        });
+        await clickMappingsTab();
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsAddField'));
+        await screen.findByTestId('indexDetailsMappingsPendingBlock');
+        await screen.findByTestId('createFieldForm');
+      });
+
+      it('add field button opens pending block and save mappings is disabled by default', async () => {
+        expect(screen.getByTestId('indexDetailsMappingsPendingBlock')).toBeInTheDocument();
+        expect(screen.getByTestId('indexDetailsMappingsSaveMappings')).toBeDisabled();
+      });
+
+      it('can cancel adding new field', async () => {
+        expect(screen.getByTestId('indexDetailsMappingsPendingBlock')).toBeInTheDocument();
+        const cancelButton = await screen.findByTestId('cancelButton');
+        fireEvent.click(cancelButton);
+
+        await waitFor(() =>
+          expect(screen.queryByTestId('indexDetailsMappingsPendingBlock')).not.toBeInTheDocument()
+        );
+        expect(screen.getByTestId('indexDetailsMappingsAddField')).toBeInTheDocument();
+      });
+
+      it('can add new fields and can save mappings', async () => {
+        // After save, mappings reload should include the new field.
+        const mockIndexMappingResponse: any = {
+          ...testIndexMappings.mappings,
+          properties: {
+            ...testIndexMappings.mappings.properties,
+            name: {
+              type: 'text',
+            },
+          },
+        };
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, {
+          mappings: mockIndexMappingResponse,
+        });
+
+        // Fill name
+        const nameInput = screen.getByTestId('nameParameterInput');
+        fireEvent.change(nameInput, { target: { value: 'name' } });
+
+        // Select type
+        const typeComboBox = new EuiComboBoxTestHarness('fieldType');
+        typeComboBox.selectOption(getTypeLabel('text'));
+
+        fireEvent.click(screen.getByTestId('addButton'));
+
+        await waitFor(() =>
+          expect(screen.getByTestId('indexDetailsMappingsSaveMappings')).not.toBeDisabled()
+        );
+
+        const getMock = jest.mocked(httpSetup.get);
+        const requestsBefore = getMock.mock.calls.length;
+
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsSaveMappings'));
+
+        await waitFor(() => {
+          expect(httpSetup.put).toHaveBeenCalledWith(`${API_BASE_PATH}/mapping/${testIndexName}`, {
+            body: '{"name":{"type":"text"}}',
+          });
+        });
+
+        await waitFor(() => {
+          expect(getMock.mock.calls.length).toBeGreaterThan(requestsBefore);
+        });
+
+        await clickToggleView('JSON');
+        const codeBlock = await screen.findByTestId('indexDetailsMappingsCodeBlock');
+        expect(codeBlock.textContent).toEqual(
+          JSON.stringify({ mappings: mockIndexMappingResponse }, null, 2)
+        );
+      });
+
+      it('there is a callout with error message when save mappings fail', async () => {
+        const error = {
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Error saving mapping:',
+        };
+        httpRequestsMockHelpers.setUpdateIndexMappingsResponse(testIndexName, undefined, error);
+
+        const nameInput = screen.getByTestId('nameParameterInput');
+        fireEvent.change(nameInput, { target: { value: 'test_field' } });
+
+        const typeComboBox = new EuiComboBoxTestHarness('fieldType');
+        typeComboBox.selectOption(getTypeLabel('boolean'));
+
+        fireEvent.click(screen.getByTestId('addButton'));
+
+        await waitFor(() =>
+          expect(screen.getByTestId('indexDetailsMappingsSaveMappings')).not.toBeDisabled()
+        );
+
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsSaveMappings'));
+
+        await screen.findByTestId('indexDetailsSaveMappingsError');
+      });
+    });
+
+    describe('Add Semantic text field', () => {
+      const customInferenceModel = 'my-elser-model';
+      const mockLicense = {
+        isActive: true,
+        hasAtLeast: jest.fn(() => true),
+      };
+
+      beforeEach(async () => {
+        httpRequestsMockHelpers.setInferenceModels({
+          data: [
+            {
+              inference_id: customInferenceModel,
+              task_type: 'sparse_embedding',
+              service: 'elser',
+              service_settings: {
+                num_allocations: 1,
+                num_threads: 1,
+                model_id: '.elser_model_2',
+              },
+              task_settings: {},
+            },
+          ],
+        } as any);
+
+        await renderPage(undefined, {
+          docLinks: {
+            links: {
+              inferenceManagement: {
+                inferenceAPIDocumentation: 'https://abc.com/inference-api-create',
+              },
+            },
+          },
+          core: { application: { capabilities: { ml: { canGetTrainedModels: true } } } },
+          plugins: {
+            share: {
+              url: {
+                locators: {
+                  get: jest.fn(() => ({
+                    useUrl: jest.fn().mockReturnValue('https://redirect.me/to/inference_endpoints'),
+                  })),
+                },
+              },
+            },
+            licensing: {
+              license$: {
+                subscribe: jest.fn((callback) => {
+                  callback(mockLicense);
+                  return { unsubscribe: jest.fn() };
+                }),
+              },
+            },
+          },
+        });
+
+        await clickMappingsTab();
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsAddField'));
+        await screen.findByTestId('createFieldForm');
+      });
+
+      it('can select semantic_text field', async () => {
+        const nameInput = screen.getByTestId('nameParameterInput');
+        fireEvent.change(nameInput, { target: { value: 'semantic_text_name' } });
+
+        const typeComboBox = new EuiComboBoxTestHarness('fieldType');
+        typeComboBox.selectOption(getTypeLabel('semantic_text'));
+
+        await screen.findByTestId('referenceFieldSelect');
+
+        // The inference id selection is part of the semantic text flow.
+        await screen.findByTestId('selectInferenceId');
+        await screen.findByTestId('inferenceIdButton');
+
+        fireEvent.click(screen.getByTestId('inferenceIdButton'));
+        await screen.findByTestId(`custom-inference_${customInferenceModel}`);
+
+        // can cancel new field
+        const cancelButton = await screen.findByTestId('cancelButton');
+        fireEvent.click(cancelButton);
+      });
+    });
+
+    describe('error loading mappings', () => {
+      it('there is an error prompt', async () => {
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, undefined, {
+          statusCode: 400,
+          message: `Was not able to load mappings`,
+        });
+
+        await renderPage();
+        await clickMappingsTab();
+
+        await screen.findByTestId('indexDetailsMappingsError');
+      });
+
+      it('resends a request when reload button is clicked', async () => {
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, undefined, {
+          statusCode: 400,
+          message: `Was not able to load mappings`,
+        });
+
+        await renderPage();
+        await clickMappingsTab();
+
+        await screen.findByTestId('indexDetailsMappingsError');
+
+        const getMock = jest.mocked(httpSetup.get);
+        const requestsBefore = getMock.mock.calls.length;
+        fireEvent.click(screen.getByTestId('indexDetailsMappingsReloadButton'));
+
+        await waitFor(() => {
+          expect(getMock.mock.calls.length).toBeGreaterThan(requestsBefore);
+        });
+      });
+
+      it('handles errors from json.stringify function', async () => {
+        const circularReference: any = { mappings: { properties: {} } };
+        circularReference.myself = circularReference;
+
+        httpRequestsMockHelpers.setLoadIndexMappingResponse(testIndexName, circularReference);
+
+        await renderPage();
+        await clickMappingsTab();
+
+        await screen.findByTestId('indexDetailsMappingsError');
+      });
+    });
+  });
+
+  describe('navigates back to the indices list', () => {
+    it('without indices list params', async () => {
+      const { history } = await renderPage();
+      fireEvent.click(screen.getByTestId('indexDetailsBackToIndicesButton'));
+
+      await waitFor(() => {
+        expect(history.location.pathname).toBe('/indices');
+        expect(history.location.search).toBe('');
+      });
+    });
+
+    it('with indices list params', async () => {
+      const filter = 'isFollower:true';
+      const { history } = await renderPage(
+        `/indices/index_details?indexName=${testIndexName}&filter=${encodeURIComponent(
+          filter
+        )}&includeHiddenIndices=true`
+      );
+      fireEvent.click(screen.getByTestId('indexDetailsBackToIndicesButton'));
+
+      await waitFor(() => {
+        expect(history.location.pathname).toBe('/indices');
+        expect(history.location.search).toBe(
+          `?filter=${encodeURIComponent(filter)}&includeHiddenIndices=true`
+        );
+      });
+    });
+  });
 });

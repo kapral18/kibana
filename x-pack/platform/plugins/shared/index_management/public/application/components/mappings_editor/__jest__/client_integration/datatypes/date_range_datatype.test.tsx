@@ -11,19 +11,10 @@ import { I18nProvider } from '@kbn/i18n-react';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
 
 import { WithAppDependencies } from '../helpers/setup_environment';
-import { runPendingTimers } from '../../../../../../../__jest__/helpers/fake_timers';
 import { MappingsEditor } from '../../../mappings_editor';
 import { defaultDateRangeParameters } from './fixtures';
 
 const onChangeHandler = jest.fn();
-
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -88,8 +79,6 @@ describe('Mappings editor: date range datatype', () => {
     const updateButton = within(flyout).getByTestId('editFieldUpdateButton');
     fireEvent.click(updateButton);
 
-    await runPendingTimers();
-
     await waitFor(() => {
       expect(onChangeHandler).toHaveBeenCalled();
     });
@@ -100,8 +89,6 @@ describe('Mappings editor: date range datatype', () => {
       ...defaultDateRangeParameters,
       format: 'strict_date_optional_time||epoch_millis||customDateFormat',
     } as any;
-
-    await runPendingTimers();
 
     const [callData] = onChangeHandler.mock.calls[onChangeHandler.mock.calls.length - 1];
     const actualMappings = callData.getData();

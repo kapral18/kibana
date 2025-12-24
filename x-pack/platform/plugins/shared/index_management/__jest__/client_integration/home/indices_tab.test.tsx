@@ -16,7 +16,6 @@ import type { Index } from '../../../common';
 import { API_BASE_PATH, INTERNAL_API_BASE_PATH } from '../../../common';
 import { setupEnvironment } from '../helpers/setup_environment';
 import { renderHome } from '../helpers/render_home';
-import { runPendingTimers } from '../../helpers/fake_timers';
 import { httpService } from '../../../public/application/services/http';
 import {
   createIndexTableActions,
@@ -41,24 +40,12 @@ describe('<IndexManagementHome />', () => {
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
   jest.spyOn(breadcrumbService, 'setBreadcrumbs');
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
     const mockEnvironment = setupEnvironment();
     httpService.setup(httpServiceMock.createSetupContract());
     httpRequestsMockHelpers = mockEnvironment.httpRequestsMockHelpers;
     httpSetup = mockEnvironment.httpSetup;
-  });
-
-  afterEach(async () => {
-    await runPendingTimers();
   });
 
   describe('on component mount', () => {

@@ -19,7 +19,6 @@ import {
 } from '../helpers/actions/enrich_policies_actions';
 import { getESPolicyCreationApiCall } from '../../../common/lib';
 import { setupEnvironment } from '../helpers/setup_environment';
-import { runPendingTimers } from '../../helpers/fake_timers';
 
 jest.mock('@kbn/code-editor');
 
@@ -27,17 +26,8 @@ let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];
 let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 const actions = createCreateEnrichPolicyActions();
 
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
-
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.clearAllTimers();
   const env = setupEnvironment();
   httpSetup = env.httpSetup;
   httpRequestsMockHelpers = env.httpRequestsMockHelpers;
@@ -47,9 +37,7 @@ beforeEach(() => {
 
 describe('Create enrich policy', () => {
   test('Has header and docs link', async () => {
-    renderCreateEnrichPolicy(httpSetup);
-
-    await runPendingTimers();
+    await renderCreateEnrichPolicy(httpSetup);
 
     await screen.findByTestId('configurationForm');
 
@@ -59,9 +47,7 @@ describe('Create enrich policy', () => {
 
   describe('Configuration step', () => {
     it('Fields have helpers', async () => {
-      renderCreateEnrichPolicy(httpSetup);
-
-      await runPendingTimers();
+      await renderCreateEnrichPolicy(httpSetup);
 
       await screen.findByTestId('configurationForm');
 
@@ -71,9 +57,7 @@ describe('Create enrich policy', () => {
     });
 
     it('shows validation errors if form isnt filled', async () => {
-      renderCreateEnrichPolicy(httpSetup);
-
-      await runPendingTimers();
+      await renderCreateEnrichPolicy(httpSetup);
 
       await screen.findByTestId('configurationForm');
 
@@ -88,9 +72,7 @@ describe('Create enrich policy', () => {
     it('Allows to submit the form when fields are filled', async () => {
       httpRequestsMockHelpers.setGetFieldsFromIndices(getFieldsFromIndices());
 
-      renderCreateEnrichPolicy(httpSetup);
-
-      await runPendingTimers();
+      await renderCreateEnrichPolicy(httpSetup);
 
       await screen.findByTestId('configurationForm');
 
@@ -108,9 +90,7 @@ describe('Create enrich policy', () => {
     });
 
     it('shows validation errors if form isnt filled', async () => {
-      renderCreateEnrichPolicy(httpSetup);
-
-      await runPendingTimers();
+      await renderCreateEnrichPolicy(httpSetup);
 
       await screen.findByTestId('configurationForm');
 
@@ -129,9 +109,7 @@ describe('Create enrich policy', () => {
     });
 
     it('Allows to submit the form when fields are filled', async () => {
-      renderCreateEnrichPolicy(httpSetup);
-
-      await runPendingTimers();
+      await renderCreateEnrichPolicy(httpSetup);
 
       await screen.findByTestId('configurationForm');
 
@@ -154,7 +132,7 @@ describe('Create enrich policy', () => {
         indices: [],
       });
 
-      renderCreateEnrichPolicy(httpSetup);
+      await renderCreateEnrichPolicy(httpSetup);
       await screen.findByTestId('configurationForm');
 
       await actions.completeConfigurationStep({ indices: 'test-1, test-2' });
@@ -171,7 +149,7 @@ describe('Create enrich policy', () => {
     });
 
     it('Shows CTAs for creating the policy', async () => {
-      renderCreateEnrichPolicy(httpSetup);
+      await renderCreateEnrichPolicy(httpSetup);
       await screen.findByTestId('configurationForm');
 
       await actions.completeConfigurationStep({});
@@ -189,7 +167,7 @@ describe('Create enrich policy', () => {
     });
 
     it('Shows policy summary and request', async () => {
-      renderCreateEnrichPolicy(httpSetup);
+      await renderCreateEnrichPolicy(httpSetup);
       await screen.findByTestId('configurationForm');
 
       await actions.completeConfigurationStep({});
@@ -214,7 +192,7 @@ describe('Create enrich policy', () => {
     });
 
     it('Shows error message when creating the policy fails', async () => {
-      renderCreateEnrichPolicy(httpSetup);
+      await renderCreateEnrichPolicy(httpSetup);
       await screen.findByTestId('configurationForm');
 
       await actions.completeConfigurationStep({});
@@ -249,7 +227,7 @@ describe('Create enrich policy', () => {
     });
 
     it('Can navigate back and forth with next/back buttons', async () => {
-      renderCreateEnrichPolicy(httpSetup);
+      await renderCreateEnrichPolicy(httpSetup);
       await screen.findByTestId('configurationForm');
 
       // Navigate to create step

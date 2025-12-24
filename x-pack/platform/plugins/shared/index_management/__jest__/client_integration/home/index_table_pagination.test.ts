@@ -20,17 +20,12 @@ describe('Index table pagination', () => {
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
   beforeEach(() => {
-    jest.useFakeTimers();
     jest.clearAllMocks();
 
     const mockEnvironment = setupEnvironment();
     httpService.setup(httpServiceMock.createSetupContract());
     httpRequestsMockHelpers = mockEnvironment.httpRequestsMockHelpers;
     httpSetup = mockEnvironment.httpSetup;
-  });
-
-  afterEach(async () => {
-    jest.useRealTimers();
   });
 
   const createIndices = (count: number) => {
@@ -47,7 +42,8 @@ describe('Index table pagination', () => {
       initialEntries: ['/indices?includeHiddenIndices=true&pageSize=10&pageIndex=1'],
     });
 
-    await screen.findByTestId('indexTable');
+    // Wait for the async indices load to settle (real timers).
+    await screen.findByText('index-010');
 
     expect(screen.getByText('index-010')).toBeInTheDocument();
     expect(screen.queryByText('index-000')).not.toBeInTheDocument();
@@ -60,8 +56,8 @@ describe('Index table pagination', () => {
       initialEntries: ['/indices?includeHiddenIndices=true&pageSize=10'],
     });
 
-    await screen.findByTestId('indexTable');
-    expect(screen.getByText('index-000')).toBeInTheDocument();
+    // Wait for the async indices load to settle (real timers).
+    await screen.findByText('index-000');
     expect(screen.queryByText('index-010')).not.toBeInTheDocument();
 
     const pagination = new EuiPaginationTestHarness();
@@ -80,7 +76,8 @@ describe('Index table pagination', () => {
       initialEntries: ['/indices?includeHiddenIndices=true&pageSize=50'],
     });
 
-    await screen.findByTestId('indexTable');
+    // Wait for the async indices load to settle (real timers).
+    await screen.findByText('index-000');
 
     expect(screen.getAllByTestId('indexTableIndexNameLink')).toHaveLength(25);
   });

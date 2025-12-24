@@ -7,9 +7,8 @@
 
 import React from 'react';
 import type { ComponentProps } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-import { runPendingTimers } from '../../helpers/fake_timers';
 import { CreateField } from '../../../public/application/components/mappings_editor/components/document_fields/fields/create_field/create_field';
 import type { NormalizedFields } from '../../../public/application/components/mappings_editor/types';
 
@@ -196,14 +195,6 @@ const defaultProps: ComponentProps<typeof CreateField> = {
   isAddingFields: false,
 };
 
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
-
 beforeEach(() => {
   jest.clearAllMocks();
   jest.restoreAllMocks();
@@ -221,7 +212,6 @@ describe('<CreateField />', () => {
         fireEvent.mouseDown(document.body);
         fireEvent.mouseUp(document.body);
         fireEvent.click(document.body);
-        await runPendingTimers();
 
         expect(mockDispatch).toHaveBeenCalledWith({
           type: 'documentField.changeStatus',
@@ -270,19 +260,19 @@ describe('<CreateField />', () => {
 
       const addButton = screen.getByTestId('addButton');
       fireEvent.click(addButton);
-      await runPendingTimers();
 
       expect(mockForm!.submit).toHaveBeenCalledTimes(1);
 
-      expect(mockDispatch).toHaveBeenCalledWith({
-        type: 'field.add',
-        value: expect.objectContaining({ name: 'semantic_field', type: 'keyword' }),
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalledWith({
+          type: 'field.add',
+          value: expect.objectContaining({ name: 'semantic_field', type: 'keyword' }),
+        });
+
+        expect(mockForm!.reset).toHaveBeenCalledTimes(1);
+        expect(mockFormState.name).toBe('');
+        expect(focusSpy).toHaveBeenCalled();
       });
-
-      expect(mockForm!.reset).toHaveBeenCalledTimes(1);
-      expect(mockFormState.name).toBe('');
-
-      expect(focusSpy).toHaveBeenCalled();
     });
   });
 });

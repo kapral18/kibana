@@ -24,7 +24,6 @@ import { API_BASE_PATH, MAX_DATA_RETENTION } from '../../../common/constants';
 import * as fixtures from '../../../test/fixtures';
 import { setupEnvironment } from '../helpers/setup_environment';
 import { renderHome } from '../helpers/render_home';
-import { runPendingTimers } from '../../helpers/fake_timers';
 
 import {
   createDataStreamTabActions,
@@ -63,21 +62,13 @@ describe('Data Streams tab', () => {
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
   beforeEach(() => {
-    jest.useFakeTimers();
-    jest.clearAllTimers();
+    jest.restoreAllMocks();
+    jest.clearAllMocks();
     const env = setupEnvironment();
     httpSetup = env.httpSetup;
     httpRequestsMockHelpers = env.httpRequestsMockHelpers;
     httpService.setup(httpServiceMock.createSetupContract());
-    // Set up spy in beforeEach so it's recreated after resetModules
     jest.spyOn(breadcrumbService, 'setBreadcrumbs');
-    // Don't clear all mocks - it would clear the HTTP mock implementations
-    // Individual tests will set up their own mocks as needed
-  });
-
-  afterEach(async () => {
-    await runPendingTimers();
-    jest.useRealTimers();
   });
 
   describe('when there are no data streams', () => {
@@ -498,7 +489,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 
@@ -522,7 +512,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 
@@ -544,7 +533,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 
@@ -560,7 +548,6 @@ describe('Data Streams tab', () => {
         });
 
         await actions.clickConfirmDelete();
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.post).toHaveBeenLastCalledWith(
@@ -602,7 +589,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 
@@ -622,7 +608,6 @@ describe('Data Streams tab', () => {
         });
 
         await actions.clickConfirmDelete();
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.post).toHaveBeenLastCalledWith(
@@ -669,7 +654,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 
@@ -732,7 +716,6 @@ describe('Data Streams tab', () => {
         formActions.clickSaveButton();
 
         // Flush timers after form submission before checking HTTP call
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -779,7 +762,6 @@ describe('Data Streams tab', () => {
         formActions.clickSaveButton();
 
         // Flush timers after form submission before checking HTTP call
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -823,7 +805,6 @@ describe('Data Streams tab', () => {
         formActions.clickSaveButton();
 
         // Flush timers after form submission before checking HTTP call
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -893,7 +874,6 @@ describe('Data Streams tab', () => {
         });
 
         await actions.clickConfirmDelete();
-        await runPendingTimers();
 
         await waitFor(() => {
           expect(httpSetup.post).toHaveBeenLastCalledWith(
@@ -931,7 +911,6 @@ describe('Data Streams tab', () => {
           // Use waitForElementToBeRemoved for more reliable waiting
           const loadingElement = screen.queryByTestId('sectionLoading');
           if (loadingElement) {
-            await runPendingTimers();
             await waitForElementToBeRemoved(loadingElement);
           }
 
@@ -997,7 +976,6 @@ describe('Data Streams tab', () => {
           formActions.clickSaveButton();
 
           // Flush timers after form submission before checking HTTP call
-          await runPendingTimers();
 
           await waitFor(() => {
             expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -1041,7 +1019,6 @@ describe('Data Streams tab', () => {
           formActions.clickSaveButton();
 
           // Flush timers after form submission before checking HTTP call
-          await runPendingTimers();
 
           await waitFor(() => {
             expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -1085,7 +1062,6 @@ describe('Data Streams tab', () => {
           formActions.clickSaveButton();
 
           // Flush timers after form submission before checking HTTP call
-          await runPendingTimers();
 
           await waitFor(() => {
             expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -1172,7 +1148,6 @@ describe('Data Streams tab', () => {
         // Use waitForElementToBeRemoved for more reliable waiting
         const loadingElement = screen.queryByTestId('sectionLoading');
         if (loadingElement) {
-          await runPendingTimers();
           await waitForElementToBeRemoved(loadingElement);
         }
 

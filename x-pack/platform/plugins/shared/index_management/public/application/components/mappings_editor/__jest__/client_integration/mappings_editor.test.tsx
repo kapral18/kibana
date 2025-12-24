@@ -207,14 +207,6 @@ describe('Mappings editor: core', () => {
     });
   };
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
     onChangeHandler = jest.fn();

@@ -17,14 +17,6 @@ import { defaultDateRangeParameters } from './datatypes/fixtures';
 
 const onChangeHandler = jest.fn();
 
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
-
 beforeEach(() => {
   jest.clearAllMocks();
 });

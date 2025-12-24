@@ -9,7 +9,6 @@ import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { EuiListTestHarness } from '@kbn/test-eui-helpers';
 
 import { API_BASE_PATH, LOOKUP_INDEX_MODE } from '../../../common/constants';
-import { runPendingTimers } from '../../helpers/fake_timers';
 import {
   TEXT_MAPPING_FIELD,
   BOOLEAN_MAPPING_FIELD,
@@ -86,17 +85,9 @@ describe('<TemplateCreate />', () => {
   let completeStepFour: ReturnType<typeof createTemplateCreateActions>['completeStepFour'];
   let completeStepFive: ReturnType<typeof createTemplateCreateActions>['completeStepFive'];
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
-    jest.clearAllTimers();
     const env = setupEnvironment();
     httpSetup = env.httpSetup;
     httpRequestsMockHelpers = env.httpRequestsMockHelpers;
@@ -107,11 +98,6 @@ describe('<TemplateCreate />', () => {
     httpRequestsMockHelpers.setLoadComponentTemplatesResponse(componentTemplates);
     httpRequestsMockHelpers.setLoadNodesPluginsResponse([]);
   });
-
-  afterEach(async () => {
-    // Prevent pending timers from leaking across tests (we run with fake timers globally).
-    await runPendingTimers();
-  }, 10000);
 
   describe('composable index template', () => {
     beforeEach(async () => {
@@ -368,7 +354,7 @@ describe('<TemplateCreate />', () => {
         const getFieldsListItems = () =>
           screen.getAllByTestId((content) => content.startsWith('fieldsListItem '));
 
-        expect(getFieldsListItems()).toHaveLength(2);
+        await waitFor(() => expect(getFieldsListItems()).toHaveLength(2));
 
         const field1Item = getFieldsListItems().find(
           (item) => within(item).queryByText('field_1') !== null

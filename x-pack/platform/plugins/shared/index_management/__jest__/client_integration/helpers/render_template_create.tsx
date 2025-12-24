@@ -11,7 +11,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { Route } from '@kbn/shared-ux-router';
 import type { HttpSetup } from '@kbn/core/public';
 
-import { runPendingTimers } from '../../helpers/fake_timers';
 import { TemplateCreate } from '../../../public/application/sections/template_create';
 import { WithAppDependencies } from './setup_environment';
 
@@ -49,7 +48,6 @@ export const renderTemplateCreate = async (
   const result = render(React.createElement(WithAppDependencies(CreateWithRouter, httpSetup)));
 
   // Advance timers to flush initial HTTP requests and React state updates
-  await runPendingTimers();
 
   return result;
 };

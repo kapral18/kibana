@@ -34,7 +34,7 @@ interface RenderCreateEnrichPolicyOptions {
  * await screen.findByTestId('configurationForm');
  * ```
  */
-export const renderCreateEnrichPolicy = (
+export const renderCreateEnrichPolicy = async (
   httpSetup: HttpSetup,
   options?: RenderCreateEnrichPolicyOptions
 ) => {
@@ -56,9 +56,11 @@ export const renderCreateEnrichPolicy = (
     ...appServicesContext,
   };
 
-  return render(
+  const result = render(
     <Provider store={store}>
       {React.createElement(WithAppDependencies(CreateEnrichPolicyWithRouter, httpSetup, context))}
     </Provider>
   );
+
+  return result;
 };

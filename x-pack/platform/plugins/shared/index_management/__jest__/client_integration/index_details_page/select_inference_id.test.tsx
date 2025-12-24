@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { InferenceAPIConfigResponse } from '@kbn/ml-trained-models-utils';
 import {
   Form,
@@ -14,7 +15,6 @@ import {
 } from '../../../public/application/components/mappings_editor/shared_imports';
 import type { SelectInferenceIdProps } from '../../../public/application/components/mappings_editor/components/document_fields/field_parameters/select_inference_id';
 import { SelectInferenceId } from '../../../public/application/components/mappings_editor/components/document_fields/field_parameters/select_inference_id';
-import { runPendingTimers } from '../../helpers/fake_timers';
 
 const mockDispatch = jest.fn();
 const mockNavigateToUrl = jest.fn();
@@ -137,14 +137,9 @@ function TestFormWrapper({
   children: React.ReactElement;
   initialValue?: string;
 }) {
-  const { form } = useForm();
-
-  React.useEffect(() => {
-    if (initialValue) {
-      form.setFieldValue('inference_id', initialValue);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { form } = useForm({
+    defaultValue: initialValue ? { inference_id: initialValue } : undefined,
+  });
 
   return <Form form={form}>{children}</Form>;
 }
@@ -171,32 +166,26 @@ const defaultProps: SelectInferenceIdProps = {
   'data-test-subj': 'data-inference-endpoint-list',
 };
 
-const actClick = async (element: Element) => {
-  // EUI's popover positioning happens async (via MutationObserver/requestAnimationFrame).
-  // When a test ends, RTL unmounts the component but those async callbacks are
-  // already queued. They still fire after unmount, trying to setState on a
-  // now-dead component, which triggers React's "update not wrapped in
-  // act(...)" warning in the next test's setup. Running a test in isolation
-  // usually doesn't show it because timing works out differently. This helper
-  // clicks, then flushes pending timers so the popover's async work completes
-  // before the test ends.
-  fireEvent.click(element);
-  await runPendingTimers();
-};
+let user: ReturnType<typeof userEvent.setup>;
 
 let consoleErrorSpy: jest.SpyInstance;
 let originalConsoleError: typeof console.error;
 
-beforeAll(() => {
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.clearAllMocks();
+  user = userEvent.setup();
+
   /* eslint-disable no-console */
   originalConsoleError = console.error;
   consoleErrorSpy = jest
     .spyOn(console, 'error')
     .mockImplementation((message?: unknown, ...rest: unknown[]) => {
-      if (
+      const isTruncationWarning =
         typeof message === 'string' &&
-        message.includes('The truncation ellipsis is larger than the available width')
-      ) {
+        message.includes('The truncation ellipsis is larger than the available width');
+
+      if (isTruncationWarning) {
         return;
       }
       originalConsoleError(message, ...rest);
@@ -204,22 +193,8 @@ beforeAll(() => {
   /* eslint-enable no-console */
 });
 
-afterAll(() => {
-  consoleErrorSpy.mockRestore();
-});
-
-beforeEach(() => {
-  jest.useFakeTimers();
-  jest.clearAllMocks();
-  const { useLoadInferenceEndpoints } = jest.requireMock(
-    '../../../public/application/services/api'
-  );
-  useLoadInferenceEndpoints.mockReset();
-});
-
 afterEach(async () => {
-  await runPendingTimers();
-  jest.useRealTimers();
+  consoleErrorSpy.mockRestore();
 });
 
 describe('SelectInferenceId', () => {
@@ -276,7 +251,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
 
       expect(await screen.findByTestId('createInferenceEndpointButton')).toBeInTheDocument();
       expect(await screen.findByTestId('manageInferenceEndpointButton')).toBeInTheDocument();
@@ -292,11 +267,13 @@ describe('SelectInferenceId', () => {
 
         const toggle = await screen.findByTestId('inferenceIdButton');
 
-        await actClick(toggle);
+        await user.click(toggle);
         expect(await screen.findByTestId('createInferenceEndpointButton')).toBeInTheDocument();
 
-        await actClick(toggle);
-        expect(screen.queryByTestId('createInferenceEndpointButton')).not.toBeInTheDocument();
+        await user.click(toggle);
+        await waitFor(() => {
+          expect(screen.queryByTestId('createInferenceEndpointButton')).not.toBeInTheDocument();
+        });
       });
     });
 
@@ -308,11 +285,13 @@ describe('SelectInferenceId', () => {
           </TestFormWrapper>
         );
 
-        await actClick(await screen.findByTestId('inferenceIdButton'));
+        await user.click(await screen.findByTestId('inferenceIdButton'));
         expect(await screen.findByTestId('createInferenceEndpointButton')).toBeInTheDocument();
 
-        await actClick(await screen.findByTestId('createInferenceEndpointButton'));
-        expect(screen.queryByTestId('createInferenceEndpointButton')).not.toBeInTheDocument();
+        await user.click(await screen.findByTestId('createInferenceEndpointButton'));
+        await waitFor(() => {
+          expect(screen.queryByTestId('createInferenceEndpointButton')).not.toBeInTheDocument();
+        });
       });
     });
   });
@@ -329,7 +308,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
 
       const newEndpoint = await screen.findByTestId('custom-inference_newly-created-endpoint');
       expect(newEndpoint).toBeInTheDocument();
@@ -349,8 +328,8 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
-      await actClick(await screen.findByTestId('createInferenceEndpointButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('createInferenceEndpointButton'));
 
       expect(await screen.findByTestId('inference-flyout-wrapper')).toBeInTheDocument();
     });
@@ -363,11 +342,11 @@ describe('SelectInferenceId', () => {
           </TestFormWrapper>
         );
 
-        await actClick(await screen.findByTestId('inferenceIdButton'));
-        await actClick(await screen.findByTestId('createInferenceEndpointButton'));
+        await user.click(await screen.findByTestId('inferenceIdButton'));
+        await user.click(await screen.findByTestId('createInferenceEndpointButton'));
         expect(await screen.findByTestId('inference-flyout-wrapper')).toBeInTheDocument();
 
-        await actClick(await screen.findByTestId('mock-flyout-close'));
+        await user.click(await screen.findByTestId('mock-flyout-close'));
 
         expect(screen.queryByTestId('inference-flyout-wrapper')).not.toBeInTheDocument();
       });
@@ -381,12 +360,12 @@ describe('SelectInferenceId', () => {
           </TestFormWrapper>
         );
 
-        await actClick(await screen.findByTestId('inferenceIdButton'));
-        await actClick(await screen.findByTestId('createInferenceEndpointButton'));
+        await user.click(await screen.findByTestId('inferenceIdButton'));
+        await user.click(await screen.findByTestId('createInferenceEndpointButton'));
 
         expect(await screen.findByTestId('inference-flyout-wrapper')).toBeInTheDocument();
 
-        await actClick(await screen.findByTestId('mock-flyout-submit'));
+        await user.click(await screen.findByTestId('mock-flyout-submit'));
 
         expect(mockResendRequest).toHaveBeenCalledTimes(1);
       });
@@ -405,10 +384,10 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
 
       const endpoint1 = await screen.findByTestId('custom-inference_endpoint-1');
-      await actClick(endpoint1);
+      await user.click(endpoint1);
 
       const button = await screen.findByTestId('inferenceIdButton');
       expect(button).toHaveTextContent('endpoint-1');
@@ -427,7 +406,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
 
       const searchInput = await screen.findByRole('combobox', {
         name: /Existing endpoints/i,
@@ -449,7 +428,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
       await screen.findByTestId('createInferenceEndpointButton');
 
       const progressBars = screen.getAllByRole('progressbar');
@@ -466,8 +445,6 @@ describe('SelectInferenceId', () => {
           <SelectInferenceId {...defaultProps} />
         </TestFormWrapper>
       );
-
-      await runPendingTimers();
 
       const button = screen.getByTestId('inferenceIdButton');
       expect(button).toHaveTextContent('No inference endpoint selected');
@@ -504,7 +481,7 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
       await screen.findByTestId('createInferenceEndpointButton');
 
       expect(screen.queryByTestId('custom-inference_incompatible-1')).not.toBeInTheDocument();
@@ -524,7 +501,7 @@ describe('SelectInferenceId', () => {
 
       expect(screen.getByTestId('selectInferenceId')).toBeInTheDocument();
 
-      await actClick(await screen.findByTestId('inferenceIdButton'));
+      await user.click(await screen.findByTestId('inferenceIdButton'));
       expect(await screen.findByTestId('createInferenceEndpointButton')).toBeInTheDocument();
 
       expect(screen.queryByTestId('custom-inference_endpoint-1')).not.toBeInTheDocument();
@@ -542,10 +519,8 @@ describe('SelectInferenceId', () => {
         </TestFormWrapper>
       );
 
-      await runPendingTimers();
-
-      const button = screen.getByTestId('inferenceIdButton');
-      expect(button).toHaveTextContent('.preconfigured-elser');
+      const button = await screen.findByTestId('inferenceIdButton');
+      await waitFor(() => expect(button).toHaveTextContent('.preconfigured-elser'));
     });
 
     describe('AND .elser-2-elastic is available', () => {
@@ -562,10 +537,8 @@ describe('SelectInferenceId', () => {
           </TestFormWrapper>
         );
 
-        await runPendingTimers();
-
-        const button = screen.getByTestId('inferenceIdButton');
-        expect(button).toHaveTextContent('.elser-2-elastic');
+        const button = await screen.findByTestId('inferenceIdButton');
+        await waitFor(() => expect(button).toHaveTextContent('.elser-2-elastic'));
       });
     });
   });

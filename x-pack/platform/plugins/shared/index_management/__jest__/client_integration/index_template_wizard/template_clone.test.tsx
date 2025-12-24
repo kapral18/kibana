@@ -17,7 +17,6 @@ import { getComposableTemplate } from '../../../test/fixtures';
 import { TEMPLATE_NAME, INDEX_PATTERNS as DEFAULT_INDEX_PATTERNS } from './constants';
 import { TemplateClone } from '../../../public/application/sections/template_clone';
 import { setupEnvironment, WithAppDependencies } from '../helpers/setup_environment';
-import { runPendingTimers, runPendingTimersUntil } from '../../helpers/fake_timers';
 
 jest.mock('@kbn/code-editor');
 
@@ -78,10 +77,7 @@ const completeStep = {
       if (!isEnabled) {
         fireEvent.click(lifecycleSwitch);
       }
-
-      await runPendingTimersUntil(() => screen.queryByTestId('valueDataRetentionField') !== null);
-
-      const retentionInput = screen.getByTestId('valueDataRetentionField');
+      const retentionInput = await screen.findByTestId('valueDataRetentionField');
       fireEvent.change(retentionInput, { target: { value: String(lifecycle.value) } });
     }
 
@@ -122,7 +118,6 @@ const completeStep = {
     await screen.findByTestId('documentFields');
     await waitFor(() => expect(screen.getByTestId('nextButton')).toBeEnabled());
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepAliases');
   },
   async five(aliasesJson?: string) {
@@ -139,15 +134,8 @@ describe('<TemplateClone />', () => {
   let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
     const env = setupEnvironment();
     httpSetup = env.httpSetup;

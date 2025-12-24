@@ -14,14 +14,6 @@ import type { SearchResult as Result } from '../../../types';
 import { SearchResult } from './search_result';
 
 describe('SearchResult', () => {
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   const renderComponent = (props: React.ComponentProps<typeof SearchResult>) => {
     return render(
       <I18nProvider>

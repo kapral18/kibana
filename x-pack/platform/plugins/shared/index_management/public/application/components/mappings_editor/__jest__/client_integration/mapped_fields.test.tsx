@@ -8,19 +8,10 @@
 import React from 'react';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
-import { runPendingTimers } from '../../../../../../__jest__/helpers/fake_timers';
 import { MappingsEditor } from '../../mappings_editor';
 import { WithAppDependencies } from './helpers/setup_environment';
 
 const onChangeHandler = jest.fn();
-
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -110,6 +101,8 @@ describe('Mappings editor: mapped fields', () => {
       await screen.findByTestId('fieldsList');
 
       // Find top-level fields
+      // Intentionally separate waits: these nodes can render/settle independently (tree + virtualization),
+      // and keeping them separate makes failures much easier to diagnose.
       await waitFor(() => expect(() => getFieldListItemByName('myField')).not.toThrow());
       await waitFor(() => expect(() => getFieldListItemByName('myObject')).not.toThrow());
 
@@ -121,6 +114,7 @@ describe('Mappings editor: mapped fields', () => {
       fireEvent.click(myFieldExpandButton);
 
       // Verify multi-fields appear
+      // Intentionally separate waits: each multi-field is its own UI boundary; avoid bundling so we know which one failed.
       await waitFor(() => expect(() => getFieldListItemByName('raw')).not.toThrow());
       await waitFor(() => expect(() => getFieldListItemByName('simpleAnalyzer')).not.toThrow());
 
@@ -205,7 +199,6 @@ describe('Mappings editor: mapped fields', () => {
 
       // Get all field list items (now includes expanded children)
       // Wait a bit for expansion animation
-      await runPendingTimers();
 
       const allFieldItems = screen.getAllByTestId(/fieldsListItem/);
 

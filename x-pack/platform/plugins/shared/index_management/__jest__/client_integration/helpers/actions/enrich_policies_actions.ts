@@ -6,8 +6,8 @@
  */
 
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
-import { runPendingTimers } from '../../../helpers/fake_timers';
 
 /**
  * Actions for interacting with the enrich policies tab.
@@ -100,6 +100,8 @@ export const exists = (testId: string): boolean => {
  * Actions for interacting with the create enrich policy form.
  */
 export const createCreateEnrichPolicyActions = () => {
+  const user = userEvent.setup();
+
   const clickNextButton = async () => {
     fireEvent.click(screen.getByTestId('nextButton'));
   };
@@ -162,7 +164,11 @@ export const createCreateEnrichPolicyActions = () => {
       await indicesComboBox.selectOptionAsync(indexName);
     }
 
-    await runPendingTimers();
+    // Close any open listbox/popover to avoid EuiPopover async updates after this step.
+    await user.keyboard('{Escape}');
+    // Intentionally separate boundary: the listbox is a portal. We must wait for it to unmount
+    // so it can't intercept subsequent clicks/keystrokes or schedule late EuiPopover updates.
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 
     // Wait for form state to update - the form uses RxJS observables
     // The onChange handler is async, and field.setValue triggers RxJS subject updates
@@ -172,9 +178,10 @@ export const createCreateEnrichPolicyActions = () => {
       expect(selected).toContain(indexNames[0]);
     });
 
-    // Additional wait to ensure RxJS observable chain completes and form validates
-    // The form subscribes to field changes via observables, which might not be synchronous
-    await runPendingTimers();
+    // Ensure form validation has settled before navigating away.
+    // Separate boundary from listbox closure: form validity/enabled state can lag behind UI selection
+    // (hook-form-lib + observable updates). Waiting for the button state prevents flake.
+    await waitFor(() => expect(screen.getByTestId('nextButton')).toBeEnabled());
 
     await clickNextButton();
   };
@@ -183,16 +190,22 @@ export const createCreateEnrichPolicyActions = () => {
     // Match field using harness
     await screen.findByTestId('matchField');
     const matchFieldComboBox = new EuiComboBoxTestHarness('matchField');
-    matchFieldComboBox.selectOption('name');
-
-    await runPendingTimers();
+    // `matchField` uses EuiComboBox singleSelection { asPlainText: true }, so there are no pills.
+    // Use the sync selection API and rely on downstream UI boundaries (Next enabled) for validation.
+    matchFieldComboBox.selectOption('first_name');
+    await user.keyboard('{Escape}');
+    // Intentionally separate boundary: close the listbox portal first so it can't race with validation updates.
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 
     // Enrich fields using harness
     await screen.findByTestId('enrichFields');
     const enrichFieldsComboBox = new EuiComboBoxTestHarness('enrichFields');
-    enrichFieldsComboBox.selectOption('email');
-
-    await runPendingTimers();
+    enrichFieldsComboBox.selectOption('age');
+    await user.keyboard('{Escape}');
+    // 1) Close listbox (portal) to avoid late popover updates.
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
+    // 2) Then wait for validation to settle (Next enabled). This can update after the listbox is gone.
+    await waitFor(() => expect(screen.getByTestId('nextButton')).toBeEnabled());
 
     await clickNextButton();
   };

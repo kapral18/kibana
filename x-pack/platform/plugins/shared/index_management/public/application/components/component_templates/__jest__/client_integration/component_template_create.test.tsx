@@ -18,10 +18,7 @@ import { setupEnvironment } from './helpers';
 import { API_BASE_PATH } from './helpers/constants';
 import { WithAppDependencies } from './helpers/setup_environment';
 import { serializeAsESLifecycle } from '../../../../../../common/lib';
-import {
-  runPendingTimers,
-  runPendingTimersUntil,
-} from '../../../../../../__jest__/helpers/fake_timers';
+import { runPendingTimersUntil } from '../../../../../../__jest__/helpers/fake_timers';
 import { ComponentTemplateCreate } from '../../component_template_wizard';
 import { BASE_PATH } from '../../../../../../common';
 
@@ -116,7 +113,6 @@ const completeStep = {
       }
 
       // After adding all fields, wait a bit for form state to stabilize
-      await runPendingTimers();
     }
 
     await screen.findByTestId('documentFields');
@@ -140,12 +136,7 @@ describe('<ComponentTemplateCreate />', () => {
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
   beforeAll(() => {
-    jest.useFakeTimers();
     jest.spyOn(breadcrumbService, 'setBreadcrumbs');
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
   });
 
   beforeEach(() => {

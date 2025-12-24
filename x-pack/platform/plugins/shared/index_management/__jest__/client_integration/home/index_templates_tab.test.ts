@@ -17,7 +17,6 @@ import {
 import { API_BASE_PATH } from '../../../common/constants';
 import { renderHome } from '../helpers/render_home';
 import { setupEnvironment } from '../helpers/setup_environment';
-import { runPendingTimers } from '../../helpers/fake_timers';
 
 const removeWhiteSpaceOnArrayValues = (array: any[]) =>
   array.map((value) => {
@@ -181,19 +180,12 @@ describe('Index Templates tab', () => {
   jest.spyOn(breadcrumbService, 'setBreadcrumbs');
 
   beforeEach(() => {
-    jest.useFakeTimers();
     jest.clearAllMocks();
-    jest.clearAllTimers();
     const env = setupEnvironment();
     httpSetup = env.httpSetup;
     httpRequestsMockHelpers = env.httpRequestsMockHelpers;
     setDelayResponse = env.setDelayResponse;
     setDelayResponse(false);
-  });
-
-  afterEach(async () => {
-    await runPendingTimers();
-    jest.useRealTimers();
   });
 
   const waitForTemplateListToLoad = async () => {
@@ -769,12 +761,7 @@ describe('Index Templates tab', () => {
           expect(exists('aliasesTabContent')).toBe(false);
           expect(exists('mappingsTabContent')).toBe(true);
 
-          // SimulateTemplate's async effect resolves in a microtask by default; with fake timers this
-          // can produce act warnings. Delay the response to a timer and flush it inside `act`.
-          setDelayResponse(true);
           await actions.selectDetailsTab('preview');
-          await runPendingTimers();
-          setDelayResponse(false);
           expect(exists('summaryTab')).toBe(false);
           expect(exists('settingsTabContent')).toBe(false);
           expect(exists('aliasesTabContent')).toBe(false);

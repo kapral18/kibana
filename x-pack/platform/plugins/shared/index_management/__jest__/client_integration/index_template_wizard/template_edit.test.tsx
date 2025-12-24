@@ -13,7 +13,6 @@ import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
 
 import * as fixtures from '../../../test/fixtures';
 import { API_BASE_PATH } from '../../../common/constants';
-import { runPendingTimers, runPendingTimersUntil } from '../../helpers/fake_timers';
 
 import {
   TEMPLATE_NAME,
@@ -105,10 +104,7 @@ const completeStep = {
       if (!isEnabled) {
         fireEvent.click(lifecycleSwitch);
       }
-
-      await runPendingTimersUntil(() => screen.queryByTestId('valueDataRetentionField') !== null);
-
-      const retentionInput = screen.getByTestId('valueDataRetentionField');
+      const retentionInput = await screen.findByTestId('valueDataRetentionField');
       fireEvent.change(retentionInput, { target: { value: String(lifecycle.value) } });
     }
 
@@ -124,12 +120,10 @@ const completeStep = {
     }
 
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepComponents');
   },
   async two() {
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepSettings');
   },
   async three(settingsJson?: string) {
@@ -138,14 +132,12 @@ const completeStep = {
       fireEvent.change(editor, { target: { value: settingsJson } });
     }
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepMappings');
   },
   async four() {
     await screen.findByTestId('documentFields');
     await waitFor(() => expect(screen.getByTestId('nextButton')).toBeEnabled());
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepAliases');
   },
   async five(aliasesJson?: string) {
@@ -154,7 +146,6 @@ const completeStep = {
       fireEvent.change(editor, { target: { value: aliasesJson } });
     }
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('summaryTabContent');
   },
 };
@@ -163,15 +154,8 @@ describe('<TemplateEdit />', () => {
   let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
     const env = setupEnvironment();
     httpSetup = env.httpSetup;
@@ -191,8 +175,6 @@ describe('<TemplateEdit />', () => {
     });
 
     beforeEach(async () => {
-      jest.clearAllMocks();
-
       httpRequestsMockHelpers.setLoadTemplateResponse('my_template', templateToEdit);
       renderTemplateEdit(httpSetup);
 
@@ -215,7 +197,6 @@ describe('<TemplateEdit />', () => {
       fieldTypeComboBox.selectOption('text');
 
       fireEvent.click(screen.getByTestId('addButton'));
-      await runPendingTimers();
 
       await waitFor(() => {
         expect(screen.getAllByTestId(/fieldsListItem/)).toHaveLength(1);

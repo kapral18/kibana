@@ -11,7 +11,6 @@ import { MemoryRouter } from 'react-router-dom';
 import type { HttpSetup } from '@kbn/core/public';
 import { Provider } from 'react-redux';
 
-import { runPendingTimers } from '../../helpers/fake_timers';
 import { AppWithoutRouter } from '../../../public/application/app';
 import { indexManagementStore } from '../../../public/application/store';
 import { WithAppDependencies, createServices } from './setup_environment';
@@ -66,9 +65,6 @@ export const renderHome = async (httpSetup: HttpSetup, options?: RenderHomeOptio
       {React.createElement(WithAppDependencies(HomeWithRouter, httpSetup, context))}
     </Provider>
   );
-
-  // Advance timers to flush initial HTTP requests and React state updates
-  await runPendingTimers();
 
   return result;
 };

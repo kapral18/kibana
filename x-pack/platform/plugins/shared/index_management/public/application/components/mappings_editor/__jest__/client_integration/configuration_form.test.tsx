@@ -8,7 +8,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nProvider } from '@kbn/i18n-react';
-import { runPendingTimers } from '../../../../../../__jest__/helpers/fake_timers';
 import type { AppDependencies } from '../../../..';
 import { ConfigurationForm } from '../../components/configuration_form';
 import { WithAppDependencies } from './helpers/setup_environment';
@@ -45,16 +44,6 @@ const getContext = (sourceFieldEnabled: boolean = true, canUseSyntheticSource: b
   } as unknown as AppDependencies);
 
 describe('Mappings editor: configuration form', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    jest.clearAllTimers();
-  });
-
-  afterEach(async () => {
-    await runPendingTimers();
-    jest.useRealTimers();
-  });
-
   it('renders the form', () => {
     const ctx = {
       config: {

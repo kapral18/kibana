@@ -59,6 +59,8 @@ const defaultHookArgs = {
 
 describe('useConvertIndexToLookup', () => {
   beforeEach(() => {
+    // NOTE: This suite intentionally uses fake timers for performance.
+    // The hook polls on an interval (e.g. 3s). Using real timers would introduce real-time waits in CI.
     jest.useFakeTimers();
     jest.clearAllMocks();
   });
@@ -131,7 +133,7 @@ describe('useConvertIndexToLookup', () => {
 
       const { result } = renderHook(() => useConvertIndexToLookup(defaultHookArgs));
 
-      act(() => {
+      await act(async () => {
         result.current.convert('lookup-my-index');
       });
 
@@ -153,8 +155,6 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
-      await advanceTimersByTime(0);
-
       expect(result.current.errorMessage).toBe(error.message);
       expect(result.current.isConverting).toBe(false);
     });
@@ -175,11 +175,6 @@ describe('useConvertIndexToLookup', () => {
       expect(result.current.errorMessage).toBe(error.message);
       expect(result.current.isConverting).toBe(false);
 
-      // Verify no more polls happen
-      act(() => {
-        jest.advanceTimersByTime(6000);
-      });
-
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(1);
     });
 
@@ -195,7 +190,7 @@ describe('useConvertIndexToLookup', () => {
 
       const { result } = renderHook(() => useConvertIndexToLookup(defaultHookArgs));
 
-      act(() => {
+      await act(async () => {
         result.current.convert('lookup-my-index');
       });
 
@@ -252,12 +247,13 @@ describe('useConvertIndexToLookup', () => {
         result.current.convert('lookup-my-index');
       });
 
+      // Start polling
+      await advanceTimersByTime(0);
+
       unmount();
 
       // Fast-forward time and assert that polling did not continue
-      act(() => {
-        jest.advanceTimersByTime(6000);
-      });
+      await advanceTimersByTime(6000);
 
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(1);
     });
@@ -275,7 +271,7 @@ describe('useConvertIndexToLookup', () => {
         initialProps: defaultHookArgs,
       });
 
-      act(() => {
+      await act(async () => {
         result.current.convert('lookup-my-index');
       });
 
@@ -289,9 +285,7 @@ describe('useConvertIndexToLookup', () => {
       });
 
       // Advance time - should not poll old index
-      act(() => {
-        jest.advanceTimersByTime(6000);
-      });
+      await advanceTimersByTime(6000);
 
       expect(mockedGetReindexStatus).toHaveBeenCalledTimes(1);
       expect(mockedGetReindexStatus).toHaveBeenCalledWith(SOURCE_INDEX_NAME);
@@ -310,7 +304,7 @@ describe('useConvertIndexToLookup', () => {
 
       const { result } = renderHook(() => useConvertIndexToLookup(defaultHookArgs));
 
-      act(() => {
+      await act(async () => {
         result.current.convert('lookup-my-index');
       });
 

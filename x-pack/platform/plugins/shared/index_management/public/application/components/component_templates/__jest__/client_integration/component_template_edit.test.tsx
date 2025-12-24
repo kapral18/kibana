@@ -19,7 +19,6 @@ import { API_BASE_PATH } from './helpers/constants';
 import { WithAppDependencies } from './helpers/setup_environment';
 import { ComponentTemplateEdit } from '../../component_template_wizard';
 import { BASE_PATH } from '../../../../../../common';
-import { runPendingTimers } from '../../../../../../__jest__/helpers/fake_timers';
 
 // Services required for KibanaRenderContextProvider (provides i18n, theme, analytics)
 const startServicesMock = {
@@ -60,6 +59,15 @@ const getEnabledNextButton = () => {
   return enabled;
 };
 
+const getVersionSpinButton = () => {
+  const versionRows = screen.getAllByTestId('versionField');
+  const versionRow = versionRows.find((row) => within(row).queryByRole('spinbutton') !== null);
+  if (!versionRow) {
+    throw new Error('Expected a versionField row containing a spinbutton');
+  }
+  return within(versionRow).getByRole('spinbutton');
+};
+
 const completeStep = {
   async settings(settingsJson?: string) {
     if (settingsJson) {
@@ -92,16 +100,12 @@ const completeStep = {
           expect(screen.queryAllByText(name).length).toBeGreaterThan(fieldsBefore);
         });
       }
-
-      await runPendingTimers();
     }
 
     await screen.findByTestId('documentFields');
     const enabledNextButton = getEnabledNextButton();
     await waitFor(() => expect(enabledNextButton).toBeEnabled());
     fireEvent.click(enabledNextButton);
-
-    await runPendingTimers();
 
     await screen.findByTestId('stepAliases');
   },
@@ -113,7 +117,6 @@ const completeStep = {
     const enabledNextButton = getEnabledNextButton();
     await waitFor(() => expect(enabledNextButton).toBeEnabled());
     fireEvent.click(enabledNextButton);
-    await runPendingTimers();
     await screen.findByTestId('stepReview');
   },
 };
@@ -124,13 +127,10 @@ describe('<ComponentTemplateEdit />', () => {
   let coreStart: ReturnType<(typeof coreMock)['createStart']>;
 
   beforeAll(() => {
-    jest.useFakeTimers();
     jest.spyOn(breadcrumbService, 'setBreadcrumbs');
   });
 
-  afterAll(() => {
-    jest.useRealTimers();
-  });
+  afterAll(() => {});
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -205,15 +205,13 @@ describe('<ComponentTemplateEdit />', () => {
     });
 
     it('should send the correct payload with changed values', async () => {
-      const versionRow = screen.getByTestId('versionField');
-      const versionInput = within(versionRow).getByRole('spinbutton');
+      const versionInput = getVersionSpinButton();
       fireEvent.change(versionInput, { target: { value: '1' } });
 
       const enabledNextButton = getEnabledNextButton();
       await waitFor(() => expect(enabledNextButton).toBeEnabled());
       fireEvent.click(enabledNextButton);
 
-      await runPendingTimers();
       await screen.findByTestId('stepSettings');
 
       await completeStep.settings();
@@ -223,8 +221,6 @@ describe('<ComponentTemplateEdit />', () => {
       const submitButton = getEnabledNextButton();
       await waitFor(() => expect(submitButton).toBeEnabled());
       fireEvent.click(submitButton);
-
-      await runPendingTimers();
 
       await waitFor(() => {
         expect(httpSetup.put).toHaveBeenLastCalledWith(
@@ -274,8 +270,7 @@ describe('<ComponentTemplateEdit />', () => {
         { message: 'Bad request', statusCode: 400 }
       );
 
-      const versionRow = screen.getByTestId('versionField');
-      const versionInput = within(versionRow).getByRole('spinbutton');
+      const versionInput = getVersionSpinButton();
       fireEvent.change(versionInput, { target: { value: '1' } });
 
       const enabledNextButton = getEnabledNextButton();
@@ -314,8 +309,7 @@ describe('<ComponentTemplateEdit />', () => {
         success: true,
       });
 
-      const versionRow = screen.getByTestId('versionField');
-      const versionInput = within(versionRow).getByRole('spinbutton');
+      const versionInput = getVersionSpinButton();
       fireEvent.change(versionInput, { target: { value: '1' } });
 
       const enabledNextButton = getEnabledNextButton();
@@ -381,8 +375,7 @@ describe('<ComponentTemplateEdit />', () => {
         { message: 'Bad request', statusCode: 400 }
       );
 
-      const versionRow = screen.getByTestId('versionField');
-      const versionInput = within(versionRow).getByRole('spinbutton');
+      const versionInput = getVersionSpinButton();
       fireEvent.change(versionInput, { target: { value: '1' } });
 
       const enabledNextButton = getEnabledNextButton();

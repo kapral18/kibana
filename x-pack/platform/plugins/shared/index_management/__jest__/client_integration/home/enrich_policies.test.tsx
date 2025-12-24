@@ -24,15 +24,8 @@ describe('Enrich policies tab', () => {
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];
   let setDelayResponse: ReturnType<typeof setupEnvironment>['setDelayResponse'];
 
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
     const mockEnvironment = setupEnvironment();
     httpSetup = mockEnvironment.httpSetup;
@@ -106,15 +99,14 @@ describe('Enrich policies tab', () => {
       await screen.findByTestId('enrichPoliciesTable');
       const actions = createEnrichPoliciesActions();
 
-      // Reset mock to clear calls from setup
-      httpSetup.get.mockClear();
+      const requestsBefore = jest.mocked(httpSetup.get).mock.calls.length;
 
       actions.clickReloadPoliciesButton();
 
       // Should have made a call to load the policies after the reload
       // button is clicked.
       await waitFor(() => {
-        expect(httpSetup.get.mock.calls.length).toBeGreaterThan(0);
+        expect(jest.mocked(httpSetup.get).mock.calls.length).toBeGreaterThan(requestsBefore);
       });
     });
 

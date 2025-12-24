@@ -6,8 +6,8 @@
  */
 
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { DataStream } from '../../../../common';
-import { runPendingTimers } from '../../../helpers/fake_timers';
 
 /**
  * Helper to extract table cell values from a table element.
@@ -27,6 +27,10 @@ export const getTableCellsValues = (tableTestId: string): string[][] => {
  * Actions for interacting with the data streams tab.
  */
 export const createDataStreamTabActions = () => {
+  // Create one userEvent instance per actions instance (typically per test).
+  // Only used for interactions that can trigger EuiPopover act warnings.
+  const user = userEvent.setup();
+
   const goToDataStreamsList = () => {
     fireEvent.click(screen.getByTestId('data_streamsTab'));
   };
@@ -44,12 +48,11 @@ export const createDataStreamTabActions = () => {
 
   const toggleViewFilterAt = async (index: number) => {
     // Click the view button to open the filter popover
-    fireEvent.click(screen.getByTestId('viewButton'));
+    await user.click(screen.getByTestId('viewButton'));
+    await screen.findByTestId('filterList');
     // Click the filter item at the specified index
     const filterItems = await screen.findAllByTestId('filterItem');
-    fireEvent.click(filterItems[index]);
-    // Under fake timers, EUI popover positioning/animation can schedule timers that update after click.
-    await runPendingTimers();
+    await user.click(filterItems[index]);
   };
 
   const clickNameAt = async (index: number) => {

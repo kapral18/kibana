@@ -8,12 +8,6 @@
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
 
-import {
-  advanceTimersByTime,
-  runPendingTimers,
-  runPendingTimersUntil,
-} from '../../../helpers/fake_timers';
-
 interface CompleteStepOneOptions {
   indexPatterns?: string[];
   priority?: number;
@@ -35,8 +29,17 @@ export const createTemplateCreateActions = () => {
    * so the provider captures the latest content; running *all* timers is slower and can
    * unintentionally flush unrelated timers.
    */
-  const flushJsonEditorDebounce = async () => {
-    await advanceTimersByTime(300);
+  const flushJsonEditorDebounce = async (json: string) => {
+    // JsonEditor uses a 300ms lodash debounce before applying state updates.
+    // Our CodeEditor mock is a controlled <input /> that reflects the *prop* value via `data-currentvalue`.
+    // Waiting for that attribute to match ensures the debounced state update has been applied (and avoids act warnings).
+    const jsonEditorInput = screen.getByTestId('mockCodeEditor');
+    fireEvent.blur(jsonEditorInput);
+    await waitFor(() => {
+      const value = jsonEditorInput.getAttribute('data-currentvalue');
+      expect(value).toBeTruthy();
+      expect(JSON.parse(String(value))).toEqual(JSON.parse(json));
+    });
   };
 
   /**
@@ -59,12 +62,11 @@ export const createTemplateCreateActions = () => {
       const isChecked = toggle.getAttribute('aria-checked') === 'true';
       if (!isChecked) {
         fireEvent.click(toggle);
-        await runPendingTimersUntil(() => screen.queryByTestId('indexModeField') !== null);
+        await screen.findByTestId('indexModeField');
       }
       const indexModeSelect = screen.getByTestId('indexModeField');
       // Try clicking first to see if dropdown opens (for real SuperSelect)
       fireEvent.click(indexModeSelect);
-      await runPendingTimers();
 
       // Map indexMode values to their test-subj values
       const indexModeTestSubjMap: Record<string, string> = {
@@ -89,7 +91,6 @@ export const createTemplateCreateActions = () => {
         fireEvent.blur(indexModeSelect);
       }
       // Wait for form state to update after selection
-      await runPendingTimers(2);
     }
 
     if (indexPatterns) {
@@ -104,7 +105,6 @@ export const createTemplateCreateActions = () => {
         indexPatternsComboBox.selectOption(pattern);
       }
       // Wait for indexPatterns to be set before proceeding
-      await runPendingTimers();
     }
 
     if (priority !== undefined) {
@@ -128,7 +128,7 @@ export const createTemplateCreateActions = () => {
       }
 
       if (lifecycle.enabled) {
-        await runPendingTimersUntil(() => screen.queryByTestId('valueDataRetentionField') !== null);
+        await screen.findByTestId('valueDataRetentionField');
       }
 
       if (lifecycle.enabled) {
@@ -152,7 +152,6 @@ export const createTemplateCreateActions = () => {
     await waitFor(() => expect(screen.getByTestId('nextButton')).toBeEnabled());
 
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepComponents');
 
     // Wait for component templates to finish loading
@@ -183,7 +182,6 @@ export const createTemplateCreateActions = () => {
     }
 
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     await screen.findByTestId('stepSettings');
   };
 
@@ -196,7 +194,6 @@ export const createTemplateCreateActions = () => {
       fireEvent.change(editor, { target: { value: settingsJson } });
     }
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     if (shouldNavigate) {
       await screen.findByTestId('stepMappings');
     }
@@ -227,16 +224,13 @@ export const createTemplateCreateActions = () => {
 
       // JsonEditor uses CodeEditor under the hood; in tests we mock it as an <input />
       const jsonEditorInput = screen.getByTestId('mockCodeEditor');
-      fireEvent.change(jsonEditorInput, {
-        target: { value: JSON.stringify(mappingsJson, null, 2) },
-      });
+      const json = JSON.stringify(mappingsJson, null, 2);
+      fireEvent.change(jsonEditorInput, { target: { value: json } });
 
       // JsonEditor debounces updates by ~300ms; flush that window so the provider captures jsonContent.current.
-      await flushJsonEditorDebounce();
+      await flushJsonEditorDebounce(json);
 
       fireEvent.click(confirmButton);
-
-      await runPendingTimers();
     }
 
     await screen.findByTestId('documentFields');
@@ -250,9 +244,6 @@ export const createTemplateCreateActions = () => {
 
     fireEvent.click(screen.getByTestId('nextButton'));
 
-    // Fix for act warning from template_clone
-    await runPendingTimersUntil(() => screen.queryByTestId('stepAliases') !== null);
-
     await screen.findByTestId('stepAliases');
   };
 
@@ -265,7 +256,6 @@ export const createTemplateCreateActions = () => {
       fireEvent.change(editor, { target: { value: aliasesJson } });
     }
     fireEvent.click(screen.getByTestId('nextButton'));
-    await runPendingTimers();
     if (shouldNavigate) {
       await screen.findByTestId('summaryTabContent');
     }

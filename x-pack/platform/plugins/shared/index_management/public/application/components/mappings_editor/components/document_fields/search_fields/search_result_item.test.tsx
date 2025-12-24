@@ -14,14 +14,6 @@ import { SearchResultItem } from './search_result_item';
 import type { SearchResult } from '../../../types';
 
 describe('SearchResultItem', () => {
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
-
   const item = {
     field: {
       id: 'testField',

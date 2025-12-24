@@ -233,7 +233,6 @@ const renderIndexApp = async (options?: {
     </I18nProvider>
   );
 
-  // Flush initial async work under fake timers.
   await runPendingTimers();
 
   await screen.findByTestId('indexTable');
@@ -245,6 +244,9 @@ const indices = createIndices();
 
 describe('index table', () => {
   beforeEach(() => {
+    // NOTE: This suite intentionally uses fake timers for performance.
+    // Some tests use delayed HTTP responses to assert intermediate UI states (e.g. "flushing..."),
+    // which would otherwise require waiting real-time seconds in CI.
     jest.useFakeTimers();
     jest.clearAllTimers();
     jest.clearAllMocks();
@@ -286,7 +288,6 @@ describe('index table', () => {
     // Select 50
     const option50 = await screen.findByText('50 rows');
     fireEvent.click(option50);
-    await runPendingTimers();
 
     await waitFor(() => {
       expect(screen.getAllByTestId('indexTableIndexNameLink')).toHaveLength(50);
@@ -353,7 +354,6 @@ describe('index table', () => {
 
     const searchInput = screen.getByTestId('indicesSearch');
     fireEvent.change(searchInput, { target: { value: 'testy0' } });
-    await runPendingTimers();
 
     await waitFor(() => {
       expect(getNamesText()).toEqual(['testy0']);
@@ -368,14 +368,12 @@ describe('index table', () => {
     const sortButton = within(headerCell).getByRole('button');
 
     fireEvent.click(sortButton);
-    await runPendingTimers();
 
     expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
       '.admin0'
     );
 
     fireEvent.click(sortButton);
-    await runPendingTimers();
 
     // Descending lexical sort means `testy9` will come before `testy29` (`"9"` > `"2"`).
     expect(within(indexTable.firstRow).getByTestId('indexTableIndexNameLink')).toHaveTextContent(
@@ -425,7 +423,6 @@ describe('index table', () => {
 
     const searchInput = screen.getByTestId('indicesSearch');
     fireEvent.change(searchInput, { target: { value: indexName } });
-    await runPendingTimers();
 
     const rowIndex = getRowIndexByName(indexName);
     expect(rowIndex).toBeGreaterThanOrEqual(0);
@@ -453,11 +450,9 @@ describe('index table', () => {
 
     // Enable "Show hidden indices" so we can select `.admin1`
     fireEvent.click(screen.getByTestId('checkboxToggles-includeHiddenIndices'));
-    await runPendingTimers();
 
     const searchInput = screen.getByTestId('indicesSearch');
     fireEvent.change(searchInput, { target: { value: indexName } });
-    await runPendingTimers();
 
     const rowIndex = getRowIndexByName(indexName);
     expect(rowIndex).toBeGreaterThanOrEqual(0);

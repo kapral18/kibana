@@ -7,7 +7,6 @@
 
 import { screen, fireEvent, within } from '@testing-library/react';
 import { EuiSuperSelectTestHarness } from '@kbn/test-eui-helpers';
-import { runPendingTimers } from '../../../helpers/fake_timers';
 
 /**
  * Actions for interacting with the index table.
@@ -109,8 +108,6 @@ export const createCreateIndexActions = () => {
     const saveButton = screen.getByTestId('createIndexSaveButton') as HTMLButtonElement;
     saveButton.type = 'button';
     fireEvent.click(saveButton);
-    // Flush timer-driven updates triggered by the save flow (fake timers).
-    await runPendingTimers();
   };
 
   const setIndexName = (name: string) => {

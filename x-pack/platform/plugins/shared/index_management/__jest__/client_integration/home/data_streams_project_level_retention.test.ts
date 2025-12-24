@@ -37,14 +37,6 @@ const urlServiceMock = {
 };
 jest.mock('react-use/lib/useObservable', () => () => jest.fn());
 
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
-
 describe('Data Streams - Project level max retention', () => {
   let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];
   let httpRequestsMockHelpers: ReturnType<typeof setupEnvironment>['httpRequestsMockHelpers'];

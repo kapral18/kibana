@@ -11,18 +11,9 @@ import { I18nProvider } from '@kbn/i18n-react';
 import { EuiSuperSelectTestHarness } from '@kbn/test-eui-helpers';
 
 import { WithAppDependencies, kibanaVersion } from '../helpers/setup_environment';
-import { runPendingTimers } from '../../../../../../../__jest__/helpers/fake_timers';
 import { MappingsEditor } from '../../../mappings_editor';
 import { getFieldConfig } from '../../../lib';
 import { defaultTextParameters } from './fixtures';
-
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -53,7 +44,6 @@ const updateFieldName = (flyout: HTMLElement, name: string) => {
 const submitForm = async (flyout: HTMLElement) => {
   const updateButton = within(flyout).getByTestId('editFieldUpdateButton');
   fireEvent.click(updateButton);
-  await runPendingTimers();
   await waitFor(() => {
     expect(onChangeHandler).toHaveBeenCalled();
   });
@@ -79,8 +69,9 @@ const selectOpenListboxOptionById = async (optionId: string) => {
   if (!option) throw new Error(`Option with id="${optionId}" not found in listbox`);
 
   fireEvent.click(option);
-  await runPendingTimers();
 
+  // Intentional UI boundary: EUI SuperSelect renders options in a portal listbox.
+  // Wait for the listbox to close before any subsequent interaction to avoid race conditions.
   await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 };
 
@@ -105,8 +96,7 @@ const selectSuperSelectOption = async (testSubj: string, optionId: string) => {
     fireEvent.click(option);
   }
 
-  await runPendingTimers();
-
+  // Intentional UI boundary: wait for the portal listbox to unmount so it can't intercept clicks/keystrokes.
   await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 };
 
@@ -309,7 +299,6 @@ describe('Mappings editor: text datatype', () => {
       let flyout = await openFieldEditor();
       await toggleAdvancedSettings(flyout);
       updateFieldName(flyout, 'updatedField');
-      await runPendingTimers();
 
       await selectAnalyzer('indexAnalyzer', 'standard');
       await submitForm(flyout);
@@ -351,10 +340,8 @@ describe('Mappings editor: text datatype', () => {
       let flyout = await openFieldEditor();
       await toggleAdvancedSettings(flyout);
       updateFieldName(flyout, 'updatedField');
-      await runPendingTimers();
 
       toggleUseSameSearchAnalyzer(flyout);
-      await runPendingTimers();
       expect(within(flyout).queryByTestId('searchAnalyzer')).toBeInTheDocument();
 
       await selectAnalyzer('searchAnalyzer', 'simple');
@@ -376,7 +363,6 @@ describe('Mappings editor: text datatype', () => {
       // Re-open and verify value persisted
       flyout = await openFieldEditor();
       await toggleAdvancedSettings(flyout);
-      await runPendingTimers();
       // searchAnalyzer should be visible since we saved with search_analyzer set
       await waitFor(() => {
         expect(within(flyout).queryByTestId('searchAnalyzer')).toBeInTheDocument();
@@ -402,7 +388,6 @@ describe('Mappings editor: text datatype', () => {
       let flyout = await openFieldEditor();
       await toggleAdvancedSettings(flyout);
       updateFieldName(flyout, 'updatedField');
-      await runPendingTimers();
 
       // Change searchQuoteAnalyzer from language (french) to built-in (whitespace)
       const buttons = within(flyout).queryAllByRole('button');
@@ -412,7 +397,6 @@ describe('Mappings editor: text datatype', () => {
       expect(searchQuoteLanguageButton).toBeTruthy();
       fireEvent.click(searchQuoteLanguageButton!);
 
-      await runPendingTimers();
       expect(screen.queryByRole('listbox')).toBeInTheDocument();
       await selectOpenListboxOptionById('whitespace');
 
@@ -533,8 +517,6 @@ describe('Mappings editor: text datatype', () => {
         expect(stillHasCustomSearchAnalyzer).toBe(false);
       });
 
-      await runPendingTimers();
-
       const searchAnalyzerHarness = new EuiSuperSelectTestHarness('searchAnalyzer');
 
       // Select the built-in analyzer option - wait for listbox and its closure
@@ -554,7 +536,6 @@ describe('Mappings editor: text datatype', () => {
       fireEvent.click(searchQuoteAnalyzerToggleButton);
 
       // Allow SuperSelect to appear after toggle
-      await runPendingTimers();
 
       const searchQuoteHarness = new EuiSuperSelectTestHarness('searchQuoteAnalyzer');
       expect(searchQuoteHarness.self).toBeInTheDocument();
@@ -565,7 +546,6 @@ describe('Mappings editor: text datatype', () => {
       fireEvent.click(updateButton);
 
       // Allow form submission to complete
-      await runPendingTimers();
 
       await waitFor(() => {
         expect(onChangeHandler).toHaveBeenCalled();
@@ -696,7 +676,6 @@ describe('Mappings editor: text datatype', () => {
       fireEvent.click(updateButton);
 
       // Allow form submission to complete
-      await runPendingTimers();
 
       await waitFor(() => {
         expect(onChangeHandler).toHaveBeenCalled();

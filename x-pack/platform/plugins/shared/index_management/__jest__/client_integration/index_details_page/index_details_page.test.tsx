@@ -1197,8 +1197,9 @@ describe('<IndexDetailsPage />', () => {
 
     const setSearchBarValue = async (value: string) => {
       const input = screen.getByTestId('indexDetailsMappingsFieldSearch');
+      await user.click(input);
       await user.clear(input);
-      await user.type(input, value);
+      await user.paste(value);
     };
 
     it('updates the breadcrumbs to index details mappings', async () => {

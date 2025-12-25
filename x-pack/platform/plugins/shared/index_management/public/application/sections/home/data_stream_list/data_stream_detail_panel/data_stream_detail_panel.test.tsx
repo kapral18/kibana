@@ -13,8 +13,11 @@ import userEvent from '@testing-library/user-event';
 import { DataStreamDetailPanel } from './data_stream_detail_panel';
 import { useLoadDataStream } from '../../../../services/api';
 import { useAppContext } from '../../../../app_context';
-import type { DataStream } from '../../../../../../common';
 import type { AppDependencies } from '../../../../app_context';
+import {
+  createMockAppContext,
+  createMockDataStream,
+} from './data_stream_detail_panel.test_helpers';
 
 // Mock dependencies
 jest.mock('../../../../services/api');
@@ -26,63 +29,6 @@ jest.mock('./streams_promotion', () => ({
 
 const mockUseLoadDataStream = jest.mocked(useLoadDataStream);
 const mockUseAppContext = jest.mocked(useAppContext);
-
-const createMockDataStream = (overrides?: Partial<DataStream>): DataStream => ({
-  name: 'test-data-stream',
-  timeStampField: { name: '@timestamp' },
-  indices: [
-    {
-      name: 'indexName',
-      uuid: 'indexId',
-      preferILM: false,
-      managedBy: 'Data stream lifecycle',
-    },
-  ],
-  generation: 1,
-  nextGenerationManagedBy: 'Data stream lifecycle',
-  health: 'green',
-  indexTemplateName: 'indexTemplate',
-  storageSize: '1b',
-  storageSizeBytes: 1,
-  maxTimeStamp: 420,
-  meteringStorageSize: '1b',
-  meteringStorageSizeBytes: 1,
-  meteringDocsCount: 10,
-  privileges: {
-    delete_index: true,
-    manage_data_stream_lifecycle: true,
-    read_failure_store: true,
-  },
-  hidden: false,
-  lifecycle: {
-    enabled: true,
-    data_retention: '7d',
-  },
-  indexMode: 'standard',
-  failureStoreEnabled: false,
-  ...overrides,
-});
-
-const createMockAppContext = (): AppDependencies =>
-  ({
-    url: {
-      locators: {
-        get: jest.fn(() => ({
-          getRedirectUrl: jest.fn(() => '/app/path'),
-        })),
-      },
-    },
-    core: {
-      application: {
-        navigateToUrl: jest.fn(),
-      },
-    },
-    config: {
-      enableSizeAndDocCount: true,
-      enableDataStreamStats: true,
-      enableTogglingDataRetention: true,
-    },
-  } as unknown as AppDependencies);
 
 describe('DataStreamDetailPanel', () => {
   const onCloseMock = jest.fn();

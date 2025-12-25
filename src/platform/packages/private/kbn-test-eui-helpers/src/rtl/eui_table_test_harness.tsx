@@ -58,6 +58,26 @@ export class EuiTableTestHarness {
   }
 
   /**
+   * Returns the number of data rows in the table body.
+   */
+  public get rowCount(): number {
+    return this.rows.length;
+  }
+
+  /**
+   * Returns a data row by index (0-based; table body only).
+   *
+   * Useful to avoid `index + 1` header offsets and keep tests aligned with visible row order.
+   */
+  public rowAt(rowIndex: number): HTMLElement {
+    const row = this.rows[rowIndex];
+    if (!row) {
+      throw new Error(`Expected row ${rowIndex} to exist in table "${this.#testId}"`);
+    }
+    return row;
+  }
+
+  /**
    * Returns the first data row in the table body.
    * Useful when asserting the "first visible row" after sort/pagination without exposing array indexing in tests.
    */

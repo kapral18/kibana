@@ -14,105 +14,23 @@ import { WithAppDependencies, kibanaVersion } from '../helpers/setup_environment
 import { MappingsEditor } from '../../../mappings_editor';
 import { getFieldConfig } from '../../../lib';
 import { defaultTextParameters } from './fixtures';
+import type { TestMappings } from './text_datatype.test_helpers';
+import {
+  getLatestMappings,
+  onChangeHandler,
+  openFieldEditor,
+  selectAnalyzer,
+  submitForm,
+  toggleAdvancedSettings,
+  toggleUseSameSearchAnalyzer,
+  updateFieldName,
+} from './text_datatype.test_helpers';
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-const onChangeHandler = jest.fn();
-
-interface TestMappings {
-  properties: Record<string, Record<string, unknown>>;
-  _meta?: Record<string, unknown>;
-  _source?: Record<string, unknown>;
-}
-
-const openFieldEditor = async () => {
-  const editButton = screen.getByTestId('editFieldButton');
-  fireEvent.click(editButton);
-  return screen.findByTestId('mappingsEditorFieldEdit');
-};
-
-const toggleAdvancedSettings = async (flyout: HTMLElement) => {
-  const advancedToggle = within(flyout).getByTestId('toggleAdvancedSetting');
-  fireEvent.click(advancedToggle);
-  await waitFor(() => {
-    const advancedSettings = within(flyout).getByTestId('advancedSettings');
-    expect(advancedSettings.style.display).not.toBe('none');
-  });
-};
-
-const updateFieldName = (flyout: HTMLElement, name: string) => {
-  const nameInput = within(flyout).getByTestId('nameParameterInput');
-  fireEvent.change(nameInput, { target: { value: name } });
-};
-
-const submitForm = async (flyout: HTMLElement) => {
-  const updateButton = within(flyout).getByTestId('editFieldUpdateButton');
-  fireEvent.click(updateButton);
-  await waitFor(() => {
-    expect(onChangeHandler).toHaveBeenCalled();
-  });
-};
-
-const getLatestMappings = () => {
-  const [callData] = onChangeHandler.mock.calls[onChangeHandler.mock.calls.length - 1];
-  return callData.getData();
-};
-
-const superSelectOptionLabelById: Record<string, string> = {
-  standard: 'Standard',
-  simple: 'Simple',
-  whitespace: 'Whitespace',
-  index_default: 'Index default',
-};
-
-const selectOpenListboxOptionById = async (optionId: string) => {
-  const listbox = await screen.findByRole('listbox');
-  const option = within(listbox)
-    .getAllByRole<HTMLElement>('option')
-    .find((el) => el.id === optionId);
-  if (!option) throw new Error(`Option with id="${optionId}" not found in listbox`);
-
-  fireEvent.click(option);
-
-  // Intentional UI boundary: EUI SuperSelect renders options in a portal listbox.
-  // Wait for the listbox to close before any subsequent interaction to avoid race conditions.
-  await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
-};
-
-const selectSuperSelectOption = async (testSubj: string, optionId: string) => {
-  const harness = new EuiSuperSelectTestHarness(testSubj);
-  if (!harness.self) throw new Error(`${testSubj} harness not found`);
-
-  const button = within(harness.self).getByRole('button');
-  fireEvent.click(button);
-
-  const listbox = await screen.findByRole('listbox');
-  // Prefer selecting by the option's id attribute within the listbox (stable + scoped).
-  const optionById = within(listbox)
-    .getAllByRole<HTMLElement>('option')
-    .find((el) => el.id === optionId);
-  if (optionById) {
-    fireEvent.click(optionById);
-  } else {
-    const optionLabel = superSelectOptionLabelById[optionId] ?? optionId;
-    // Fallback to label matching (less stable since some options contain descriptions).
-    const option = within(listbox).getByRole('option', { name: optionLabel });
-    fireEvent.click(option);
-  }
-
-  // Intentional UI boundary: wait for the portal listbox to unmount so it can't intercept clicks/keystrokes.
-  await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
-};
-
-const selectAnalyzer = async (testSubj: string, value: string) => {
-  await selectSuperSelectOption(testSubj, value);
-};
-
-const toggleUseSameSearchAnalyzer = (flyout: HTMLElement) => {
-  fireEvent.click(within(flyout).getByRole('checkbox'));
-};
+// substantial helpers extracted to `text_datatype.test_helpers.tsx`
 
 describe('Mappings editor: text datatype', () => {
   test('initial view and default parameters values', async () => {
@@ -306,7 +224,7 @@ describe('Mappings editor: text datatype', () => {
       await toggleAdvancedSettings(flyout);
       updateFieldName(flyout, 'updatedField');
 
-      await selectAnalyzer('indexAnalyzer', 'standard');
+      await selectAnalyzer(flyout, 'indexAnalyzer', 'standard');
       await submitForm(flyout);
 
       const updatedMappings = {
@@ -350,7 +268,7 @@ describe('Mappings editor: text datatype', () => {
       toggleUseSameSearchAnalyzer(flyout);
       expect(within(flyout).queryByTestId('searchAnalyzer')).toBeInTheDocument();
 
-      await selectAnalyzer('searchAnalyzer', 'simple');
+      await selectAnalyzer(flyout, 'searchAnalyzer', 'simple');
       await submitForm(flyout);
 
       const updatedMappings = {
@@ -396,15 +314,7 @@ describe('Mappings editor: text datatype', () => {
       updateFieldName(flyout, 'updatedField');
 
       // Change searchQuoteAnalyzer from language (french) to built-in (whitespace)
-      const buttons = within(flyout).queryAllByRole('button');
-      const searchQuoteLanguageButton = buttons.find((btn) =>
-        btn.textContent?.includes('Language')
-      );
-      expect(searchQuoteLanguageButton).toBeTruthy();
-      fireEvent.click(searchQuoteLanguageButton!);
-
-      expect(screen.queryByRole('listbox')).toBeInTheDocument();
-      await selectOpenListboxOptionById('whitespace');
+      await selectAnalyzer(flyout, 'searchQuoteAnalyzer', 'whitespace');
 
       await submitForm(flyout);
 
@@ -524,17 +434,7 @@ describe('Mappings editor: text datatype', () => {
         );
         expect(stillHasCustomSearchAnalyzer).toBe(false);
       });
-
-      const searchAnalyzerHarness = new EuiSuperSelectTestHarness('searchAnalyzer');
-
-      // Select the built-in analyzer option - wait for listbox and its closure
-      if (!searchAnalyzerHarness.self) {
-        throw new Error('searchAnalyzer harness not found');
-      }
-
-      const searchAnalyzerButtonEl = within(searchAnalyzerHarness.self).getByRole('button');
-      fireEvent.click(searchAnalyzerButtonEl);
-      await selectOpenListboxOptionById('whitespace');
+      await selectAnalyzer(flyout, 'searchAnalyzer', 'whitespace');
 
       // Change the searchQuote to use built-in analyzer
       // By default it means using the "index default"

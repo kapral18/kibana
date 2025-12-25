@@ -11,12 +11,39 @@ import { screen, within, fireEvent, waitForElementToBeRemoved } from '@testing-l
 
 export class EuiSuperSelectTestHarness {
   #testId: string;
+  #container?: HTMLElement;
+
+  #query = () => {
+    return this.#container ? within(this.#container) : screen;
+  };
+
+  #resolveElementFromMatches(matches: HTMLElement[]) {
+    if (matches.length === 1) {
+      return matches[0];
+    }
+
+    // Prefer the element that actually contains the SuperSelect control (button that opens listbox).
+    const superSelectCandidates = matches.filter((el) => {
+      if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') return true;
+      return el.querySelector('button[aria-haspopup="listbox"]') !== null;
+    });
+
+    if (superSelectCandidates.length === 1) {
+      return superSelectCandidates[0];
+    }
+
+    throw new Error(
+      `EuiSuperSelectTestHarness: found multiple elements for data-test-subj="${this.#testId}". ` +
+        `Pass a container to scope the query, or ensure the test id is unique.`
+    );
+  }
 
   /**
    * Returns super select container or throws
    */
   get #containerEl() {
-    return screen.getByTestId(this.#testId);
+    const matches = this.#query().getAllByTestId(this.#testId) as HTMLElement[];
+    return this.#resolveElementFromMatches(matches);
   }
 
   /**
@@ -37,8 +64,9 @@ export class EuiSuperSelectTestHarness {
     return within(el).getByRole('button');
   }
 
-  constructor(testId: string) {
+  constructor(testId: string, options?: { container?: HTMLElement }) {
     this.#testId = testId;
+    this.#container = options?.container;
   }
 
   /**
@@ -52,7 +80,10 @@ export class EuiSuperSelectTestHarness {
    * Returns super select container if found, otherwise `null`
    */
   public get self() {
-    return screen.queryByTestId(this.#testId);
+    const matches = this.#query().queryAllByTestId(this.#testId) as HTMLElement[];
+    if (matches.length === 0) return null;
+
+    return this.#resolveElementFromMatches(matches);
   }
 
   /**

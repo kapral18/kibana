@@ -12,7 +12,6 @@ import { MemoryRouter } from '@kbn/shared-ux-router';
 import { Route } from '@kbn/shared-ux-router';
 import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
 import type { RouteComponentProps } from 'react-router-dom';
-import type { History } from 'history';
 
 import type { IndexDetailsTab, IndexDetailsTabId } from '../../../common/constants';
 import { IndexDetailsSection } from '../../../common/constants';
@@ -38,6 +37,7 @@ import {
   testIndexStats,
 } from './mocks';
 import { setupEnvironment, WithAppDependencies } from '../helpers/setup_environment';
+import { renderIndexDetailsPage } from './index_details_page.test_helpers';
 
 jest.mock('@kbn/code-editor');
 
@@ -60,41 +60,14 @@ describe('<IndexDetailsPage />', () => {
   jest.spyOn(breadcrumbService, 'setBreadcrumbs');
   jest.spyOn(documentationService, 'setup');
 
-  // Simple inline render - no separate helper file
-  const renderPage = async (initialEntry?: string, deps: Record<string, unknown> = {}) => {
-    const route = initialEntry ?? `/indices/index_details?indexName=${testIndexName}`;
-    let capturedHistory!: History;
-    const Comp = WithAppDependencies(
-      () => (
-        <MemoryRouter initialEntries={[route]}>
-          <Route
-            path="/indices/index_details"
-            render={(props: RouteComponentProps) => (
-              <DetailsPage
-                {...props}
-                match={{
-                  ...props.match,
-                  params: {
-                    indexName: testIndexName,
-                    indexDetailsSection: IndexDetailsSection.Settings,
-                  },
-                }}
-                history={(capturedHistory = props.history)}
-              />
-            )}
-          />
-        </MemoryRouter>
-      ),
+  const renderPage = async (initialEntry?: string, deps: Record<string, unknown> = {}) =>
+    renderIndexDetailsPage({
       httpSetup,
-      {
-        url: { locators: { get: () => ({ navigate: jest.fn(), getUrl: jest.fn() }) } },
-        ...deps,
-      }
-    );
-    render(<Comp />);
-    await screen.findByTestId('indexDetailsHeader');
-    return { history: capturedHistory };
-  };
+      indexName: testIndexName,
+      initialEntry,
+      indexDetailsSection: IndexDetailsSection.Settings,
+      deps,
+    });
 
   beforeEach(() => {
     const mockEnvironment = setupEnvironment();

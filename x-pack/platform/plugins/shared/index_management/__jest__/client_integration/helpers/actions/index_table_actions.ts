@@ -6,7 +6,7 @@
  */
 
 import { screen, fireEvent, within } from '@testing-library/react';
-import { EuiSuperSelectTestHarness } from '@kbn/test-eui-helpers';
+import { EuiSuperSelectTestHarness, EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 /**
  * Actions for interacting with the index table.
@@ -22,28 +22,19 @@ export const createIndexTableActions = () => {
   };
 
   const clickIndexNameAt = async (index: number) => {
-    const table = screen.getByTestId('indexTable');
-    const rows = within(table).getAllByRole('row');
-    // Skip header row
-    const dataRow = rows[index + 1];
+    const dataRow = new EuiTableTestHarness('indexTable').rowAt(index);
     const indexNameLink = within(dataRow).getByTestId('indexTableIndexNameLink');
     fireEvent.click(indexNameLink);
   };
 
   const clickDataStreamAt = async (index: number) => {
-    const table = screen.getByTestId('indexTable');
-    const rows = within(table).getAllByRole('row');
-    // Skip header row
-    const dataRow = rows[index + 1];
+    const dataRow = new EuiTableTestHarness('indexTable').rowAt(index);
     const dataStreamLink = within(dataRow).getByTestId('dataStreamLink');
     fireEvent.click(dataStreamLink);
   };
 
   const dataStreamLinkExistsAt = (index: number) => {
-    const table = screen.getByTestId('indexTable');
-    const rows = within(table).getAllByRole('row');
-    // Skip header row
-    const dataRow = rows[index + 1];
+    const dataRow = new EuiTableTestHarness('indexTable').rowAt(index);
     return within(dataRow).queryByTestId('dataStreamLink') !== null;
   };
 

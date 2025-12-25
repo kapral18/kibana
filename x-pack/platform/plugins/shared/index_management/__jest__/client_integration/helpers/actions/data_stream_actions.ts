@@ -7,6 +7,7 @@
 
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
 import type { DataStream } from '../../../../common';
 
 /**
@@ -14,13 +15,7 @@ import type { DataStream } from '../../../../common';
  * Returns a 2D array where each inner array represents a row of cell values.
  */
 export const getTableCellsValues = (tableTestId: string): string[][] => {
-  const table = screen.getByTestId(tableTestId);
-  const rows = within(table).getAllByRole('row');
-  // Skip header row (index 0)
-  return rows.slice(1).map((row) => {
-    const cells = within(row).getAllByRole('cell');
-    return cells.map((cell) => cell.textContent?.trim() || '');
-  });
+  return new EuiTableTestHarness(tableTestId).getCellValues({ trim: true });
 };
 
 /**
@@ -56,26 +51,20 @@ export const createDataStreamTabActions = () => {
   };
 
   const clickNameAt = async (index: number) => {
-    const table = screen.getByTestId('dataStreamTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('dataStreamTable').rowAt(index);
     const nameLink = within(dataRow).getByTestId('nameLink');
     fireEvent.click(nameLink);
     // Note: Timer flush happens in waitForDetailPanel() - don't flush here
   };
 
   const clickIndicesAt = async (index: number) => {
-    const table = screen.getByTestId('dataStreamTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('dataStreamTable').rowAt(index);
     const indicesLink = within(dataRow).getByTestId('indicesLink');
     fireEvent.click(indicesLink);
   };
 
   const clickDeleteActionAt = async (index: number) => {
-    const table = screen.getByTestId('dataStreamTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('dataStreamTable').rowAt(index);
     const deleteButton = within(dataRow).getByTestId('deleteDataStream');
     fireEvent.click(deleteButton);
     // Wait for the confirmation modal to appear

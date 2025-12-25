@@ -7,7 +7,7 @@
 
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EuiComboBoxTestHarness } from '@kbn/test-eui-helpers';
+import { EuiComboBoxTestHarness, EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 /**
  * Actions for interacting with the enrich policies tab.
@@ -22,9 +22,7 @@ export const createEnrichPoliciesActions = () => {
   };
 
   const clickDeletePolicyAt = async (index: number) => {
-    const table = screen.getByTestId('enrichPoliciesTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('enrichPoliciesTable').rowAt(index);
     const deleteButton = within(dataRow).getByTestId('deletePolicyButton');
     fireEvent.click(deleteButton);
     await screen.findByTestId('deletePolicyModal');
@@ -41,9 +39,7 @@ export const createEnrichPoliciesActions = () => {
   };
 
   const clickExecutePolicyAt = async (index: number) => {
-    const table = screen.getByTestId('enrichPoliciesTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('enrichPoliciesTable').rowAt(index);
     const executeButton = within(dataRow).getByTestId('executePolicyButton');
     fireEvent.click(executeButton);
     await screen.findByTestId('executePolicyModal');
@@ -60,9 +56,7 @@ export const createEnrichPoliciesActions = () => {
   };
 
   const clickEnrichPolicyAt = async (index: number) => {
-    const table = screen.getByTestId('enrichPoliciesTable');
-    const rows = within(table).getAllByRole('row');
-    const dataRow = rows[index + 1]; // Skip header
+    const dataRow = new EuiTableTestHarness('enrichPoliciesTable').rowAt(index);
     const policyLink = within(dataRow).getByTestId('enrichPolicyDetailsLink');
     fireEvent.click(policyLink);
     await screen.findByTestId('policyDetailsFlyout');
@@ -83,10 +77,7 @@ export const createEnrichPoliciesActions = () => {
  * Helper to get the number of rows in the enrich policies table.
  */
 export const getEnrichPoliciesTableRowCount = (): number => {
-  const table = screen.getByTestId('enrichPoliciesTable');
-  const rows = within(table).getAllByRole('row');
-  // Subtract 1 for header row
-  return rows.length - 1;
+  return screen.getAllByTestId('enrichPolicyDetailsLink').length;
 };
 
 /**

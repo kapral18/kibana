@@ -5,15 +5,21 @@
  * 2.0.
  */
 
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { TrainedModelsDeploymentModalProps } from '../../../public/application/sections/home/index_list/details_page/trained_models_deployment_modal';
-import { TrainedModelsDeploymentModal } from '../../../public/application/sections/home/index_list/details_page/trained_models_deployment_modal';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import * as mappingsContext from '../../../public/application/components/mappings_editor/mappings_state_context';
 import type {
   NormalizedField,
   State,
 } from '../../../public/application/components/mappings_editor/types';
+import {
+  defaultState,
+  exists,
+  forceSaveMappings,
+  getTextContent,
+  renderTrainedModelsDeploymentModal,
+  saveMappings,
+  setErrorsInTrainedModelDeployment,
+} from './trained_models_deployment_modal.test_helpers';
 
 jest.mock('../../../public/hooks/use_ml_model_status_toasts', () => ({
   useMLModelNotificationToasts: jest.fn().mockReturnValue({
@@ -75,67 +81,8 @@ jest.mock('../../../public/application/components/mappings_editor/mappings_state
 
 const mappingsContextMocked = jest.mocked(mappingsContext);
 
-const defaultState: Pick<State, 'inferenceToModelIdMap' | 'fields' | 'mappingViewFields'> = {
-  inferenceToModelIdMap: {
-    e5: {
-      isDeployed: false,
-      isDeployable: true,
-      isDownloading: false,
-      trainedModelId: '.multilingual-e5-small',
-    },
-    elser_model_2: {
-      isDeployed: false,
-      isDeployable: true,
-      isDownloading: false,
-      trainedModelId: '.elser_model_2',
-    },
-    openai: {
-      isDeployed: false,
-      isDeployable: false,
-      isDownloading: false,
-      trainedModelId: '',
-    },
-    my_elser_endpoint: {
-      isDeployed: false,
-      isDeployable: true,
-      isDownloading: false,
-      trainedModelId: '.elser_model_2',
-    },
-  },
-  fields: {
-    aliases: {},
-    byId: {},
-    rootLevelFields: [],
-    maxNestedDepth: 0,
-  },
-  mappingViewFields: { byId: {}, rootLevelFields: [], aliases: {}, maxNestedDepth: 0 },
-};
-
-const setErrorsInTrainedModelDeployment = jest.fn().mockReturnValue(undefined);
-const saveMappings = jest.fn().mockReturnValue(undefined);
-const forceSaveMappings = jest.fn().mockReturnValue(undefined);
-
-// Helper functions
-const exists = (testId: string): boolean => screen.queryByTestId(testId) !== null;
-
-const getTextContent = (testId: string): string => {
-  const el = screen.queryByTestId(testId);
-  return el?.textContent || '';
-};
-
 describe('When semantic_text is enabled', () => {
-  const renderModal = (props: Partial<TrainedModelsDeploymentModalProps>) => {
-    return render(
-      <TrainedModelsDeploymentModal
-        errorsInTrainedModelDeployment={{}}
-        saveMappings={saveMappings}
-        forceSaveMappings={forceSaveMappings}
-        saveMappingsLoading={false}
-        setErrorsInTrainedModelDeployment={() => undefined}
-        {...props}
-      />
-    );
-  };
+  const renderModal = renderTrainedModelsDeploymentModal;
 
   beforeEach(() => {
     jest.clearAllMocks();

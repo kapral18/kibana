@@ -5,131 +5,20 @@
  * 2.0.
  */
 
-import React from 'react';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { Route } from '@kbn/shared-ux-router';
-import { i18nServiceMock, themeServiceMock, analyticsServiceMock } from '@kbn/core/public/mocks';
-import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
+import { screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { coreMock } from '@kbn/core/public/mocks';
-import type { CoreStart, HttpSetup } from '@kbn/core/public';
 
 import { breadcrumbService, IndexManagementBreadcrumb } from '../../../../services/breadcrumbs';
 import { setupEnvironment } from './helpers';
 import { API_BASE_PATH } from './helpers/constants';
-import { WithAppDependencies } from './helpers/setup_environment';
-import { ComponentTemplateEdit } from '../../component_template_wizard';
-import { BASE_PATH } from '../../../../../../common';
-
-// Services required for KibanaRenderContextProvider (provides i18n, theme, analytics)
-const startServicesMock = {
-  i18n: i18nServiceMock.createStartContract(),
-  theme: themeServiceMock.createStartContract(),
-  analytics: analyticsServiceMock.createAnalyticsServiceStart(),
-};
+import {
+  completeStep,
+  getEnabledNextButton,
+  getVersionSpinButton,
+  renderComponentTemplateEdit,
+} from './helpers/component_template_edit.test_helpers';
 
 jest.mock('@kbn/code-editor');
-
-const renderComponentTemplateEdit = (
-  httpSetup: HttpSetup,
-  coreStart?: CoreStart,
-  queryParams: string = ''
-) => {
-  const routePath = `${BASE_PATH}/edit_component_template/comp-1${queryParams}`;
-  const EditWithRouter = () => (
-    <MemoryRouter initialEntries={[routePath]}>
-      <Route
-        path={`${BASE_PATH}/edit_component_template/:name`}
-        component={ComponentTemplateEdit}
-      />
-    </MemoryRouter>
-  );
-
-  return render(
-    <KibanaRenderContextProvider {...startServicesMock}>
-      {React.createElement(WithAppDependencies(EditWithRouter, httpSetup, coreStart))}
-    </KibanaRenderContextProvider>
-  );
-};
-
-/**
- * Helper to complete form steps (reusing from component_template_create pattern)
- */
-const getEnabledNextButton = () => {
-  const nextButtons = screen.getAllByTestId('nextButton');
-  const enabled = nextButtons.find((btn) => !btn.hasAttribute('disabled'));
-  if (!enabled) {
-    throw new Error('Expected at least one enabled "nextButton"');
-  }
-  return enabled;
-};
-
-const getVersionSpinButton = () => {
-  const versionRows = screen.getAllByTestId('versionField');
-  const versionRow = versionRows.find((row) => within(row).queryByRole('spinbutton') !== null);
-  if (!versionRow) {
-    throw new Error('Expected a versionField row containing a spinbutton');
-  }
-  return within(versionRow).getByRole('spinbutton');
-};
-
-interface MappingField {
-  name: string;
-  type: string;
-}
-
-const completeStep = {
-  async settings(settingsJson?: string) {
-    if (settingsJson) {
-      const editor = screen.getByTestId('settingsEditor');
-      fireEvent.change(editor, { target: { value: settingsJson } });
-    }
-    const enabledNextButton = getEnabledNextButton();
-    await waitFor(() => expect(enabledNextButton).toBeEnabled());
-    fireEvent.click(enabledNextButton);
-    await screen.findByTestId('stepMappings');
-  },
-  async mappings(mappingFields?: MappingField[]) {
-    if (mappingFields) {
-      for (const field of mappingFields) {
-        const { name, type } = field;
-        const createFieldForm = screen.getByTestId('createFieldForm');
-
-        const nameInput = screen.getByTestId('nameParameterInput');
-        fireEvent.change(nameInput, { target: { value: name } });
-
-        const typeSelect = within(createFieldForm).getByTestId('mockComboBox');
-        fireEvent.change(typeSelect, { target: { value: type } });
-
-        const addButton = within(createFieldForm).getByTestId('addButton');
-        const fieldsBefore = screen.queryAllByText(name).length;
-
-        fireEvent.click(addButton);
-
-        await waitFor(() => {
-          expect(screen.queryAllByText(name).length).toBeGreaterThan(fieldsBefore);
-        });
-      }
-    }
-
-    await screen.findByTestId('documentFields');
-    const enabledNextButton = getEnabledNextButton();
-    await waitFor(() => expect(enabledNextButton).toBeEnabled());
-    fireEvent.click(enabledNextButton);
-
-    await screen.findByTestId('stepAliases');
-  },
-  async aliases(aliasesJson?: string) {
-    if (aliasesJson) {
-      const editor = screen.getByTestId('aliasesEditor');
-      fireEvent.change(editor, { target: { value: aliasesJson } });
-    }
-    const enabledNextButton = getEnabledNextButton();
-    await waitFor(() => expect(enabledNextButton).toBeEnabled());
-    fireEvent.click(enabledNextButton);
-    await screen.findByTestId('stepReview');
-  },
-};
 
 describe('<ComponentTemplateEdit />', () => {
   let httpSetup: ReturnType<typeof setupEnvironment>['httpSetup'];

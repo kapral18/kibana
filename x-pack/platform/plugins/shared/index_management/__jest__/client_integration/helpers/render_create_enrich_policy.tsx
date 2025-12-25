@@ -56,7 +56,10 @@ export const renderCreateEnrichPolicy = async (
     </MemoryRouter>
   );
 
-  const rawOverrides = (dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>;
+  const rawOverrides = (dependenciesOverrides ?? appServicesContext ?? {}) as Record<
+    string,
+    unknown
+  >;
   const servicesOverrides = (rawOverrides.services ?? {}) as Record<string, unknown>;
 
   // Ensure app context uses the same services instance as the store, while still allowing

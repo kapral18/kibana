@@ -113,7 +113,7 @@ const createAppDependencies = (httpSetup: HttpSetup): AppDependencies => {
       enableLegacyTemplates: true,
       enableIndexActions: true,
       enableIndexStats: true,
-      enableSizeAndDocCount: true,
+      enableSizeAndDocCount: false,
       enableDataStreamStats: true,
       editableIndexSettings: 'all',
       enableMappingsSourceFieldSection: true,

@@ -11,6 +11,7 @@ import { MemoryRouter, Route } from '@kbn/shared-ux-router';
 import type { RouteComponentProps } from 'react-router-dom';
 import type { HttpSetup } from '@kbn/core/public';
 import { Provider } from 'react-redux';
+import { merge } from 'lodash';
 
 import { EnrichPolicyCreate } from '../../../public/application/sections/enrich_policy_create';
 import { indexManagementStore } from '../../../public/application/store';
@@ -55,9 +56,15 @@ export const renderCreateEnrichPolicy = async (
     </MemoryRouter>
   );
 
-  // Force `services` to match the store even if overrides were provided.
+  const rawOverrides = (dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>;
+  const servicesOverrides = (rawOverrides.services ?? {}) as Record<string, unknown>;
+
+  // Ensure app context uses the same services instance as the store, while still allowing
+  // tests to override/extend nested service fields.
+  merge(services, servicesOverrides);
+
   const overridingDependencies: Record<string, unknown> = {
-    ...((dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>),
+    ...rawOverrides,
     services,
   };
 

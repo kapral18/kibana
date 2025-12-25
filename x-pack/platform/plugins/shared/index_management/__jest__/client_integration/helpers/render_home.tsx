@@ -10,6 +10,7 @@ import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { HttpSetup } from '@kbn/core/public';
 import { Provider } from 'react-redux';
+import { merge } from 'lodash';
 
 import { AppWithoutRouter } from '../../../public/application/app';
 import { indexManagementStore } from '../../../public/application/store';
@@ -55,10 +56,15 @@ export const renderHome = async (httpSetup: HttpSetup, options?: RenderHomeOptio
   const services = createServices();
   const store = indexManagementStore(services);
 
-  // Ensure app context uses the same services as the store.
-  // Force `services` to match the store even if overrides were provided.
+  const rawOverrides = (dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>;
+  const servicesOverrides = (rawOverrides.services ?? {}) as Record<string, unknown>;
+
+  // Ensure app context uses the same services instance as the store, while still allowing
+  // tests to override/extend nested service fields (e.g. extensionsService private props).
+  merge(services, servicesOverrides);
+
   const overridingDependencies: Record<string, unknown> = {
-    ...((dependenciesOverrides ?? appServicesContext ?? {}) as Record<string, unknown>),
+    ...rawOverrides,
     services,
   };
 

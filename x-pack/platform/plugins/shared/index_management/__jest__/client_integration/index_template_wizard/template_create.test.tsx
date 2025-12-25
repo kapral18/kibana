@@ -535,9 +535,13 @@ describe('<TemplateCreate />', () => {
       await completeStepFive(JSON.stringify({}));
 
       expect(await screen.findByTestId('indexPatternsWarning')).toBeInTheDocument();
-      expect(screen.getByTestId('indexPatternsWarningDescription')).toHaveTextContent(
-        'All new indices that you create will use this template. Edit index patterns.'
-      );
+      const descriptions = screen.getAllByTestId('indexPatternsWarningDescription');
+      expect(descriptions.length).toBeGreaterThan(0);
+      for (const description of descriptions) {
+        expect(description).toHaveTextContent(
+          'All new indices that you create will use this template. Edit index patterns.'
+        );
+      }
     });
   });
 

@@ -283,7 +283,7 @@ export const createDataRetentionFormActions = () => {
     const showFiltersButton = await screen.findByTestId('show-filters-button');
     fireEvent.click(showFiltersButton);
     // Wait for the dropdown/popover to open - EuiPopover renders asynchronously
-    // Per wisdom bead: use findBy* for elements inside EuiPopover
+    // use findBy* for elements inside EuiPopover
     const option = await screen.findByTestId(`filter-option-${unit}`);
     fireEvent.click(option);
     // Wait for dropdown to close

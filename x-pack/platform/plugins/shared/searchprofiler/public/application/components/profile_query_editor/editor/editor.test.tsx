@@ -5,20 +5,66 @@
  * 2.0.
  */
 
-import { registerTestBed } from '@kbn/test-jest-helpers';
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+
+jest.mock('@kbn/monaco', () => ({
+  XJsonLang: { ID: 'xjson' },
+}));
+
+jest.mock('@kbn/code-editor', () => {
+  return {
+    CodeEditor: ({
+      value,
+      onChange,
+      dataTestSubj,
+      editorDidMount,
+      options,
+    }: {
+      value: string;
+      onChange: (value: string) => void;
+      dataTestSubj: string;
+      editorDidMount?: (editor: { focus: () => void }) => void;
+      options?: { readOnly?: boolean };
+    }) => {
+      editorDidMount?.({ focus: () => {} });
+
+      return (
+        <textarea
+          data-test-subj={dataTestSubj}
+          value={value}
+          readOnly={Boolean(options?.readOnly)}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    },
+  };
+});
+
 import type { Props } from './editor';
 import { Editor } from './editor';
 
 describe('Editor Component', () => {
-  it('renders', async () => {
+  it('renders', () => {
+    const setEditorValue = jest.fn();
+    const onEditorReady = jest.fn();
+
     const props: Props = {
       editorValue: '',
-      setEditorValue: () => {},
+      setEditorValue,
       licenseEnabled: true,
-      onEditorReady: (e: any) => {},
+      onEditorReady,
     };
-    // Ignore the warning about Worker not existing for now...
-    const init = registerTestBed(Editor);
-    await init(props);
+
+    render(<Editor {...props} />);
+
+    const editor = screen.getByTestId('searchProfilerEditor');
+    expect(editor).toBeInTheDocument();
+    expect(editor).not.toHaveAttribute('readonly');
+
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(editor, { target: { value: '{ "query": {} }' } });
+    expect(setEditorValue).toHaveBeenCalledWith('{ "query": {} }');
   });
 });

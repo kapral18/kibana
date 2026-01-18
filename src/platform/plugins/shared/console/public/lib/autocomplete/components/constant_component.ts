@@ -8,29 +8,61 @@
  */
 
 import _ from 'lodash';
+
+import type {
+  AutoCompleteContext,
+  AutocompleteEditor,
+  AutocompleteMatch,
+  AutocompleteToken,
+  AutocompleteTerm,
+} from '../types';
+
 import { SharedComponent } from './shared_component';
+
 export class ConstantComponent extends SharedComponent {
-  constructor(name, parent, options) {
+  options: AutocompleteTerm[];
+
+  constructor(
+    name: string,
+    parent?: SharedComponent,
+    options?: AutocompleteTerm | AutocompleteTerm[]
+  ) {
     super(name, parent);
-    if (_.isString(options)) {
-      options = [options];
+
+    let normalized: AutocompleteTerm[];
+    if (options === undefined) {
+      normalized = [name];
+    } else if (_.isString(options)) {
+      normalized = [options];
+    } else if (Array.isArray(options)) {
+      normalized = options;
+    } else if (options) {
+      normalized = [options];
+    } else {
+      normalized = [name];
     }
-    this.options = options || [name];
+
+    this.options = normalized;
   }
-  getTerms() {
+
+  override getTerms(
+    _context: AutoCompleteContext,
+    _editor: AutocompleteEditor
+  ): AutocompleteTerm[] {
     return this.options;
   }
 
-  addOption(options) {
-    if (!Array.isArray(options)) {
-      options = [options];
-    }
-
-    [].push.apply(this.options, options);
-    this.options = _.uniq(this.options);
+  addOption(options: AutocompleteTerm | AutocompleteTerm[]): void {
+    const normalized = Array.isArray(options) ? options : [options];
+    this.options = _.uniq([...this.options, ...normalized]);
   }
-  match(token, context, editor) {
-    if (token !== this.name) {
+
+  override match(
+    token: AutocompleteToken,
+    context: AutoCompleteContext,
+    editor: AutocompleteEditor
+  ): AutocompleteMatch {
+    if (typeof token !== 'string' || token !== this.name) {
       return null;
     }
 

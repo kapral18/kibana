@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import { ListComponent } from './list_component';
 import { getAutocompleteInfo, ENTITIES } from '../../../services';
+import { ListComponent } from './list_component';
+import type { SharedComponent } from './shared_component';
 
 export class DataStreamAutocompleteComponent extends ListComponent {
-  constructor(name, parent, multiValued) {
+  constructor(name: string, parent: SharedComponent | undefined, multiValued: boolean = true) {
     super(
       name,
       getAutocompleteInfo().getEntityProvider(ENTITIES.DATA_STREAMS),
@@ -20,7 +21,7 @@ export class DataStreamAutocompleteComponent extends ListComponent {
     );
   }
 
-  getContextKey() {
+  override getContextKey(): string {
     return 'data_stream';
   }
 }

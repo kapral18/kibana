@@ -7,14 +7,22 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import { getAutocompleteInfo } from '../../../../services';
+import { getAutocompleteInfo, ENTITIES } from '../../../../services';
 import { ListComponent } from '../list_component';
+import type { SharedComponent } from '../shared_component';
 
 export class LegacyTemplateAutocompleteComponent extends ListComponent {
-  constructor(name, parent) {
-    super(name, getAutocompleteInfo().getEntityProvider('legacyTemplates'), parent, true, true);
+  constructor(name: string, parent: SharedComponent | undefined) {
+    super(
+      name,
+      getAutocompleteInfo().getEntityProvider(ENTITIES.LEGACY_TEMPLATES),
+      parent,
+      true,
+      true
+    );
   }
-  getContextKey() {
+
+  override getContextKey(): string {
     return 'template';
   }
 }

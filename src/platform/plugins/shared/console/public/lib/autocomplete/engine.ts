@@ -9,148 +9,177 @@
 
 import _ from 'lodash';
 
-export function wrapComponentWithDefaults(component, defaults) {
+import type {
+  AutoCompleteContext,
+  AutocompleteEditor,
+  AutocompleteMatch,
+  AutocompleteMatchResult,
+  AutocompleteComponentLike,
+  ResultTerm,
+  AutocompleteToken,
+} from './types';
+
+declare global {
+  interface Window {
+    engine_trace?: boolean;
+  }
+}
+
+export function wrapComponentWithDefaults<T extends AutocompleteComponentLike>(
+  component: T,
+  defaults: Partial<ResultTerm>
+): T {
   const originalGetTerms = component.getTerms;
-  component.getTerms = function (context, editor) {
-    let result = originalGetTerms.call(component, context, editor);
-    if (!result) {
-      return result;
-    }
-    result = _.map(result, (term) => {
+
+  component.getTerms = function (context: AutoCompleteContext, editor: AutocompleteEditor) {
+    const terms = originalGetTerms.call(component, context, editor);
+    if (!terms) return terms;
+
+    return _.map(terms, (term) => {
       if (!_.isObject(term)) {
         term = { name: term };
       }
-      return _.defaults(term, defaults);
+
+      // `_.defaults()` mutates and fills missing values.
+      return _.defaults(term as ResultTerm, defaults);
     });
-    return result;
   };
+
   return component;
 }
 
-const tracer = function () {
+const tracer = function (...args: unknown[]) {
   if (window.engine_trace) {
-    console.log.call(console, ...arguments);
+    // eslint-disable-next-line no-console
+    console.log.call(console, ...args);
   }
 };
 
-function passThroughContext(context, extensionList) {
-  function PTC() {}
+function passThroughContext(
+  context: AutoCompleteContext,
+  extensionList?: Array<Record<string, unknown>>
+): AutoCompleteContext {
+  const result = Object.create(context) as AutoCompleteContext;
 
-  PTC.prototype = context;
-  const result = new PTC();
   if (extensionList) {
-    extensionList.unshift(result);
-    _.assign.apply(_, extensionList);
-    extensionList.shift();
+    _.assign(result, ...extensionList);
   }
+
   return result;
 }
 
-export function WalkingState(parentName, components, contextExtensionList, depth, priority) {
-  this.parentName = parentName;
-  this.components = components;
-  this.contextExtensionList = contextExtensionList;
-  this.depth = depth || 0;
-  this.priority = priority;
+export class WalkingState {
+  constructor(
+    public parentName: string,
+    public components: AutocompleteComponentLike[] | undefined,
+    public contextExtensionList: Array<Record<string, unknown>>,
+    public depth: number = 0,
+    public priority?: number
+  ) {}
 }
 
-export function walkTokenPath(tokenPath, walkingStates, context, editor) {
+export type TokenPathToken = AutocompleteToken;
+
+export function walkTokenPath(
+  tokenPath: TokenPathToken[],
+  walkingStates: WalkingState[],
+  context: AutoCompleteContext,
+  editor: AutocompleteEditor
+): WalkingState[] {
   if (!tokenPath || tokenPath.length === 0) {
     return walkingStates;
   }
+
   const token = tokenPath[0];
-  const nextWalkingStates = [];
+  const nextWalkingStates: WalkingState[] = [];
 
-  tracer('starting token evaluation [' + token + ']');
+  tracer(`starting token evaluation [${token}]`);
 
-  _.each(walkingStates, function (ws) {
+  for (const ws of walkingStates) {
     const contextForState = passThroughContext(context, ws.contextExtensionList);
-    _.each(ws.components, function (component) {
-      tracer('evaluating [' + token + '] with [' + component.name + ']', component);
+
+    for (const component of ws.components ?? []) {
+      tracer(`evaluating [${token}] with [${component.name}]`, component);
       const result = component.match(token, contextForState, editor);
-      if (result && !_.isEmpty(result)) {
-        tracer('matched [' + token + '] with:', result);
-        let next;
-        let extensionList;
+
+      if (isMatchResult(result)) {
+        tracer(`matched [${token}] with:`, result);
+
+        let next: AutocompleteComponentLike[] | undefined;
         if (result.next && !Array.isArray(result.next)) {
           next = [result.next];
         } else {
           next = result.next;
         }
-        if (result.context_values) {
-          extensionList = [];
-          [].push.apply(extensionList, ws.contextExtensionList);
-          extensionList.push(result.context_values);
-        } else {
-          extensionList = ws.contextExtensionList;
-        }
+        const extensionList = result.context_values
+          ? [...ws.contextExtensionList, result.context_values]
+          : ws.contextExtensionList;
 
-        let priority = ws.priority;
-        if (_.isNumber(result.priority)) {
-          if (_.isNumber(priority)) {
-            priority = Math.min(priority, result.priority);
-          } else {
-            priority = result.priority;
-          }
-        }
+        const priority = mergePriority(ws.priority, result.priority);
 
         nextWalkingStates.push(
           new WalkingState(component.name, next, extensionList, ws.depth + 1, priority)
         );
       }
-    });
-  });
+    }
+  }
 
   if (nextWalkingStates.length === 0) {
-    // no where to go, still return context variables returned so far..
-    return _.map(walkingStates, function (ws) {
-      return new WalkingState(ws.name, [], ws.contextExtensionList);
-    });
+    // nowhere to go, still return context variables returned so far
+    return walkingStates.map((ws) => new WalkingState(ws.parentName, [], ws.contextExtensionList));
   }
 
   return walkTokenPath(tokenPath.slice(1), nextWalkingStates, context, editor);
 }
 
-export function populateContext(tokenPath, context, editor, includeAutoComplete, components) {
-  let walkStates = walkTokenPath(
+export function populateContext(
+  tokenPath: TokenPathToken[],
+  context: AutoCompleteContext,
+  editor: AutocompleteEditor,
+  includeAutoComplete: boolean,
+  components: AutocompleteComponentLike[] | undefined
+): void {
+  const walkStates = walkTokenPath(
     tokenPath,
     [new WalkingState('ROOT', components, [])],
     context,
     editor
   );
+
   if (includeAutoComplete) {
-    let autoCompleteSet = new Map();
-    _.each(walkStates, function (ws) {
+    const autoCompleteSet = new Map<ResultTerm['name'], ResultTerm>();
+
+    for (const ws of walkStates) {
       const contextForState = passThroughContext(context, ws.contextExtensionList);
-      _.each(ws.components, function (component) {
-        _.each(component.getTerms(contextForState, editor), function (term) {
+
+      for (const component of ws.components ?? []) {
+        _.each(component.getTerms(contextForState, editor), (term) => {
           if (!_.isObject(term)) {
             term = { name: term };
           }
 
-          // Add the term to the autoCompleteSet if it doesn't already exist
-          if (!autoCompleteSet.has(term.name)) {
-            autoCompleteSet.set(term.name, term);
+          const normalized = term as ResultTerm;
+
+          if (!autoCompleteSet.has(normalized.name)) {
+            autoCompleteSet.set(normalized.name, normalized);
           }
         });
-      });
-    });
-    // Convert Map values to an array of objects
-    autoCompleteSet = Array.from(autoCompleteSet.values());
-    context.autoCompleteSet = autoCompleteSet;
+      }
+    }
+
+    context.autoCompleteSet = Array.from(autoCompleteSet.values());
   }
 
-  // apply what values were set so far to context, selecting the deepest on which sets the context
+  // Apply what values were set so far to context, selecting the deepest one which sets the context
   if (walkStates.length !== 0) {
-    let wsToUse;
-    walkStates = _.sortBy(walkStates, function (ws) {
-      return _.isNumber(ws.priority) ? ws.priority : Number.MAX_VALUE;
-    });
-    wsToUse = _.find(walkStates, function (ws) {
-      return _.isEmpty(ws.components);
-    });
+    const sorted = _.sortBy(walkStates, (ws) =>
+      typeof ws.priority === 'number' ? ws.priority : Number.MAX_VALUE
+    );
+
+    let wsToUse = sorted.find((ws) => !ws.components || ws.components.length === 0);
 
     if (!wsToUse && walkStates.length > 1 && !includeAutoComplete) {
+      // eslint-disable-next-line no-console
       console.info(
         "more than one context active for current path, but autocomplete isn't requested",
         walkStates
@@ -158,11 +187,22 @@ export function populateContext(tokenPath, context, editor, includeAutoComplete,
     }
 
     if (!wsToUse) {
-      wsToUse = walkStates[0];
+      wsToUse = sorted[0];
     }
 
-    _.each(wsToUse.contextExtensionList, function (extension) {
+    _.each(wsToUse.contextExtensionList, (extension) => {
       _.assign(context, extension);
     });
   }
+}
+
+function isMatchResult(result: AutocompleteMatch): result is AutocompleteMatchResult {
+  if (!result) return false;
+  return !_.isEmpty(result);
+}
+
+function mergePriority(current: number | undefined, next: number | undefined): number | undefined {
+  if (typeof next !== 'number') return current;
+  if (typeof current !== 'number') return next;
+  return Math.min(current, next);
 }

@@ -9,9 +9,10 @@
 
 import { getAutocompleteInfo, ENTITIES } from '../../../services';
 import { ListComponent } from './list_component';
+import type { SharedComponent } from './shared_component';
 
 export class IndexTemplateAutocompleteComponent extends ListComponent {
-  constructor(name, parent) {
+  constructor(name: string, parent: SharedComponent | undefined) {
     super(
       name,
       getAutocompleteInfo().getEntityProvider(ENTITIES.INDEX_TEMPLATES),
@@ -21,7 +22,7 @@ export class IndexTemplateAutocompleteComponent extends ListComponent {
     );
   }
 
-  getContextKey() {
+  override getContextKey(): string {
     return 'index_template';
   }
 }

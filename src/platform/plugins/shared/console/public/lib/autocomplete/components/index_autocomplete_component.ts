@@ -8,29 +8,33 @@
  */
 
 import _ from 'lodash';
+
 import { getAutocompleteInfo, ENTITIES } from '../../../services';
 import { ListComponent } from './list_component';
+import type { SharedComponent } from './shared_component';
 
-function nonValidIndexType(token) {
-  return !(token === '_all' || token[0] !== '_');
+function isNotAnIndexName(name: string): boolean {
+  return name.startsWith('_') && name !== '_all';
 }
 
 export class IndexAutocompleteComponent extends ListComponent {
-  constructor(name, parent, multiValued) {
+  constructor(name: string, parent: SharedComponent | undefined, multiValued: boolean) {
     super(name, getAutocompleteInfo().getEntityProvider(ENTITIES.INDICES), parent, multiValued);
   }
-  validateTokens(tokens) {
+
+  override validateTokens(tokens: string[]): boolean {
     if (!this.multiValued && tokens.length > 1) {
       return false;
     }
-    return !_.find(tokens, nonValidIndexType);
+
+    return !_.find(tokens, isNotAnIndexName);
   }
 
-  getDefaultTermMeta() {
+  override getDefaultTermMeta(): string {
     return 'index';
   }
 
-  getContextKey() {
+  override getContextKey(): string {
     return 'indices';
   }
 }

@@ -8,79 +8,140 @@
  */
 
 import _ from 'lodash';
+
+import type {
+  AutoCompleteContext,
+  AutocompleteEditor,
+  AutocompleteMatch,
+  AutocompleteMatchResult,
+  AutocompleteToken,
+  AutocompleteTerm,
+  ResultTerm,
+} from '../types';
+
 import { SharedComponent } from './shared_component';
-/** A component that suggests one of the give options, but accepts anything */
+
+type ListGenerator = (
+  context?: AutoCompleteContext,
+  editor?: AutocompleteEditor
+) => AutocompleteTerm[];
+
+/** A component that suggests one of the given options, but accepts anything (when configured). */
 export class ListComponent extends SharedComponent {
-  constructor(name, list, parent, multiValued, allowNonValidValues) {
+  listGenerator: ListGenerator;
+  multiValued: boolean;
+  allowNonValidValues: boolean;
+
+  constructor(
+    name: string,
+    list: AutocompleteTerm[] | ListGenerator,
+    parent?: SharedComponent,
+    multiValued?: boolean,
+    allowNonValidValues?: boolean
+  ) {
     super(name, parent);
-    this.listGenerator = Array.isArray(list)
-      ? function () {
-          return list;
-        }
-      : list;
+
+    this.listGenerator = Array.isArray(list) ? () => list : list;
     this.multiValued = _.isUndefined(multiValued) ? true : multiValued;
     this.allowNonValidValues = _.isUndefined(allowNonValidValues) ? false : allowNonValidValues;
   }
-  getTerms(context, editor) {
+
+  override getTerms(context: AutoCompleteContext, editor: AutocompleteEditor): AutocompleteTerm[] {
     if (!this.multiValued && context.otherTokenValues) {
       // already have a value -> no suggestions
       return [];
     }
-    let alreadySet = context.otherTokenValues || [];
-    if (_.isString(alreadySet)) {
-      alreadySet = [alreadySet];
-    }
-    let ret = _.difference(this.listGenerator(context, editor), alreadySet);
 
-    if (this.getDefaultTermMeta()) {
-      const meta = this.getDefaultTermMeta();
-      ret = _.map(ret, function (term) {
-        if (_.isString(term)) {
-          term = { name: term };
+    const alreadySetValues = toStringArray(context.otherTokenValues);
+    const alreadySetTerms: AutocompleteTerm[] = alreadySetValues;
+
+    let ret = _.difference(this.listGenerator(context, editor), alreadySetTerms);
+
+    const defaultMeta = this.getDefaultTermMeta();
+    if (defaultMeta) {
+      ret = _.map(ret, (term) => {
+        if (typeof term === 'string') {
+          const t: ResultTerm = { name: term };
+          return _.defaults(t, { meta: defaultMeta });
         }
-        return _.defaults(term, { meta: meta });
+
+        if (term === null || typeof term === 'boolean' || typeof term === 'number') {
+          const t: ResultTerm = { name: term };
+          return _.defaults(t, { meta: defaultMeta });
+        }
+
+        // object term
+        return _.defaults(term, { meta: defaultMeta });
       });
     }
 
     return ret;
   }
 
-  validateTokens(tokens) {
+  validateTokens(tokens: string[]): boolean {
     if (!this.multiValued && tokens.length > 1) {
       return false;
     }
 
     // verify we have all tokens
     const list = this.listGenerator();
-    const notFound = _.some(tokens, function (token) {
-      return list.indexOf(token) === -1;
-    });
+    const listStrings = list.filter((t): t is string => typeof t === 'string');
 
-    if (notFound) {
-      return false;
-    }
-    return true;
+    const notFound = _.some(tokens, (token) => listStrings.indexOf(token) === -1);
+    return !notFound;
   }
 
-  getContextKey() {
+  getContextKey(): string {
     return this.name;
   }
 
-  getDefaultTermMeta() {
+  getDefaultTermMeta(): string {
     return this.name;
   }
 
-  match(token, context, editor) {
-    if (!Array.isArray(token)) {
-      token = [token];
-    }
-    if (!this.allowNonValidValues && !this.validateTokens(token, context, editor)) {
+  override match(
+    token: AutocompleteToken,
+    context: AutoCompleteContext,
+    editor: AutocompleteEditor
+  ): AutocompleteMatch {
+    const tokens = toTokenStrings(token);
+    if (!this.allowNonValidValues && !this.validateTokens(tokens)) {
       return null;
     }
 
-    const result = super.match(token, context, editor);
-    result.context_values = result.context_values || {};
-    result.context_values[this.getContextKey()] = token;
+    const base = super.match(tokens, context, editor);
+    if (!base) {
+      return base;
+    }
+
+    const result: AutocompleteMatchResult = base;
+    result.context_values ??= {};
+    result.context_values[this.getContextKey()] = tokens;
+
     return result;
   }
+}
+
+function toTokenStrings(value: AutocompleteToken): string[] {
+  if (typeof value === 'string') {
+    return [value];
+  }
+
+  return value;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string');
+  }
+
+  if (typeof value === 'string') {
+    return [value];
+  }
+
+  return [];
 }

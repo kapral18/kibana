@@ -8,53 +8,80 @@
  */
 
 import _ from 'lodash';
-import { SharedComponent } from '.';
+
+import type {
+  AutoCompleteContext,
+  AutocompleteEditor,
+  AutocompleteMatch,
+  AutocompleteMatchResult,
+  AutocompleteComponentLike,
+  AutocompleteTerm,
+  AutocompleteToken,
+} from '../types';
+
+import { SharedComponent } from './shared_component';
+
 /**
  * @param constants list of components that represent constant keys
  * @param patternsAndWildCards list of components that represent patterns and should be matched only if
- * there is no constant matches
+ * there are no constant matches
  */
 export class ObjectComponent extends SharedComponent {
-  constructor(name, constants, patternsAndWildCards) {
+  constants: AutocompleteComponentLike[];
+  patternsAndWildCards: AutocompleteComponentLike[];
+
+  constructor(
+    name: string,
+    constants: AutocompleteComponentLike[],
+    patternsAndWildCards: AutocompleteComponentLike[]
+  ) {
     super(name);
     this.constants = constants;
     this.patternsAndWildCards = patternsAndWildCards;
   }
-  getTerms(context, editor) {
-    const options = [];
-    _.each(this.constants, function (component) {
-      options.push.apply(options, component.getTerms(context, editor));
+
+  override getTerms(context: AutoCompleteContext, editor: AutocompleteEditor): AutocompleteTerm[] {
+    const options: AutocompleteTerm[] = [];
+
+    _.each(this.constants, (component) => {
+      options.push.apply(options, component.getTerms(context, editor) as AutocompleteTerm[]);
     });
-    _.each(this.patternsAndWildCards, function (component) {
-      options.push.apply(options, component.getTerms(context, editor));
+
+    _.each(this.patternsAndWildCards, (component) => {
+      options.push.apply(options, component.getTerms(context, editor) as AutocompleteTerm[]);
     });
+
     return options;
   }
 
-  match(token, context, editor) {
-    const result = {
-      next: [],
-    };
-    _.each(this.constants, function (component) {
+  override match(
+    token: AutocompleteToken,
+    context: AutoCompleteContext,
+    editor: AutocompleteEditor
+  ): AutocompleteMatch {
+    const result: AutocompleteMatchResult = { next: [] };
+
+    _.each(this.constants, (component) => {
       const componentResult = component.match(token, context, editor);
       if (componentResult && componentResult.next) {
-        result.next.push.apply(result.next, componentResult.next);
+        result.next.push(...componentResult.next);
       }
     });
 
     // try to link to GLOBAL rules
-    const globalRules = context.globalComponentResolver(token, false);
+    const globalRules = context.globalComponentResolver!(token as unknown as string, false);
     if (globalRules) {
-      result.next.push.apply(result.next, globalRules);
+      result.next.push(...globalRules);
     }
 
     if (result.next.length) {
       return result;
     }
-    _.each(this.patternsAndWildCards, function (component) {
+
+    _.each(this.patternsAndWildCards, (component) => {
       const componentResult = component.match(token, context, editor);
       if (componentResult && componentResult.next) {
-        result.next.push.apply(result.next, componentResult.next);
+        result.next.push(...componentResult.next);
       }
     });
 

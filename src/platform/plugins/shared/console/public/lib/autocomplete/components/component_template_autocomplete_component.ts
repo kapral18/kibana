@@ -9,9 +9,10 @@
 
 import { getAutocompleteInfo, ENTITIES } from '../../../services';
 import { ListComponent } from './list_component';
+import type { SharedComponent } from './shared_component';
 
 export class ComponentTemplateAutocompleteComponent extends ListComponent {
-  constructor(name, parent) {
+  constructor(name: string, parent: SharedComponent | undefined) {
     super(
       name,
       getAutocompleteInfo().getEntityProvider(ENTITIES.COMPONENT_TEMPLATES),
@@ -21,7 +22,7 @@ export class ComponentTemplateAutocompleteComponent extends ListComponent {
     );
   }
 
-  getContextKey() {
+  override getContextKey(): string {
     return 'component_template';
   }
 }

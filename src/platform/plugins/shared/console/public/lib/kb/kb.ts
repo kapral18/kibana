@@ -7,60 +7,65 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import { API_BASE_PATH } from '../../../common/constants';
-
-import {
-  IndexAutocompleteComponent,
-  FieldAutocompleteComponent,
-  ListComponent,
-  LegacyTemplateAutocompleteComponent,
-  IndexTemplateAutocompleteComponent,
-  ComponentTemplateAutocompleteComponent,
-  DataStreamAutocompleteComponent,
-} from '../autocomplete/components';
-
 import _ from 'lodash';
 
-import Api from './api';
+import type { HttpSetup } from '@kbn/core/public';
+
+import { API_BASE_PATH } from '../../../common/constants';
+import { isRecord } from '../../../common/utils/record_utils';
+import {
+  ComponentTemplateAutocompleteComponent,
+  DataStreamAutocompleteComponent,
+  FieldAutocompleteComponent,
+  IndexAutocompleteComponent,
+  IndexTemplateAutocompleteComponent,
+  LegacyTemplateAutocompleteComponent,
+  ListComponent,
+} from '../autocomplete/components';
+
+import { Api } from './api';
+import type {
+  BodyDescription,
+  ParametrizedComponentFactories,
+} from '../autocomplete/body_completer';
+import type { JsonValue } from '../autocomplete/types';
+import type { ParametrizedComponentFactories as UrlParametrizedComponentFactories } from '../autocomplete/components/url_pattern_matcher';
+import type { SharedComponent } from '../autocomplete/components/shared_component';
+
+type ParamFactory = (
+  name: string,
+  parent: SharedComponent | undefined,
+  template?: JsonValue
+) => SharedComponent;
 
 let ACTIVE_API = new Api();
 let apiLoaded = false;
-const isNotAnIndexName = (name) => name[0] === '_' && name !== '_all';
 
-const parametrizedComponentFactories = {
-  getComponent: function (name, parent, provideDefault) {
-    if (this[name]) {
-      return this[name];
-    } else if (provideDefault) {
-      return new ListComponent(name, [], parent, false);
-    }
-  },
-  index: function (name, parent) {
-    if (isNotAnIndexName(name)) return;
-    return new IndexAutocompleteComponent(name, parent, true);
-  },
-  fields: function (name, parent) {
-    return new FieldAutocompleteComponent(name, parent, true);
-  },
-  field: function (name, parent) {
-    return new FieldAutocompleteComponent(name, parent, false);
-  },
+const factories: Record<string, ParamFactory | undefined> = {
+  index: (name, parent) => new IndexAutocompleteComponent(name, parent, true),
+  fields: (name, parent) => new FieldAutocompleteComponent(name, parent, true),
+  field: (name, parent) => new FieldAutocompleteComponent(name, parent, false),
   // legacy index templates
-  template: function (name, parent) {
-    return new LegacyTemplateAutocompleteComponent(name, parent);
-  },
+  template: (name, parent) => new LegacyTemplateAutocompleteComponent(name, parent),
   // composable index templates
-  // currently seems to be unused, but that is a useful functionality
-  index_template: function (name, parent) {
-    return new IndexTemplateAutocompleteComponent(name, parent);
+  index_template: (name, parent) => new IndexTemplateAutocompleteComponent(name, parent),
+  component_template: (name, parent) => new ComponentTemplateAutocompleteComponent(name, parent),
+  data_stream: (name, parent) => new DataStreamAutocompleteComponent(name, parent),
+};
+
+const defaultBodyParametrizedComponentFactories: ParametrizedComponentFactories = {
+  getComponent: (name: string) => {
+    const factory = factories[name];
+    if (factory) return factory;
+    return undefined;
   },
-  // currently seems to be unused, but that is a useful functionality
-  component_template: function (name, parent) {
-    return new ComponentTemplateAutocompleteComponent(name, parent);
-  },
-  // currently seems to be unused, but that is a useful functionality
-  data_stream: function (name, parent) {
-    return new DataStreamAutocompleteComponent(name, parent);
+};
+
+const defaultUrlParametrizedComponentFactories: UrlParametrizedComponentFactories = {
+  getComponent: (name: string) => {
+    const factory = factories[name];
+    if (!factory) return undefined;
+    return (part, parent) => factory(part, parent);
   },
 };
 
@@ -68,55 +73,60 @@ export function getUnmatchedEndpointComponents() {
   return ACTIVE_API.getUnmatchedEndpointComponents();
 }
 
-export function getEndpointDescriptionByEndpoint(endpoint) {
+export function getEndpointDescriptionByEndpoint(endpoint: string) {
   return ACTIVE_API.getEndpointDescriptionByEndpoint(endpoint);
 }
 
-export function getEndpointBodyCompleteComponents(endpoint) {
+export function getEndpointBodyCompleteComponents(endpoint: string) {
   const desc = getEndpointDescriptionByEndpoint(endpoint);
   if (!desc) {
-    throw new Error("failed to resolve endpoint ['" + endpoint + "']");
+    throw new Error(`failed to resolve endpoint ['${endpoint}']`);
   }
   return desc.bodyAutocompleteRootComponents;
 }
 
-export function getTopLevelUrlCompleteComponents(method) {
+export function getTopLevelUrlCompleteComponents(method: string) {
   return ACTIVE_API.getTopLevelUrlCompleteComponents(method);
 }
 
-export function getGlobalAutocompleteComponents(term, throwOnMissing) {
+export function getGlobalAutocompleteComponents(term: string, throwOnMissing?: boolean) {
   return ACTIVE_API.getGlobalAutocompleteComponents(term, throwOnMissing);
 }
 
 function loadApisFromJson(
-  json,
-  urlParametrizedComponentFactories,
-  bodyParametrizedComponentFactories
+  json: unknown,
+  urlParametrizedComponentFactories?: UrlParametrizedComponentFactories,
+  bodyParametrizedComponentFactories?: ParametrizedComponentFactories
 ) {
   try {
-    urlParametrizedComponentFactories =
-      urlParametrizedComponentFactories || parametrizedComponentFactories;
-    bodyParametrizedComponentFactories =
-      bodyParametrizedComponentFactories || urlParametrizedComponentFactories;
-    const api = new Api(urlParametrizedComponentFactories, bodyParametrizedComponentFactories);
-    const names = [];
-    _.each(json, function (apiJson, name) {
-      names.unshift(name);
-      _.each(apiJson.globals || {}, function (globalJson, globalName) {
-        api.addGlobalAutocompleteRules(globalName, globalJson);
+    const urlFactories =
+      urlParametrizedComponentFactories ?? defaultUrlParametrizedComponentFactories;
+    const bodyFactories =
+      bodyParametrizedComponentFactories ?? defaultBodyParametrizedComponentFactories;
+
+    const api = new Api(urlFactories, bodyFactories);
+    const names: string[] = [];
+
+    _.each(json as any, (apiJson: any, name: unknown) => {
+      names.unshift(String(name));
+      _.each((apiJson as any).globals || {}, (globalJson: unknown, globalName: unknown) => {
+        api.addGlobalAutocompleteRules(String(globalName), globalJson);
       });
-      _.each(apiJson.endpoints || {}, function (endpointJson, endpointName) {
-        api.addEndpointDescription(endpointName, endpointJson);
+
+      _.each((apiJson as any).endpoints || {}, (endpointJson: unknown, endpointName: unknown) => {
+        api.addEndpointDescription(String(endpointName), endpointJson);
       });
     });
+
     api.name = names.join(',');
     return api;
-  } catch (e) {
+  } catch (e: unknown) {
+    // eslint-disable-next-line no-console
     console.error(e);
   }
 }
 
-function setActiveApi(api) {
+function setActiveApi(api: Api | undefined) {
   if (!api) {
     return;
   }
@@ -124,22 +134,38 @@ function setActiveApi(api) {
   ACTIVE_API = api;
 }
 
-export async function loadActiveApi(http) {
+export async function loadActiveApi(http: Pick<HttpSetup, 'get'>) {
   // Only load the API data once
   if (apiLoaded) return;
   apiLoaded = true;
 
   try {
-    const data = await http.get(`${API_BASE_PATH}/api_server`);
+    const data = await http.get<Record<string, unknown>>(`${API_BASE_PATH}/api_server`);
     setActiveApi(loadApisFromJson(data));
-  } catch (err) {
-    console.log(`failed to load API: ${err.responseText}`);
+  } catch (err: unknown) {
+    const responseText = getResponseText(err) ?? 'unknown error';
+
+    // eslint-disable-next-line no-console
+    console.log(`failed to load API: ${responseText}`);
+
     // If we fail to load the API, clear this flag so it can be retried
     apiLoaded = false;
   }
 }
 
 export const _test = {
-  loadApisFromJson: loadApisFromJson,
-  setActiveApi: setActiveApi,
+  loadApisFromJson,
+  setActiveApi,
+  globalUrlComponentFactories: defaultUrlParametrizedComponentFactories,
+  // for test authors who want to provide ad-hoc rules
+  ListComponent,
 };
+
+export type { BodyDescription };
+
+function getResponseText(err: unknown): string | null {
+  if (!isRecord(err)) return null;
+  if (!('responseText' in err)) return null;
+  const value = err.responseText;
+  return typeof value === 'string' ? value : null;
+}

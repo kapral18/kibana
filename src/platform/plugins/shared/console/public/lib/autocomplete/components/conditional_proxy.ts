@@ -7,27 +7,41 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import type {
+  AutoCompleteContext,
+  AutocompleteEditor,
+  AutocompleteComponentLike,
+  AutocompleteMatch,
+  AutocompleteTerm,
+  AutocompleteToken,
+} from '../types';
+
 import { SharedComponent } from './shared_component';
+
+type Predicate = (context: AutoCompleteContext, editor: AutocompleteEditor) => boolean;
+
 export class ConditionalProxy extends SharedComponent {
-  constructor(predicate, delegate) {
+  predicate: Predicate;
+  delegate: AutocompleteComponentLike;
+
+  constructor(predicate: Predicate, delegate: AutocompleteComponentLike) {
     super('__condition');
     this.predicate = predicate;
     this.delegate = delegate;
   }
 
-  getTerms(context, editor) {
-    if (this.predicate(context, editor)) {
-      return this.delegate.getTerms(context, editor);
-    } else {
-      return null;
-    }
+  override getTerms(
+    context: AutoCompleteContext,
+    editor: AutocompleteEditor
+  ): AutocompleteTerm[] | null {
+    return this.predicate(context, editor) ? this.delegate.getTerms(context, editor) : null;
   }
 
-  match(token, context, editor) {
-    if (this.predicate(context, editor)) {
-      return this.delegate.match(token, context, editor);
-    } else {
-      return false;
-    }
+  override match(
+    token: AutocompleteToken,
+    context: AutoCompleteContext,
+    editor: AutocompleteEditor
+  ): AutocompleteMatch {
+    return this.predicate(context, editor) ? this.delegate.match(token, context, editor) : false;
   }
 }

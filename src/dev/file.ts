@@ -11,8 +11,8 @@ import { dirname, extname, join, relative, resolve, basename } from 'path';
 
 export class File {
   public readonly path: string;
-  private relativePath: string;
-  private ext: string;
+  private readonly relativePath: string;
+  private readonly ext: string;
 
   constructor(path: string) {
     this.path = resolve(path);
@@ -20,37 +20,37 @@ export class File {
     this.ext = extname(this.path);
   }
 
-  public getAbsolutePath() {
+  public getAbsolutePath(): string {
     return this.path;
   }
 
-  public getRelativePath() {
+  public getRelativePath(): string {
     return this.relativePath;
   }
 
-  public getWithoutExtension() {
+  public getWithoutExtension(): File {
     const directory = dirname(this.path);
     const stem = basename(this.path, this.ext);
     return new File(resolve(directory, stem));
   }
 
-  public isJs() {
+  public isJs(): boolean {
     return this.ext === '.js';
   }
 
-  public isTypescript() {
+  public isTypescript(): boolean {
     return this.ext === '.ts' || this.ext === '.tsx';
   }
 
-  public isTypescriptAmbient() {
+  public isTypescriptAmbient(): boolean {
     return this.path.endsWith('.d.ts');
   }
 
-  public isSass() {
+  public isSass(): boolean {
     return this.ext === '.sass' || this.ext === '.scss';
   }
 
-  public getRelativeParentDirs() {
+  public getRelativeParentDirs(): string[] {
     const parents: string[] = [];
 
     while (true) {
@@ -69,11 +69,11 @@ export class File {
     return parents;
   }
 
-  public toString() {
+  public toString(): string {
     return this.relativePath;
   }
 
-  public toJSON() {
+  public toJSON(): string {
     return this.relativePath;
   }
 }

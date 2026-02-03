@@ -1,0 +1,202 @@
+name: Cursor Review on Comment
+
+on:
+  # Trigger: "cursor review this" comment
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: cursor-review-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || 'na' }}
+  cancel-in-progress: true
+
+env:
+  # Tune thresholds to skip huge diffs
+  # Prefer repo variables for easy tuning:
+  # - CURSOR_REVIEW_MODEL (e.g. gpt-5.2-high)
+  # - CURSOR_REVIEW_MAX_CHANGED_LINES (e.g. 2500)
+  # - CURSOR_REVIEW_MAX_CHANGED_FILES (e.g. 20)
+  MAX_CHANGED_LINES: ${{ vars.CURSOR_REVIEW_MAX_CHANGED_LINES || '2500' }} # additions + deletions
+  MAX_CHANGED_FILES: ${{ vars.CURSOR_REVIEW_MAX_CHANGED_FILES || '20' }} # number of files touched
+  MODEL: ${{ vars.CURSOR_REVIEW_MODEL || 'gpt-5.2-high' }}
+
+jobs:
+  gate:
+    name: Gate by PR size
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      github.event.comment.user.login != 'elasticmachine' &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.meta.outputs.pr_number }}
+      should_run: ${{ steps.meta.outputs.should_run }}
+      ok: ${{ steps.size.outputs.ok || 'false' }}
+      additions: ${{ steps.size.outputs.additions || '0' }}
+      deletions: ${{ steps.size.outputs.deletions || '0' }}
+      changed_files: ${{ steps.size.outputs.changed_files || '0' }}
+    steps:
+      - name: Extract PR number + detect command
+        id: meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const rawBody = String(context.payload.comment?.body ?? '');
+            const normalized = rawBody
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, ' ');
+
+            // Accept common variants:
+            // - "cursor review this"
+            // - "cursor review"
+            // - "/cursor review"
+            // - "/cursor review this"
+            // Also allow extra trailing text after the command.
+            const shouldRun =
+              normalized === 'cursor review this' ||
+              normalized === 'cursor review' ||
+              normalized === '/cursor review' ||
+              normalized === '/cursor review this' ||
+              normalized.startsWith('cursor review this ') ||
+              normalized.startsWith('cursor review ') ||
+              normalized.startsWith('/cursor review ') ||
+              normalized.startsWith('/cursor review this ');
+
+            core.setOutput('should_run', shouldRun ? 'true' : 'false');
+
+            const prNumber = context.payload.issue?.number;
+            core.setOutput('pr_number', prNumber ? String(prNumber) : '');
+
+      - name: Fetch PR size stats
+        id: size
+        if: steps.meta.outputs.should_run == 'true'
+        uses: actions/github-script@v7
+        env:
+          MAX_CHANGED_LINES: ${{ env.MAX_CHANGED_LINES }}
+          MAX_CHANGED_FILES: ${{ env.MAX_CHANGED_FILES }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number('${{ steps.meta.outputs.pr_number }}');
+
+            if (Number.isNaN(number)) {
+              core.setOutput('ok', 'false');
+              core.info('No numeric PR number available; skipping size check.');
+              return;
+            }
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number: number });
+            const additions = pr.data.additions || 0;
+            const deletions = pr.data.deletions || 0;
+            const changed_files = pr.data.changed_files || 0;
+            const total = additions + deletions;
+
+            core.setOutput('additions', String(additions));
+            core.setOutput('deletions', String(deletions));
+            core.setOutput('changed_files', String(changed_files));
+
+            const maxLines = Number(process.env.MAX_CHANGED_LINES || 0);
+            const maxFiles = Number(process.env.MAX_CHANGED_FILES || 0);
+
+            const tooManyLines = maxLines > 0 && total > maxLines;
+            const tooManyFiles = maxFiles > 0 && changed_files > maxFiles;
+            core.setOutput('ok', !tooManyLines && !tooManyFiles ? 'true' : 'false');
+
+      - name: Comment when skipping due to size
+        if: steps.meta.outputs.should_run == 'true' && steps.size.outputs.ok != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number('${{ steps.meta.outputs.pr_number }}');
+            const additions = Number('${{ steps.size.outputs.additions || 0 }}');
+            const deletions = Number('${{ steps.size.outputs.deletions || 0 }}');
+            const files = Number('${{ steps.size.outputs.changed_files || 0 }}');
+            const total = additions + deletions;
+            const maxLines = Number(process.env.MAX_CHANGED_LINES || 0);
+            const maxFiles = Number(process.env.MAX_CHANGED_FILES || 0);
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: `⏭️ Skipping automated review: PR is too large (${total} lines across ${files} files). Thresholds: ${maxLines} lines / ${maxFiles} files.`,
+            });
+
+  review:
+    name: Cursor review
+    needs: gate
+    # Only proceed if gated OK
+    if: needs.gate.outputs.pr_number != '' && needs.gate.outputs.should_run == 'true' && needs.gate.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve PR head SHA
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number('${{ needs.gate.outputs.pr_number }}');
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number: number });
+            return pr.data.head.sha;
+
+      - name: Checkout repository at PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.pr.outputs.result }}
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Perform automated code review (official prompt)
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: ${{ env.MODEL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cursor-agent --force --model "$MODEL" --output-format=text --print 'You are operating in a GitHub Actions runner performing automated code review. The gh CLI is available and authenticated. You may comment on pull requests.
+          Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ needs.gate.outputs.pr_number }}
+          - PR Head SHA: ${{ steps.pr.outputs.result }}
+          Objectives:
+          1) Re-check existing review comments and reply resolved when addressed.
+          2) Review the current PR diff and flag only clear, high-severity issues.
+          3) Leave very short inline comments (1-2 sentences) on changed lines only and a brief summary at the end.
+          Procedure:
+          - Get existing comments: gh pr view ${{ needs.gate.outputs.pr_number }} -R ${{ github.repository }} --json comments
+          - Get diff: gh pr diff ${{ needs.gate.outputs.pr_number }} -R ${{ github.repository }}
+          - Get changed files with patches to compute inline positions: gh api repos/${{ github.repository }}/pulls/${{ needs.gate.outputs.pr_number }}/files --paginate --jq ".[] | {filename,patch}"
+          - Compute exact inline anchors for each issue (file path + diff position). Comments MUST be placed inline on the changed line in the diff, not as top-level comments.
+          - Detect prior top-level "no issues" style comments authored by this bot (match bodies like: "✅ no issues", "No issues found", "LGTM").
+          - If CURRENT run finds issues and any prior "no issues" comments exist:
+            - Prefer to remove them to avoid confusion.
+          Commenting rules:
+          - Max 10 inline comments total; prioritize the most critical issues
+          - One issue per comment; place on the exact changed line
+          - Natural tone, specific and actionable; do not mention automated or high-confidence
+          - Use emojis:  Critical  Security ⚡ Performance ⚠️ Logic ✅ Resolved ✨ Improvement
+          Submission:
+          - Submit one review containing inline comments plus a concise summary
+          - Use only: gh pr review ${{ needs.gate.outputs.pr_number }} -R ${{ github.repository }} --comment
+          - Do not use: gh pr review --approve or --request-changes
+          '

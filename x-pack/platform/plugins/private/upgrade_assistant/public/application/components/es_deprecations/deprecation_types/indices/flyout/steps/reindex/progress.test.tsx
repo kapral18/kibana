@@ -8,6 +8,9 @@
 import { shallow } from 'enzyme';
 import React from 'react';
 
+import { screen } from '@testing-library/react';
+import { renderWithI18n } from '@kbn/test-jest-helpers';
+
 import { ReindexStep } from '@kbn/reindex-service-plugin/common';
 import { ReindexStatus } from '@kbn/upgrade-assistant-pkg-common';
 import { LoadingState } from '../../../../../../types';
@@ -92,7 +95,9 @@ describe('ReindexProgress', () => {
                   cancelReindex={[MockFunction]}
                   reindexState={
                     Object {
+                      "cancelLoadingState": undefined,
                       "errorMessage": null,
+                      "hasRequiredPrivileges": true,
                       "lastCompletedStep": 0,
                       "loadingState": 1,
                       "meta": Object {
@@ -106,6 +111,7 @@ describe('ReindexProgress', () => {
                         "reindexName": "reindexed-foo",
                       },
                       "reindexTaskPercComplete": null,
+                      "reindexWarnings": undefined,
                       "status": 0,
                     }
                   }

@@ -5,15 +5,18 @@
  * 2.0.
  */
 
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { type ReactNode } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { EuiSpacer, EuiPageHeader, EuiButtonEmpty } from '@elastic/eui';
 
 import { documentationLinks } from '../services/documentation_links';
 
-export const FollowerIndexPageTitle = ({ title }) => (
+interface Props {
+  title: ReactNode;
+}
+
+export const FollowerIndexPageTitle = ({ title }: Props) => (
   <>
     <EuiPageHeader
       bottomBorder
@@ -38,7 +41,3 @@ export const FollowerIndexPageTitle = ({ title }) => (
     <EuiSpacer size="l" />
   </>
 );
-
-FollowerIndexPageTitle.propTypes = {
-  title: PropTypes.node.isRequired,
-};

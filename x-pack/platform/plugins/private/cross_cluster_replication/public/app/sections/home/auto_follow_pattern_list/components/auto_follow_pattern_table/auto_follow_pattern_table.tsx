@@ -6,10 +6,10 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
+import type { EuiInMemoryTableProps } from '@elastic/eui';
 import {
   EuiInMemoryTable,
   EuiButton,
@@ -26,6 +26,8 @@ import {
 } from '../../../../../components';
 import { routing } from '../../../../../services/routing';
 import { trackUiMetric } from '../../../../../services/track_ui_metric';
+import type { ApiStatus } from '../../../../../../../common/types';
+import type { ParsedAutoFollowPattern } from '../../../../../store/reducers/auto_follow_pattern';
 
 const actionI18nTexts = {
   pause: i18n.translate(
@@ -54,7 +56,10 @@ const actionI18nTexts = {
   ),
 };
 
-const getFilteredPatterns = (autoFollowPatterns, queryText) => {
+const getFilteredPatterns = (
+  autoFollowPatterns: ParsedAutoFollowPattern[],
+  queryText: string
+): ParsedAutoFollowPattern[] => {
   if (queryText) {
     const normalizedSearchText = queryText.toLowerCase();
 
@@ -79,15 +84,29 @@ const getFilteredPatterns = (autoFollowPatterns, queryText) => {
   return autoFollowPatterns;
 };
 
-export class AutoFollowPatternTable extends PureComponent {
-  static propTypes = {
-    autoFollowPatterns: PropTypes.array,
-    selectAutoFollowPattern: PropTypes.func.isRequired,
-    pauseAutoFollowPattern: PropTypes.func.isRequired,
-    resumeAutoFollowPattern: PropTypes.func.isRequired,
-  };
+export interface AutoFollowPatternTableProps {
+  autoFollowPatterns: ParsedAutoFollowPattern[];
+  selectAutoFollowPattern: (name: string) => void;
+  pauseAutoFollowPattern: (name: string) => void;
+  resumeAutoFollowPattern: (name: string) => void;
+  apiStatusDelete: ApiStatus;
+}
 
-  static getDerivedStateFromProps(props, state) {
+interface AutoFollowPatternTableState {
+  prevAutoFollowPatterns: ParsedAutoFollowPattern[];
+  selectedItems: string[];
+  filteredAutoFollowPatterns: ParsedAutoFollowPattern[];
+  queryText: string;
+}
+
+export class AutoFollowPatternTable extends PureComponent<
+  AutoFollowPatternTableProps,
+  AutoFollowPatternTableState
+> {
+  static getDerivedStateFromProps(
+    props: AutoFollowPatternTableProps,
+    state: AutoFollowPatternTableState
+  ): Partial<AutoFollowPatternTableState> | null {
     const { autoFollowPatterns } = props;
     const { prevAutoFollowPatterns, queryText } = state;
 
@@ -102,7 +121,7 @@ export class AutoFollowPatternTable extends PureComponent {
     return null;
   }
 
-  constructor(props) {
+  constructor(props: AutoFollowPatternTableProps) {
     super(props);
 
     this.state = {
@@ -113,7 +132,7 @@ export class AutoFollowPatternTable extends PureComponent {
     };
   }
 
-  onSearch = ({ query }) => {
+  onSearch = ({ query }: { query: { text: string } }) => {
     const { autoFollowPatterns } = this.props;
     const { text } = query;
 
@@ -125,7 +144,7 @@ export class AutoFollowPatternTable extends PureComponent {
     });
   };
 
-  getTableColumns(deleteAutoFollowPattern) {
+  getTableColumns(deleteAutoFollowPattern: (name: string) => void) {
     const { selectAutoFollowPattern } = this.props;
 
     return [
@@ -139,7 +158,7 @@ export class AutoFollowPatternTable extends PureComponent {
         ),
         sortable: true,
         truncateText: false,
-        render: (name) => {
+        render: (name: string) => {
           return (
             <EuiLink
               onClick={() => {
@@ -162,7 +181,7 @@ export class AutoFollowPatternTable extends PureComponent {
             defaultMessage: 'Status',
           }
         ),
-        render: (active) => {
+        render: (active: boolean) => {
           const statusText = active
             ? i18n.translate(
                 'xpack.crossClusterReplication.autoFollowPatternList.table.statusTextActive',
@@ -201,7 +220,7 @@ export class AutoFollowPatternTable extends PureComponent {
             defaultMessage: 'Leader patterns',
           }
         ),
-        render: (leaderIndexPatterns) => leaderIndexPatterns.join(', '),
+        render: (leaderIndexPatterns: string[]) => leaderIndexPatterns.join(', '),
       },
       {
         field: 'followIndexPatternPrefix',
@@ -235,30 +254,33 @@ export class AutoFollowPatternTable extends PureComponent {
             name: actionI18nTexts.pause,
             description: actionI18nTexts.pause,
             icon: 'pause',
-            onClick: (item) => this.props.pauseAutoFollowPattern(item.name),
-            available: (item) => item.active,
+            onClick: (item: ParsedAutoFollowPattern) =>
+              this.props.pauseAutoFollowPattern(item.name),
+            available: (item: ParsedAutoFollowPattern) => item.active,
             'data-test-subj': 'contextMenuPauseButton',
           },
           {
             name: actionI18nTexts.resume,
             description: actionI18nTexts.resume,
             icon: 'play',
-            onClick: (item) => this.props.resumeAutoFollowPattern(item.name),
-            available: (item) => !item.active,
+            onClick: (item: ParsedAutoFollowPattern) =>
+              this.props.resumeAutoFollowPattern(item.name),
+            available: (item: ParsedAutoFollowPattern) => !item.active,
             'data-test-subj': 'contextMenuResumeButton',
           },
           {
             name: actionI18nTexts.edit,
             description: actionI18nTexts.edit,
             icon: 'pencil',
-            onClick: (item) => routing.navigate(routing.getAutoFollowPatternPath(item.name)),
+            onClick: (item: ParsedAutoFollowPattern) =>
+              routing.navigate(routing.getAutoFollowPatternPath(item.name)),
             'data-test-subj': 'contextMenuEditButton',
           },
           {
             name: actionI18nTexts.delete,
             description: actionI18nTexts.delete,
             icon: 'trash',
-            onClick: (item) => deleteAutoFollowPattern(item.name),
+            onClick: (item: ParsedAutoFollowPattern) => deleteAutoFollowPattern(item.name),
             'data-test-subj': 'contextMenuDeleteButton',
           },
         ],
@@ -286,7 +308,7 @@ export class AutoFollowPatternTable extends PureComponent {
     const sorting = {
       sort: {
         field: 'name',
-        direction: 'asc',
+        direction: 'asc' as const,
       },
     };
 
@@ -296,22 +318,23 @@ export class AutoFollowPatternTable extends PureComponent {
     };
 
     const selection = {
-      onSelectionChange: (selectedItems) =>
-        this.setState({ selectedItems: selectedItems.map(({ name }) => name) }),
+      onSelectionChange: (rows: ParsedAutoFollowPattern[]) =>
+        this.setState({ selectedItems: rows.map(({ name }) => name) }),
     };
 
     const search = {
       toolsLeft: selectedItems.length ? (
         <AutoFollowPatternActionMenu
+          edit={false}
           arrowDirection="down"
-          patterns={this.state.selectedItems.map((name) =>
-            filteredAutoFollowPatterns.find((item) => item.name === name)
-          )}
+          patterns={this.state.selectedItems
+            .map((name) => filteredAutoFollowPatterns.find((item) => item.name === name))
+            .filter((p): p is ParsedAutoFollowPattern => p !== undefined)}
         />
       ) : undefined,
       toolsRight: (
         <EuiButton
-          {...reactRouterNavigate(routing._reactRouter.history, `/auto_follow_patterns/add`)}
+          {...reactRouterNavigate(routing._reactRouter!.history, `/auto_follow_patterns/add`)}
           fill
           iconType="plusCircle"
           data-test-subj="createAutoFollowPatternButton"
@@ -336,8 +359,12 @@ export class AutoFollowPatternTable extends PureComponent {
             <EuiInMemoryTable
               items={filteredAutoFollowPatterns}
               itemId="name"
-              columns={this.getTableColumns(deleteAutoFollowPattern)}
-              search={search}
+              columns={
+                this.getTableColumns(
+                  deleteAutoFollowPattern
+                ) as EuiInMemoryTableProps<ParsedAutoFollowPattern>['columns']
+              }
+              search={search as EuiInMemoryTableProps<ParsedAutoFollowPattern>['search']}
               pagination={pagination}
               sorting={sorting}
               selection={selection}
@@ -345,7 +372,7 @@ export class AutoFollowPatternTable extends PureComponent {
                 'data-test-subj': 'row',
               })}
               cellProps={(item, column) => ({
-                'data-test-subj': `cell_${column.field}`,
+                'data-test-subj': `cell_${'field' in column ? column.field : ''}`,
               })}
               data-test-subj="autoFollowPatternListTable"
               tableCaption={i18n.translate(

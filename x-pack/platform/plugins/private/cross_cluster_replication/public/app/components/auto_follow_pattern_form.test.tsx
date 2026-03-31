@@ -6,6 +6,7 @@
  */
 
 import { updateFormErrors } from './auto_follow_pattern_form';
+import type { AutoFollowPatternValidationErrors } from '../services/auto_follow_pattern_validators';
 
 jest.mock('../services/auto_follow_pattern_validators', () => ({
   validateAutoFollowPattern: jest.fn(),
@@ -15,8 +16,8 @@ jest.mock('../services/auto_follow_pattern_validators', () => ({
 describe('<AutoFollowPatternForm state update', () => {
   describe('updateFormErrors()', () => {
     it('should merge errors with existing fieldsErrors', () => {
-      const errors = { name: 'Some error' };
-      const existingErrors = { leaderIndexPatterns: null };
+      const errors: AutoFollowPatternValidationErrors = { name: 'Some error' };
+      const existingErrors: AutoFollowPatternValidationErrors = { leaderIndexPatterns: null };
       const output = updateFormErrors(errors, existingErrors);
       expect(output).toMatchSnapshot();
     });

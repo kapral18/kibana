@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import {
@@ -18,7 +19,7 @@ import { indices } from '../../shared_imports';
 const { indexNameBeginsWithPeriod, findIllegalCharactersInIndexName, indexNameContainsSpaces } =
   indices;
 
-export const validateName = (name = '') => {
+export const validateName = (name = ''): string | null => {
   let errorMsg = null;
 
   if (!name || !name.trim()) {
@@ -53,7 +54,9 @@ export const validateName = (name = '') => {
   return errorMsg;
 };
 
-export const validateLeaderIndexPattern = (indexPattern) => {
+export const validateLeaderIndexPattern = (
+  indexPattern: string | undefined
+): { message: ReactNode } | null => {
   if (indexPattern) {
     const errors = validateDataView(indexPattern);
 
@@ -99,7 +102,9 @@ export const validateLeaderIndexPattern = (indexPattern) => {
   return null;
 };
 
-export const validateLeaderIndexPatterns = (indexPatterns) => {
+export const validateLeaderIndexPatterns = (
+  indexPatterns: string[]
+): { message: ReactNode } | null => {
   // We only need to check if a value has been provided, because validation for this field
   // has already been executed as the user has entered input into it.
   if (!indexPatterns.length) {
@@ -116,7 +121,7 @@ export const validateLeaderIndexPatterns = (indexPatterns) => {
   return null;
 };
 
-export const validatePrefix = (prefix) => {
+export const validatePrefix = (prefix: string): ReactElement | null => {
   // If it's empty, it is valid
   if (!prefix || !prefix.trim()) {
     return null;
@@ -160,7 +165,7 @@ export const validatePrefix = (prefix) => {
   return null;
 };
 
-export const validateSuffix = (suffix) => {
+export const validateSuffix = (suffix: string): ReactElement | null => {
   // If it's empty, it is valid
   if (!suffix || !suffix.trim()) {
     return null;
@@ -194,35 +199,53 @@ export const validateSuffix = (suffix) => {
   return null;
 };
 
-export const validateAutoFollowPattern = (autoFollowPattern = {}) => {
-  const errors = {};
-  let error = null;
-  let fieldValue;
+export interface AutoFollowPatternValidationFields {
+  name?: string;
+  leaderIndexPatterns?: string[];
+  followIndexPatternPrefix?: string;
+  followIndexPatternSuffix?: string;
+  remoteCluster?: string;
+}
 
-  Object.keys(autoFollowPattern).forEach((fieldName) => {
-    fieldValue = autoFollowPattern[fieldName];
-    error = null;
+export interface MessageError {
+  message: ReactNode;
+  alwaysVisible?: boolean;
+}
 
-    switch (fieldName) {
-      case 'name':
-        error = validateName(fieldValue);
-        break;
+export interface AutoFollowPatternValidationErrors {
+  name?: string | null;
+  leaderIndexPatterns?: MessageError | null;
+  followIndexPatternPrefix?: ReactElement | null;
+  followIndexPatternSuffix?: ReactElement | null;
+  remoteCluster?: MessageError | null;
+}
 
-      case 'leaderIndexPatterns':
-        error = validateLeaderIndexPatterns(fieldValue);
-        break;
+export const validateAutoFollowPattern = (
+  autoFollowPattern: AutoFollowPatternValidationFields = {}
+): AutoFollowPatternValidationErrors => {
+  const errors: AutoFollowPatternValidationErrors = {};
 
-      case 'followIndexPatternPrefix':
-        error = validatePrefix(fieldValue);
-        break;
+  if ('name' in autoFollowPattern) {
+    errors.name = validateName(autoFollowPattern.name ?? '');
+  }
 
-      case 'followIndexPatternSuffix':
-        error = validateSuffix(fieldValue);
-        break;
-    }
+  if ('leaderIndexPatterns' in autoFollowPattern) {
+    errors.leaderIndexPatterns = validateLeaderIndexPatterns(
+      autoFollowPattern.leaderIndexPatterns ?? []
+    );
+  }
 
-    errors[fieldName] = error;
-  });
+  if ('followIndexPatternPrefix' in autoFollowPattern) {
+    errors.followIndexPatternPrefix = validatePrefix(
+      autoFollowPattern.followIndexPatternPrefix ?? ''
+    );
+  }
+
+  if ('followIndexPatternSuffix' in autoFollowPattern) {
+    errors.followIndexPatternSuffix = validateSuffix(
+      autoFollowPattern.followIndexPatternSuffix ?? ''
+    );
+  }
 
   return errors;
 };

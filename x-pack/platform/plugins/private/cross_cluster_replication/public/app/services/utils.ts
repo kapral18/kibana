@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-export const objectToArray = (obj) => Object.keys(obj).map((k) => ({ ...obj[k], __id__: k }));
+export const objectToArray = <T>(obj: Record<string, T>): Array<T & { __id__: string }> =>
+  Object.keys(obj).map((k) => ({ ...obj[k], __id__: k }));
 
-export const arrayToObject = (array, keyProp = 'id') =>
+export const arrayToObject = <T, K extends keyof T>(array: T[], keyProp: K): Record<string, T> =>
   array.reduce((acc, item) => {
-    acc[item[keyProp]] = item;
+    acc[String(item[keyProp])] = item;
     return acc;
-  }, {});
+  }, {} as Record<string, T>);

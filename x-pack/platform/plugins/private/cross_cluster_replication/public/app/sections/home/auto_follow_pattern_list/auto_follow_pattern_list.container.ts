@@ -6,8 +6,11 @@
  */
 
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../../constants';
+import type { CcrState } from '../../../store';
 import {
   getListAutoFollowPatterns,
   getSelectedAutoFollowPatternId,
@@ -24,7 +27,9 @@ import { AutoFollowPatternList as AutoFollowPatternListView } from './auto_follo
 
 const scope = SECTIONS.AUTO_FOLLOW_PATTERN;
 
-const mapStateToProps = (state) => ({
+type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
+
+const mapStateToProps = (state: CcrState) => ({
   autoFollowPatterns: getListAutoFollowPatterns(state),
   autoFollowPatternId: getSelectedAutoFollowPatternId('detail')(state),
   apiStatus: getApiStatus(scope)(state),
@@ -32,9 +37,10 @@ const mapStateToProps = (state) => ({
   isAuthorized: isApiAuthorized(scope)(state),
 });
 
-const mapDispatchToProps = (dispatch) => ({
-  loadAutoFollowPatterns: (inBackground) => dispatch(loadAutoFollowPatterns(inBackground)),
-  selectAutoFollowPattern: (id) => dispatch(selectDetailAutoFollowPattern(id)),
+const mapDispatchToProps = (dispatch: CcrDispatch) => ({
+  loadAutoFollowPatterns: (inBackground?: boolean) =>
+    dispatch(loadAutoFollowPatterns(inBackground)),
+  selectAutoFollowPattern: (id: string | null) => dispatch(selectDetailAutoFollowPattern(id)),
   loadAutoFollowStats: () => dispatch(loadAutoFollowStats()),
 });
 

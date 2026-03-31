@@ -13,9 +13,9 @@ import {
 
 describe('Auto-follo pattern service', () => {
   describe('getPreviewIndicesFromAutoFollowPattern()', () => {
-    let prefix;
-    let suffix;
-    let leaderIndexPatterns;
+    let prefix: string;
+    let suffix: string;
+    let leaderIndexPatterns: string[];
 
     beforeEach(() => {
       prefix = 'prefix_';

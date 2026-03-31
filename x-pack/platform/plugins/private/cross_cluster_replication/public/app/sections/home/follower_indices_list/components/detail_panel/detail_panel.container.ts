@@ -6,7 +6,10 @@
  */
 
 import { connect } from 'react-redux';
-import type { ApiStatus, FollowerIndex } from '../../../../../../../common/types';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
+
+import type { ApiStatus, FollowerIndexWithPausedStatus } from '../../../../../../../common/types';
 import { DetailPanel as DetailPanelView } from './detail_panel';
 
 import {
@@ -16,12 +19,15 @@ import {
 } from '../../../../../store/selectors';
 import { getFollowerIndex } from '../../../../../store/actions';
 import { SECTIONS } from '../../../../../constants';
+import type { CcrState } from '../../../../../store';
 
 const scope = SECTIONS.FOLLOWER_INDEX;
 
+type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
+
 interface StateProps {
-  followerIndexId: string;
-  followerIndex: FollowerIndex;
+  followerIndexId: string | null;
+  followerIndex: FollowerIndexWithPausedStatus | null;
   apiStatus: ApiStatus;
 }
 
@@ -29,13 +35,13 @@ interface DispatchProps {
   getFollowerIndex: (id: string) => void;
 }
 
-const mapStateToProps = (state: any): StateProps => ({
+const mapStateToProps = (state: CcrState): StateProps => ({
   followerIndexId: getSelectedFollowerIndexId('detail')(state),
   followerIndex: getSelectedFollowerIndex('detail')(state),
   apiStatus: getApiStatus(scope)(state),
 });
 
-const mapDispatchToProps = (dispatch: any): DispatchProps => ({
+const mapDispatchToProps = (dispatch: CcrDispatch): DispatchProps => ({
   getFollowerIndex: (id: string) => dispatch(getFollowerIndex(id)),
 });
 

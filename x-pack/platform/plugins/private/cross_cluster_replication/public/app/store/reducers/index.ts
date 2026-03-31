@@ -17,3 +17,5 @@ export const ccr = combineReducers({
   api,
   stats,
 });
+
+export type CcrState = ReturnType<typeof ccr>;

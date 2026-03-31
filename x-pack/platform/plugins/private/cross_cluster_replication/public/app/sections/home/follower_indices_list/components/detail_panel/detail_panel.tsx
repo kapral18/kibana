@@ -405,8 +405,8 @@ const FollowerIndexDetails = ({ followerIndex, isPollingStatus }: FollowerIndexD
 
 export interface DetailPanelProps {
   apiStatus?: ApiStatus;
-  followerIndexId?: string;
-  followerIndex?: FollowerIndexWithPausedStatus;
+  followerIndexId?: string | null;
+  followerIndex?: FollowerIndexWithPausedStatus | null;
   closeDetailPanel: () => void;
   getFollowerIndex: (id: string) => void;
 }
@@ -553,9 +553,13 @@ export const DetailPanel = ({
             <EuiFlexGroup>
               <EuiFlexItem grow={false}>
                 <EuiButton
-                  href={routing._reactRouter.getUrlForApp('management', {
-                    path: `data/index_management${indexManagementUri}`,
-                  })}
+                  href={
+                    routing._reactRouter
+                      ? routing._reactRouter.getUrlForApp('management', {
+                          path: `data/index_management${indexManagementUri}`,
+                        })
+                      : undefined
+                  }
                   data-test-subj="viewIndexManagementButton"
                 >
                   <FormattedMessage

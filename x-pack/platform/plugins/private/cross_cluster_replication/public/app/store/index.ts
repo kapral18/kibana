@@ -5,4 +5,5 @@
  * 2.0.
  */
 
+export type { CcrState } from './reducers';
 export { ccrStore, createCrossClusterReplicationStore } from './store';

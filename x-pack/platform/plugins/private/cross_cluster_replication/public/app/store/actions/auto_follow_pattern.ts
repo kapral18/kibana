@@ -5,10 +5,16 @@
  * 2.0.
  */
 
+import type { AnyAction } from 'redux';
+import type { ThunkAction } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
 import { getToasts } from '../../services/notifications';
 import { SECTIONS, API_STATUS } from '../../constants';
 import {
+  type AutoFollowPatternConfig,
+  type DeleteAutoFollowPatternResponse,
+  type PauseAutoFollowPatternResponse,
+  type ResumeAutoFollowPatternResponse,
   loadAutoFollowPatterns as loadAutoFollowPatternsRequest,
   getAutoFollowPattern as getAutoFollowPatternRequest,
   createAutoFollowPattern as createAutoFollowPatternRequest,
@@ -20,21 +26,24 @@ import {
 import { routing } from '../../services/routing';
 import * as t from '../action_types';
 import { sendApiRequest } from './api';
+import type { CcrState } from '../reducers';
 import { getSelectedAutoFollowPatternId } from '../selectors';
 
 const { AUTO_FOLLOW_PATTERN: scope } = SECTIONS;
 
-export const selectDetailAutoFollowPattern = (id) => ({
+export const selectDetailAutoFollowPattern = (id: string | null) => ({
   type: t.AUTO_FOLLOW_PATTERN_SELECT_DETAIL,
   payload: id,
 });
 
-export const selectEditAutoFollowPattern = (id) => ({
+export const selectEditAutoFollowPattern = (id: string | null) => ({
   type: t.AUTO_FOLLOW_PATTERN_SELECT_EDIT,
   payload: id,
 });
 
-export const loadAutoFollowPatterns = (isUpdating = false) =>
+export const loadAutoFollowPatterns = (
+  isUpdating = false
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest({
     label: t.AUTO_FOLLOW_PATTERN_LOAD,
     scope,
@@ -42,15 +51,21 @@ export const loadAutoFollowPatterns = (isUpdating = false) =>
     handler: async () => await loadAutoFollowPatternsRequest(isUpdating),
   });
 
-export const getAutoFollowPattern = (id) =>
+export const getAutoFollowPattern = (
+  id: string
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest({
     label: t.AUTO_FOLLOW_PATTERN_GET,
     scope: `${scope}-get`,
     handler: async () => await getAutoFollowPatternRequest(id),
   });
 
-export const saveAutoFollowPattern = (id, autoFollowPattern, isUpdating = false) =>
-  sendApiRequest({
+export const saveAutoFollowPattern = (
+  id: string,
+  autoFollowPattern: AutoFollowPatternConfig,
+  isUpdating = false
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<void>({
     label: isUpdating ? t.AUTO_FOLLOW_PATTERN_UPDATE : t.AUTO_FOLLOW_PATTERN_CREATE,
     status: API_STATUS.SAVING,
     scope: `${scope}-save`,
@@ -58,7 +73,10 @@ export const saveAutoFollowPattern = (id, autoFollowPattern, isUpdating = false)
       if (isUpdating) {
         return await updateAutoFollowPatternRequest(id, autoFollowPattern);
       }
-      return await createAutoFollowPatternRequest({ id, ...autoFollowPattern });
+      return await createAutoFollowPatternRequest({
+        id,
+        ...autoFollowPattern,
+      });
     },
     onSuccess() {
       const successMessage = isUpdating
@@ -84,12 +102,14 @@ export const saveAutoFollowPattern = (id, autoFollowPattern, isUpdating = false)
     },
   });
 
-export const deleteAutoFollowPattern = (id) =>
-  sendApiRequest({
+export const deleteAutoFollowPattern = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<DeleteAutoFollowPatternResponse>({
     label: t.AUTO_FOLLOW_PATTERN_DELETE,
     scope: `${scope}-delete`,
     status: API_STATUS.DELETING,
-    handler: async () => deleteAutoFollowPatternRequest(id),
+    handler: async () => await deleteAutoFollowPatternRequest(id),
     onSuccess(response, dispatch, getState) {
       /**
        * We can have 1 or more auto-follow pattern delete operation
@@ -139,19 +159,21 @@ export const deleteAutoFollowPattern = (id) =>
 
         // If we've just deleted a pattern we were looking at, we need to close the panel.
         const autoFollowPatternId = getSelectedAutoFollowPatternId('detail')(getState());
-        if (response.itemsDeleted.includes(autoFollowPatternId)) {
+        if (autoFollowPatternId != null && response.itemsDeleted.includes(autoFollowPatternId)) {
           dispatch(selectDetailAutoFollowPattern(null));
         }
       }
     },
   });
 
-export const pauseAutoFollowPattern = (id) =>
-  sendApiRequest({
+export const pauseAutoFollowPattern = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<PauseAutoFollowPatternResponse>({
     label: t.AUTO_FOLLOW_PATTERN_PAUSE,
     scope: `${scope}-pause`,
     status: API_STATUS.UPDATING,
-    handler: () => pauseAutoFollowPatternRequest(id),
+    handler: async () => await pauseAutoFollowPatternRequest(id),
     onSuccess: (response) => {
       /**
        * We can have 1 or more auto-follow pattern pause operations
@@ -202,12 +224,14 @@ export const pauseAutoFollowPattern = (id) =>
     },
   });
 
-export const resumeAutoFollowPattern = (id) =>
-  sendApiRequest({
+export const resumeAutoFollowPattern = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<ResumeAutoFollowPatternResponse>({
     label: t.AUTO_FOLLOW_PATTERN_RESUME,
     scope: `${scope}-resume`,
     status: API_STATUS.UPDATING,
-    handler: () => resumeAutoFollowPatternRequest(id),
+    handler: async () => await resumeAutoFollowPatternRequest(id),
     onSuccess: (response) => {
       /**
        * We can have 1 or more auto-follow pattern resume operations

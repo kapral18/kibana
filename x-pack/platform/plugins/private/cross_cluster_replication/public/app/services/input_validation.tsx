@@ -6,22 +6,24 @@
  */
 
 import React from 'react';
+import type { ReactElement } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { indices } from '../../shared_imports';
 
-const isEmpty = (value) => {
+const isEmpty = (value: string | undefined): boolean => {
   return !value || !value.trim().length;
 };
 
-const hasSpaces = (value) => (typeof value === 'string' ? value.includes(' ') : false);
+const hasSpaces = (value: string): boolean =>
+  typeof value === 'string' ? value.includes(' ') : false;
 
-const beginsWithPeriod = (value) => {
+const beginsWithPeriod = (value: string): boolean => {
   return value[0] === '.';
 };
 
-const findIllegalCharacters = (value) => {
-  return indices.INDEX_ILLEGAL_CHARACTERS_VISIBLE.reduce((chars, char) => {
+const findIllegalCharacters = (value: string): string[] => {
+  return indices.INDEX_ILLEGAL_CHARACTERS_VISIBLE.reduce<string[]>((chars, char) => {
     if (value.includes(char)) {
       chars.push(char);
     }
@@ -30,7 +32,7 @@ const findIllegalCharacters = (value) => {
   }, []);
 };
 
-export const indexNameValidator = (value) => {
+export const indexNameValidator = (value: string): ReactElement[] | undefined => {
   if (isEmpty(value)) {
     return [
       <FormattedMessage
@@ -73,7 +75,7 @@ export const indexNameValidator = (value) => {
   return undefined;
 };
 
-export const leaderIndexValidator = (value) => {
+export const leaderIndexValidator = (value: string): ReactElement[] | undefined => {
   if (isEmpty(value)) {
     return [
       <FormattedMessage

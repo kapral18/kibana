@@ -5,7 +5,14 @@
  * 2.0.
  */
 
-const getFirstConnectedCluster = (clusters) => {
+interface RemoteCluster {
+  name: string;
+  isConnected: boolean;
+}
+
+const getFirstConnectedCluster = (
+  clusters: RemoteCluster[]
+): RemoteCluster | Record<string, never> => {
   for (let i = 0; i < clusters.length; i++) {
     if (clusters[i].isConnected) {
       return clusters[i];
@@ -16,8 +23,13 @@ const getFirstConnectedCluster = (clusters) => {
   return clusters.length ? clusters[0] : {};
 };
 
-export const getRemoteClusterName = (remoteClusters, selected) => {
-  return selected && remoteClusters.some((c) => c.name === selected)
-    ? selected
-    : getFirstConnectedCluster(remoteClusters).name;
+export const getRemoteClusterName = (
+  remoteClusters: RemoteCluster[],
+  selected: string | undefined
+): string | undefined => {
+  if (selected && remoteClusters.some((c) => c.name === selected)) {
+    return selected;
+  }
+  const first = getFirstConnectedCluster(remoteClusters);
+  return 'name' in first ? first.name : undefined;
 };

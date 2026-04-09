@@ -6,8 +6,12 @@
  */
 
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../constants';
+import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../../services/api';
+import type { CcrState } from '../../store';
 import {
   getApiStatus,
   getApiError,
@@ -24,7 +28,9 @@ import { AutoFollowPatternEdit as AutoFollowPatternEditView } from './auto_follo
 
 const scope = SECTIONS.AUTO_FOLLOW_PATTERN;
 
-const mapStateToProps = (state) => ({
+type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
+
+const mapStateToProps = (state: CcrState) => ({
   apiStatus: {
     get: getApiStatus(`${scope}-get`)(state),
     save: getApiStatus(`${scope}-save`)(state),
@@ -37,25 +43,27 @@ const mapStateToProps = (state) => ({
   autoFollowPattern: getSelectedAutoFollowPattern('edit')(state),
 });
 
-const mapDispatchToProps = (dispatch) => ({
-  getAutoFollowPattern: (id) => dispatch(getAutoFollowPattern(id)),
-  selectAutoFollowPattern: (id) => dispatch(selectEditAutoFollowPattern(id)),
-  saveAutoFollowPattern: (id, autoFollowPattern) => {
-    // Strip out errors.
-    const { active, remoteCluster, leaderIndexPatterns, followIndexPattern } = autoFollowPattern;
-
-    dispatch(
-      saveAutoFollowPattern(
-        id,
-        {
-          active,
-          remoteCluster,
-          leaderIndexPatterns,
-          followIndexPattern,
-        },
-        true
-      )
-    );
+export const mapDispatchToProps = (dispatch: CcrDispatch) => ({
+  getAutoFollowPattern: (id: string) => dispatch(getAutoFollowPattern(id)),
+  selectAutoFollowPattern: (id: string | null) => dispatch(selectEditAutoFollowPattern(id)),
+  saveAutoFollowPattern: (
+    id: string,
+    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
+  ) => {
+    // Only forward the fields accepted by the update route's body schema
+    // (`schema.object({...}).unknowns: 'forbid'` by default). Upstream sources
+    // of `autoFollowPattern` (selectors, reducers) may include extra fields
+    // such as `name` or `errors`; forwarding those would produce a 400 at the
+    // server boundary.
+    const { active, remoteCluster, leaderIndexPatterns, followIndexPattern } =
+      autoFollowPattern as AutoFollowPatternConfig;
+    const updatePayload: AutoFollowPatternConfig = {
+      active,
+      remoteCluster,
+      leaderIndexPatterns,
+      followIndexPattern,
+    };
+    return dispatch(saveAutoFollowPattern(id, updatePayload, true));
   },
   clearApiError: () => {
     dispatch(clearApiError(`${scope}-get`));

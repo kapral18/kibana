@@ -6,11 +6,14 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { RouteComponentProps } from 'react-router-dom';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiPageSection } from '@elastic/eui';
 
+import type { ApiStatus } from '../../../../common/types';
 import { setBreadcrumbs, listBreadcrumb, addBreadcrumb } from '../../services/breadcrumbs';
+import type { FollowerIndexSaveBody } from '../../services/api';
+import type { CcrApiError } from '../../services/http_error';
 import {
   FollowerIndexForm,
   FollowerIndexPageTitle,
@@ -18,14 +21,14 @@ import {
 } from '../../components';
 import { SectionLoading } from '../../../shared_imports';
 
-export class FollowerIndexAdd extends PureComponent {
-  static propTypes = {
-    saveFollowerIndex: PropTypes.func.isRequired,
-    clearApiError: PropTypes.func.isRequired,
-    apiError: PropTypes.object,
-    apiStatus: PropTypes.string.isRequired,
-  };
+export interface FollowerIndexAddProps extends RouteComponentProps {
+  saveFollowerIndex: (name: string, followerIndex: FollowerIndexSaveBody) => void | Promise<void>;
+  clearApiError: () => void;
+  apiError: CcrApiError | null;
+  apiStatus: ApiStatus;
+}
 
+export class FollowerIndexAdd extends PureComponent<FollowerIndexAddProps> {
   componentDidMount() {
     setBreadcrumbs([listBreadcrumb('/follower_indices'), addBreadcrumb]);
   }

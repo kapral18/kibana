@@ -6,15 +6,20 @@
  */
 
 import { screen, within, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { setupEnvironment, pageHelpers } from './helpers';
 import { AUTO_FOLLOW_PATTERN_EDIT, AUTO_FOLLOW_PATTERN_EDIT_NAME } from './helpers/constants';
+import { API_BASE_PATH } from '../../../common/constants';
 
 const { setup } = pageHelpers.autoFollowPatternEdit;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('Edit Auto-follow pattern', () => {
-  let httpRequestsMockHelpers;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -26,7 +31,7 @@ describe('Edit Auto-follow pattern', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    ({ httpRequestsMockHelpers } = setupEnvironment());
+    ({ httpRequestsMockHelpers, httpSetup } = setupEnvironment());
     httpRequestsMockHelpers.setGetAutoFollowPatternResponse(
       AUTO_FOLLOW_PATTERN_EDIT_NAME,
       AUTO_FOLLOW_PATTERN_EDIT
@@ -73,6 +78,50 @@ describe('Edit Auto-follow pattern', () => {
 
       expect(screen.getByTestId('prefixInput')).toHaveValue('prefix_');
       expect(screen.getByTestId('suffixInput')).toHaveValue('_suffix');
+    });
+
+    test('should PUT only the fields accepted by the update route body schema', async () => {
+      // The update route's bodySchema forbids unknown properties, so leaking
+      // extra fields (e.g. `name`, `errors`) from the form state into the
+      // dispatched payload would produce a 400 at the server boundary. The
+      // container's mapDispatchToProps whitelists the allowed fields before
+      // dispatching the save thunk; this test pins that contract.
+      const putEndpoint = `${API_BASE_PATH}/auto_follow_patterns/${AUTO_FOLLOW_PATTERN_EDIT_NAME}`;
+      // Make sure the PUT resolves so the save flow can complete without noise.
+      httpSetup.put.mockImplementation((path) => {
+        const resolved = typeof path === 'string' ? path : path.path;
+        if (resolved === putEndpoint) {
+          return Promise.resolve({});
+        }
+        return Promise.resolve({});
+      });
+
+      const submitButton = screen.getByTestId('submitButton');
+      await user.click(submitButton);
+
+      await act(async () => {
+        await jest.runOnlyPendingTimersAsync();
+      });
+
+      type PutCall = [string | { path: string }, { body?: string } | undefined];
+      const putCalls = httpSetup.put.mock.calls as unknown as PutCall[];
+      const putCall = putCalls.find(([path]) => {
+        const resolved = typeof path === 'string' ? path : path.path;
+        return resolved === putEndpoint;
+      });
+
+      expect(putCall).toBeDefined();
+      const [, options] = putCall!;
+      const rawBody = options?.body;
+      expect(typeof rawBody).toBe('string');
+      const body = JSON.parse(rawBody as string);
+
+      expect(body).toEqual({
+        active: AUTO_FOLLOW_PATTERN_EDIT.active,
+        remoteCluster: AUTO_FOLLOW_PATTERN_EDIT.remoteCluster,
+        leaderIndexPatterns: AUTO_FOLLOW_PATTERN_EDIT.leaderIndexPatterns,
+        followIndexPattern: AUTO_FOLLOW_PATTERN_EDIT.followIndexPattern,
+      });
     });
   });
 

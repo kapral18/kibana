@@ -65,7 +65,7 @@ export interface RemoteClusterRow {
   isConnected: boolean;
 }
 
-export type FollowerIndexSaveBody = Omit<FollowerIndex, 'name'>;
+export type FollowerIndexSaveBody = Omit<FollowerIndex, 'name' | 'status' | 'shards'>;
 
 export interface PauseFollowerIndexResponse {
   errors: BulkIdError[];
@@ -187,14 +187,17 @@ export const loadFollowerIndices = (
 export const getFollowerIndex = (id: string): Promise<FollowerIndex> =>
   httpClient.get<FollowerIndex>(`${API_BASE_PATH}/follower_indices/${encodeURIComponent(id)}`);
 
-export const createFollowerIndex = async (followerIndex: FollowerIndex): Promise<void> => {
+export const createFollowerIndex = async (
+  followerIndex: FollowerIndex | (FollowerIndexSaveBody & { name: string })
+): Promise<void> => {
   const uiMetrics = [UIM_FOLLOWER_INDEX_CREATE];
   const isUsingAdvancedSettings = !areAllSettingsDefault(followerIndex);
   if (isUsingAdvancedSettings) {
     uiMetrics.push(UIM_FOLLOWER_INDEX_USE_ADVANCED_OPTIONS);
   }
+  const { status: _status, shards: _shards, ...body } = followerIndex as FollowerIndex;
   const request = httpClient.post<void>(`${API_BASE_PATH}/follower_indices`, {
-    body: JSON.stringify(followerIndex),
+    body: JSON.stringify(body),
   });
   await trackUserRequest(request, uiMetrics);
 };

@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-import { updateFields, updateFormErrors } from './follower_index_form';
+import { updateFields, updateFormErrors, type FollowerIndexFormState } from './follower_index_form';
 
 describe('<FollowerIndexForm /> state transitions', () => {
   it('updateFormErrors() should merge errors with existing fieldsErrors', () => {
-    const errors = { name: 'Some error' };
-    const state = {
+    const errors: Record<string, string> = { name: 'Some error' };
+    const state: Pick<FollowerIndexFormState, 'fieldsErrors'> = {
       fieldsErrors: { leaderIndex: null },
     };
     const output = updateFormErrors(errors)(state);
@@ -19,8 +19,14 @@ describe('<FollowerIndexForm /> state transitions', () => {
 
   it('updateFields() should merge new fields value with existing followerIndex', () => {
     const fields = { name: 'new-name' };
-    const state = {
-      followerIndex: { name: 'foo', leaderIndex: 'bar' },
+    const state: Pick<FollowerIndexFormState, 'followerIndex'> = {
+      followerIndex: {
+        name: 'foo',
+        remoteCluster: 'remote',
+        leaderIndex: 'bar',
+        status: '',
+        shards: [],
+      },
     };
     const output = updateFields(fields)(state);
     expect(output).toMatchSnapshot();

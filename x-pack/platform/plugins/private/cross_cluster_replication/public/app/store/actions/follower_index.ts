@@ -8,8 +8,6 @@
 import type { AnyAction } from 'redux';
 import type { ThunkAction } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
-import type { FollowerIndex } from '../../../../common/types';
-
 import { routing } from '../../services/routing';
 import { getToasts } from '../../services/notifications';
 import { SECTIONS, API_STATUS } from '../../constants';
@@ -75,8 +73,7 @@ export const saveFollowerIndex = (
       if (isUpdating) {
         return await updateFollowerIndexRequest(name, followerIndex);
       }
-      const request: FollowerIndex = { name, ...followerIndex };
-      return await createFollowerIndexRequest(request);
+      return await createFollowerIndexRequest({ name, ...followerIndex });
     },
     onSuccess() {
       const successMessage = isUpdating

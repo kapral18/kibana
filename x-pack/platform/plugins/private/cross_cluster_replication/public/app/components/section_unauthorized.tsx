@@ -5,11 +5,16 @@
  * 2.0.
  */
 
-import React, { Fragment } from 'react';
+import React, { Fragment, type ReactNode } from 'react';
 
 import { EuiCallOut } from '@elastic/eui';
 
-export function SectionUnauthorized({ title, children }) {
+interface Props {
+  title: ReactNode;
+  children: ReactNode;
+}
+
+export function SectionUnauthorized({ title, children }: Props) {
   return (
     <Fragment>
       <EuiCallOut title={title} color="warning" iconType="question">

@@ -225,26 +225,20 @@ export const validateAutoFollowPattern = (
 ): AutoFollowPatternValidationErrors => {
   const errors: AutoFollowPatternValidationErrors = {};
 
-  if ('name' in autoFollowPattern) {
-    errors.name = validateName(autoFollowPattern.name ?? '');
+  if (autoFollowPattern.name !== undefined) {
+    errors.name = validateName(autoFollowPattern.name);
   }
 
-  if ('leaderIndexPatterns' in autoFollowPattern) {
-    errors.leaderIndexPatterns = validateLeaderIndexPatterns(
-      autoFollowPattern.leaderIndexPatterns ?? []
-    );
+  if (autoFollowPattern.leaderIndexPatterns !== undefined) {
+    errors.leaderIndexPatterns = validateLeaderIndexPatterns(autoFollowPattern.leaderIndexPatterns);
   }
 
-  if ('followIndexPatternPrefix' in autoFollowPattern) {
-    errors.followIndexPatternPrefix = validatePrefix(
-      autoFollowPattern.followIndexPatternPrefix ?? ''
-    );
+  if (autoFollowPattern.followIndexPatternPrefix !== undefined) {
+    errors.followIndexPatternPrefix = validatePrefix(autoFollowPattern.followIndexPatternPrefix);
   }
 
-  if ('followIndexPatternSuffix' in autoFollowPattern) {
-    errors.followIndexPatternSuffix = validateSuffix(
-      autoFollowPattern.followIndexPatternSuffix ?? ''
-    );
+  if (autoFollowPattern.followIndexPatternSuffix !== undefined) {
+    errors.followIndexPatternSuffix = validateSuffix(autoFollowPattern.followIndexPatternSuffix);
   }
 
   return errors;

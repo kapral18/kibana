@@ -14,6 +14,17 @@ describe('Auto-follow pattern validators', () => {
       expect(errors).toMatchSnapshot();
     });
 
+    it('does not validate fields whose values are undefined', () => {
+      const errors = validateAutoFollowPattern({
+        name: undefined,
+        leaderIndexPatterns: undefined,
+        followIndexPatternPrefix: undefined,
+        followIndexPatternSuffix: undefined,
+      });
+
+      expect(errors).toEqual({});
+    });
+
     it('should validate all props from auto-follow patten', () => {
       const autoFollowPattern = {
         name: '_wrong-name',

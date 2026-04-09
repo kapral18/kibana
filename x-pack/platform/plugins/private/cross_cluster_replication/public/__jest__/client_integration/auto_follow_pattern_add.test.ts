@@ -80,6 +80,96 @@ describe('Create Auto-follow pattern', () => {
     });
   });
 
+  describe('when the form is filled', () => {
+    beforeEach(async () => {
+      httpRequestsMockHelpers.setLoadRemoteClustersResponse([
+        { name: 'my_remote', isConnected: true },
+      ]);
+      ({ user } = setup());
+      await act(async () => {
+        await jest.runOnlyPendingTimersAsync();
+      });
+    });
+
+    test('submitting a filled form should not surface required errors for filled fields', async () => {
+      // `AutoFollowPatternForm.onFieldsChange` calls `validateAutoFollowPattern`
+      // with a fixed object literal where untouched fields are present with
+      // value `undefined`. The validator must only evaluate fields whose values
+      // are explicitly provided; skipping `undefined` fields is what lets users
+      // fill the form incrementally without every still-empty field clobbering
+      // the valid state of fields they have already filled. Clicking Create
+      // flips `areErrorsVisible: true`, which is the only way a stomped error
+      // would become renderable, so the click is required to make the
+      // invariant observable.
+      const nameInput = screen.getByTestId('nameInput');
+      await user.type(nameInput, 'test1');
+
+      const comboboxWrapper = screen.getByTestId('indexPatternInput');
+      const input =
+        comboboxWrapper.querySelector('[role="combobox"]') ??
+        comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
+      await user.type(input, 'my*{enter}');
+
+      // Keep the save HTTP request pending so the submit path does not unmount
+      // the form before we can assert on the visible error state.
+      httpSetup.post.mockImplementation(() => new Promise(() => {}));
+
+      const saveButton = screen.getByTestId('submitButton');
+      await user.click(saveButton);
+
+      expect(screen.queryByTestId('formError')).not.toBeInTheDocument();
+      expect(screen.queryByText('Name is required.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('At least one leader index pattern is required.')
+      ).not.toBeInTheDocument();
+    });
+
+    test('mutating one filled field after a failed submit should not stomp validation state of other filled fields', async () => {
+      // Once `areErrorsVisible: true` is latched (see the preceding test), any
+      // edit to a single field drives `onFieldsChange` with an object literal
+      // in which the *other* fields are present with value `undefined`. The
+      // validator must treat that as "not touched, do not re-validate" rather
+      // than "empty, report as required"; otherwise an edit to Name can stomp
+      // the valid state of Leader index patterns and render a phantom
+      // "required" error under an already-filled combobox.
+      const nameInput = screen.getByTestId('nameInput');
+      await user.type(nameInput, 'test1');
+
+      const comboboxWrapper = screen.getByTestId('indexPatternInput');
+      const input =
+        comboboxWrapper.querySelector('[role="combobox"]') ??
+        comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
+      await user.type(input, 'my*{enter}');
+
+      // Keep the save HTTP request pending so the happy-path submit does not
+      // unmount the form before we mutate Name again. Without this, the
+      // not-in-document assertion below could pass trivially because the form
+      // navigated away.
+      httpSetup.post.mockImplementation(() => new Promise(() => {}));
+
+      const saveButton = screen.getByTestId('submitButton');
+      await user.click(saveButton);
+
+      // Mutate only the Name field. `fireEvent.change` writes the new value
+      // directly so we don't have to model cursor positioning inside an
+      // EuiFieldText.
+      fireEvent.change(nameInput, { target: { value: 'test' } });
+
+      // The leader index patterns combobox was not touched and still renders
+      // its ["my*"] tag; its error state must be left alone.
+      expect(screen.getByTestId('indexPatternInput').textContent).toContain('my*');
+      expect(
+        screen.queryByText('At least one leader index pattern is required.')
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('form validation', () => {
     describe('auto-follow pattern name', () => {
       beforeEach(async () => {

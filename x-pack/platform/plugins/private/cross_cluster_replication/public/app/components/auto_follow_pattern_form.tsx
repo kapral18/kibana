@@ -5,8 +5,8 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React, { PureComponent, Fragment, type ReactNode } from 'react';
+import type { EuiComboBoxOptionOption } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
@@ -40,52 +40,93 @@ import { SectionError } from './section_error';
 import { AutoFollowPatternIndicesPreview } from './auto_follow_pattern_indices_preview';
 import { RemoteClustersFormField } from './remote_clusters_form_field';
 import {
+  type AutoFollowPatternValidationErrors,
+  type MessageError,
   validateAutoFollowPattern,
   validateLeaderIndexPattern,
 } from '../services/auto_follow_pattern_validators';
 
 import { AutoFollowPatternRequestFlyout } from './auto_follow_pattern_request_flyout';
+import type { ApiStatus } from '../../../common/types';
+import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../services/api';
+import type { CcrApiError } from '../services/http_error';
+import type { ParsedAutoFollowPattern } from '../store/reducers/auto_follow_pattern';
 
 const indexPatternIllegalCharacters = ILLEGAL_CHARACTERS_VISIBLE.join(' ');
 const indexNameIllegalCharacters = indices.INDEX_ILLEGAL_CHARACTERS_VISIBLE.join(' ');
 
-const getEmptyAutoFollowPattern = (remoteClusterName = '') => ({
+type AutoFollowPatternFormFields = Omit<ParsedAutoFollowPattern, 'active'> & {
+  active?: boolean;
+};
+
+const getEmptyAutoFollowPattern = (remoteClusterName = ''): AutoFollowPatternFormFields => ({
   name: '',
   remoteCluster: remoteClusterName,
   leaderIndexPatterns: [],
+  followIndexPattern: '',
   followIndexPatternPrefix: '',
   followIndexPatternSuffix: '',
 });
 
-export const updateFormErrors = (errors, existingErrors) => ({
+export const updateFormErrors = (
+  errors: AutoFollowPatternValidationErrors,
+  existingErrors: AutoFollowPatternValidationErrors
+) => ({
   fieldsErrors: {
     ...existingErrors,
     ...errors,
   },
 });
 
-export class AutoFollowPatternForm extends PureComponent {
-  static propTypes = {
-    saveAutoFollowPattern: PropTypes.func.isRequired,
-    autoFollowPattern: PropTypes.object,
-    apiError: PropTypes.object,
-    apiStatus: PropTypes.string.isRequired,
-    currentUrl: PropTypes.string.isRequired,
-    remoteClusters: PropTypes.array,
-    saveButtonLabel: PropTypes.node,
-  };
+interface RemoteClusterOption {
+  name: string;
+  isConnected: boolean;
+}
 
-  constructor(props) {
+interface Props {
+  saveAutoFollowPattern: (
+    name: string,
+    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
+  ) => void;
+  autoFollowPattern?: ParsedAutoFollowPattern;
+  apiError?: CcrApiError | null;
+  apiStatus: ApiStatus;
+  currentUrl: string;
+  remoteClusters?: RemoteClusterOption[];
+  saveButtonLabel: ReactNode;
+}
+
+interface State {
+  autoFollowPattern: AutoFollowPatternFormFields;
+  fieldsErrors: AutoFollowPatternValidationErrors;
+  areErrorsVisible: boolean;
+  isNew: boolean;
+  isRequestVisible: boolean;
+}
+
+export class AutoFollowPatternForm extends PureComponent<Props, State> {
+  constructor(props: Props) {
     super(props);
 
     const isNew = this.props.autoFollowPattern === undefined;
+    const reactRouter = routing.reactRouter;
+    if (!reactRouter) {
+      throw new Error('CCR routing was used before reactRouter was set');
+    }
     const {
       route: {
         location: { search },
       },
-    } = routing.reactRouter;
+    } = reactRouter;
     const queryParams = extractQueryParams(search);
-    const remoteClusterName = getRemoteClusterName(this.props.remoteClusters, queryParams.cluster);
+    const rawCluster = queryParams.cluster;
+    const clusterParam =
+      typeof rawCluster === 'string'
+        ? rawCluster
+        : Array.isArray(rawCluster)
+        ? rawCluster[0]
+        : undefined;
+    const remoteClusterName = getRemoteClusterName(this.props.remoteClusters ?? [], clusterParam);
     const autoFollowPattern = isNew
       ? getEmptyAutoFollowPattern(remoteClusterName)
       : {
@@ -94,7 +135,13 @@ export class AutoFollowPatternForm extends PureComponent {
 
     this.state = {
       autoFollowPattern,
-      fieldsErrors: validateAutoFollowPattern(autoFollowPattern),
+      fieldsErrors: validateAutoFollowPattern({
+        name: autoFollowPattern.name,
+        leaderIndexPatterns: autoFollowPattern.leaderIndexPatterns,
+        followIndexPatternPrefix: autoFollowPattern.followIndexPatternPrefix,
+        followIndexPatternSuffix: autoFollowPattern.followIndexPatternSuffix,
+        remoteCluster: autoFollowPattern.remoteCluster,
+      }),
       areErrorsVisible: false,
       isNew,
       isRequestVisible: false,
@@ -107,7 +154,7 @@ export class AutoFollowPatternForm extends PureComponent {
     }));
   };
 
-  onFieldsChange = (fields) => {
+  onFieldsChange = (fields: Partial<AutoFollowPatternFormFields>) => {
     this.setState(({ autoFollowPattern }) => ({
       autoFollowPattern: {
         ...autoFollowPattern,
@@ -115,22 +162,28 @@ export class AutoFollowPatternForm extends PureComponent {
       },
     }));
 
-    const errors = validateAutoFollowPattern(fields);
+    const errors = validateAutoFollowPattern({
+      name: fields.name,
+      leaderIndexPatterns: fields.leaderIndexPatterns,
+      followIndexPatternPrefix: fields.followIndexPatternPrefix,
+      followIndexPatternSuffix: fields.followIndexPatternSuffix,
+      remoteCluster: fields.remoteCluster,
+    });
     this.onFieldsErrorChange(errors);
   };
 
-  onFieldsErrorChange = (errors) =>
+  onFieldsErrorChange = (errors: AutoFollowPatternValidationErrors) =>
     this.setState(({ fieldsErrors }) => updateFormErrors(errors, fieldsErrors));
 
-  onClusterChange = (remoteCluster) => {
+  onClusterChange = (remoteCluster: string) => {
     this.onFieldsChange({ remoteCluster });
   };
 
-  onCreateLeaderIndexPattern = (indexPattern) => {
+  onCreateLeaderIndexPattern = (indexPattern: string) => {
     const error = validateLeaderIndexPattern(indexPattern);
 
     if (error) {
-      const errors = {
+      const errors: AutoFollowPatternValidationErrors = {
         leaderIndexPatterns: {
           ...error,
           alwaysVisible: true,
@@ -152,13 +205,13 @@ export class AutoFollowPatternForm extends PureComponent {
     this.onFieldsChange({ leaderIndexPatterns: newLeaderIndexPatterns });
   };
 
-  onLeaderIndexPatternChange = (indexPatterns) => {
+  onLeaderIndexPatternChange = (indexPatterns: Array<EuiComboBoxOptionOption<string>>) => {
     this.onFieldsChange({
       leaderIndexPatterns: indexPatterns.map(({ label }) => label),
     });
   };
 
-  onLeaderIndexPatternInputChange = (leaderIndexPattern) => {
+  onLeaderIndexPatternInputChange = (leaderIndexPattern: string) => {
     const isEmpty = !leaderIndexPattern || !leaderIndexPattern.trim();
     const {
       autoFollowPattern: { leaderIndexPatterns },
@@ -172,7 +225,7 @@ export class AutoFollowPatternForm extends PureComponent {
         }
       );
 
-      const errors = {
+      const errors: AutoFollowPatternValidationErrors = {
         leaderIndexPatterns: {
           message: errorMsg,
           alwaysVisible: true,
@@ -181,15 +234,17 @@ export class AutoFollowPatternForm extends PureComponent {
 
       this.setState(({ fieldsErrors }) => updateFormErrors(errors, fieldsErrors));
     } else {
-      this.setState(({ fieldsErrors, autoFollowPattern: { leaderIndexPatterns } }) => {
-        const errors = Boolean(leaderIndexPatterns.length)
-          ? // Validate existing patterns, so we can surface an error if this required input is missing.
-            validateAutoFollowPattern({ leaderIndexPatterns })
-          : // Validate the input as the user types so they have immediate feedback about errors.
-            validateAutoFollowPattern({ leaderIndexPatterns: [leaderIndexPattern] });
+      this.setState(
+        ({ fieldsErrors, autoFollowPattern: { leaderIndexPatterns: existingPatterns } }) => {
+          const errors = Boolean(existingPatterns.length)
+            ? // Validate existing patterns, so we can surface an error if this required input is missing.
+              validateAutoFollowPattern({ leaderIndexPatterns: existingPatterns })
+            : // Validate the input as the user types so they have immediate feedback about errors.
+              validateAutoFollowPattern({ leaderIndexPatterns: [leaderIndexPattern] });
 
-        return updateFormErrors(errors, fieldsErrors);
-      });
+          return updateFormErrors(errors, fieldsErrors);
+        }
+      );
     }
   };
 
@@ -204,9 +259,7 @@ export class AutoFollowPatternForm extends PureComponent {
   };
 
   isFormValid() {
-    return Object.values(this.state.fieldsErrors).every(
-      (error) => error === undefined || error === null
-    );
+    return Object.values(this.state.fieldsErrors).every((error) => error == null);
   }
 
   sendForm = () => {
@@ -219,8 +272,16 @@ export class AutoFollowPatternForm extends PureComponent {
 
     this.setState({ areErrorsVisible: false });
 
-    const { name, ...autoFollowPattern } = this.getFields();
-    this.props.saveAutoFollowPattern(name, autoFollowPattern);
+    const { isNew } = this.state;
+    const { name, active, ...autoFollowPattern } = this.getFields();
+    if (isNew) {
+      this.props.saveAutoFollowPattern(name, autoFollowPattern);
+      return;
+    }
+    this.props.saveAutoFollowPattern(name, {
+      ...autoFollowPattern,
+      active: active ?? true,
+    });
   };
 
   cancelForm = () => {
@@ -258,8 +319,8 @@ export class AutoFollowPatternForm extends PureComponent {
         name,
         remoteCluster,
         leaderIndexPatterns,
-        followIndexPatternPrefix,
-        followIndexPatternSuffix,
+        followIndexPatternPrefix = '',
+        followIndexPatternSuffix = '',
       },
       isNew,
       areErrorsVisible,
@@ -299,7 +360,7 @@ export class AutoFollowPatternForm extends PureComponent {
                 defaultMessage="Name"
               />
             }
-            error={fieldsErrors.name}
+            error={fieldsErrors.name ?? undefined}
             isInvalid={isInvalid}
             fullWidth
           >
@@ -329,12 +390,12 @@ export class AutoFollowPatternForm extends PureComponent {
             defaultMessage="Auto-follow patterns capture indices on remote clusters."
           />
         ),
-        remoteClusterNotConnectedNotEditable: (name) => ({
+        remoteClusterNotConnectedNotEditable: (clusterName: string) => ({
           title: (
             <FormattedMessage
               id="xpack.crossClusterReplication.autoFollowPatternForm.currentRemoteClusterNotConnectedCallOutTitle"
               defaultMessage="Can't edit auto-follow pattern because remote cluster ''{name}'' is not connected"
-              values={{ name }}
+              values={{ name: clusterName }}
             />
           ),
           description: (
@@ -344,12 +405,12 @@ export class AutoFollowPatternForm extends PureComponent {
             />
           ),
         }),
-        remoteClusterDoesNotExist: (name) => (
+        remoteClusterDoesNotExist: (clusterName: string) => (
           <FormattedMessage
             id="xpack.crossClusterReplication.autoFollowPatternForm.currentRemoteClusterNotFoundCallOutDescription"
             defaultMessage="To edit this auto-follow pattern, you must add a remote cluster
               named ''{name}''."
-            values={{ name }}
+            values={{ name: clusterName }}
           />
         ),
       };
@@ -376,7 +437,7 @@ export class AutoFollowPatternForm extends PureComponent {
         >
           <RemoteClustersFormField
             selected={remoteCluster ? remoteCluster : null}
-            remoteClusters={remoteClusters}
+            remoteClusters={remoteClusters ?? []}
             currentUrl={currentUrl}
             isEditable={isNew}
             areErrorsVisible={areErrorsVisible}
@@ -392,11 +453,11 @@ export class AutoFollowPatternForm extends PureComponent {
      * Leader index pattern(s)
      */
     const renderLeaderIndexPatterns = () => {
-      const hasError = !!(
-        fieldsErrors.leaderIndexPatterns && fieldsErrors.leaderIndexPatterns.message
-      );
+      const leaderIndexPatternsError: MessageError | null | undefined =
+        fieldsErrors.leaderIndexPatterns;
+      const hasError = Boolean(leaderIndexPatternsError?.message);
       const isInvalid =
-        hasError && (fieldsErrors.leaderIndexPatterns.alwaysVisible || areErrorsVisible);
+        hasError && (Boolean(leaderIndexPatternsError?.alwaysVisible) || areErrorsVisible);
       const formattedLeaderIndexPatterns = leaderIndexPatterns.map((pattern) => ({
         label: pattern,
       }));
@@ -459,7 +520,7 @@ export class AutoFollowPatternForm extends PureComponent {
               />
             }
             isInvalid={isInvalid}
-            error={fieldsErrors.leaderIndexPatterns && fieldsErrors.leaderIndexPatterns.message}
+            error={leaderIndexPatternsError && leaderIndexPatternsError.message}
             fullWidth
           >
             <EuiComboBox
@@ -521,7 +582,7 @@ export class AutoFollowPatternForm extends PureComponent {
                     defaultMessage="Prefix"
                   />
                 }
-                error={fieldsErrors.followIndexPatternPrefix}
+                error={fieldsErrors.followIndexPatternPrefix ?? undefined}
                 isInvalid={isPrefixInvalid}
                 fullWidth
               >
@@ -545,7 +606,7 @@ export class AutoFollowPatternForm extends PureComponent {
                     defaultMessage="Suffix"
                   />
                 }
-                error={fieldsErrors.followIndexPatternSuffix}
+                error={fieldsErrors.followIndexPatternSuffix ?? undefined}
                 isInvalid={isSuffixInvalid}
                 fullWidth
               >
@@ -588,7 +649,6 @@ export class AutoFollowPatternForm extends PureComponent {
      * Form Error warning message
      */
     const renderFormErrorWarning = () => {
-      const { areErrorsVisible } = this.state;
       const isFormValid = this.isFormValid();
 
       if (!areErrorsVisible || isFormValid) {
@@ -619,7 +679,7 @@ export class AutoFollowPatternForm extends PureComponent {
      */
     const renderActions = () => {
       const { apiStatus, saveButtonLabel } = this.props;
-      const { areErrorsVisible, isRequestVisible } = this.state;
+      const { isRequestVisible } = this.state;
 
       if (apiStatus === API_STATUS.SAVING) {
         return (

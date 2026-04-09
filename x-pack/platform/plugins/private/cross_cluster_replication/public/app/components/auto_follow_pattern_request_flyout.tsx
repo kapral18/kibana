@@ -7,7 +7,6 @@
 
 import React, { PureComponent } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
-import PropTypes from 'prop-types';
 
 import {
   EuiButtonEmpty,
@@ -23,15 +22,16 @@ import {
 } from '@elastic/eui';
 
 import { serializeAutoFollowPattern } from '../../../common/services/auto_follow_pattern_serialization';
+import type { AutoFollowPatternCreateConfig } from '../services/api';
 
-export class AutoFollowPatternRequestFlyout extends PureComponent {
-  static propTypes = {
-    close: PropTypes.func.isRequired,
-    name: PropTypes.string.isRequired,
-    autoFollowPattern: PropTypes.object.isRequired,
-    isNew: PropTypes.bool,
-  };
+interface Props {
+  close: () => void;
+  name: string;
+  autoFollowPattern: AutoFollowPatternCreateConfig;
+  isNew?: boolean;
+}
 
+export class AutoFollowPatternRequestFlyout extends PureComponent<Props> {
   render() {
     const { name, autoFollowPattern, close, isNew } = this.props;
     const endpoint = `PUT /_ccr/auto_follow/${name ? name : '<autoFollowPatternName>'}`;

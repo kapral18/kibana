@@ -5,14 +5,24 @@
  * 2.0.
  */
 
-import React from 'react';
+import React, { type FC } from 'react';
 
 import { EuiCallOut } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { getPreviewIndicesFromAutoFollowPattern } from '../services/auto_follow_pattern';
 
-export const AutoFollowPatternIndicesPreview = ({ prefix, suffix, leaderIndexPatterns }) => {
+interface Props {
+  prefix?: string;
+  suffix?: string;
+  leaderIndexPatterns: string[];
+}
+
+export const AutoFollowPatternIndicesPreview: FC<Props> = ({
+  prefix = '',
+  suffix = '',
+  leaderIndexPatterns,
+}) => {
   const { indicesPreview } = getPreviewIndicesFromAutoFollowPattern({
     prefix,
     suffix,
@@ -33,13 +43,15 @@ export const AutoFollowPatternIndicesPreview = ({ prefix, suffix, leaderIndexPat
         defaultMessage="The above settings will generate index names that look like this:"
       />
       <ul>
-        {indicesPreview.map(({ followPattern: { prefix, suffix, template } }, i) => (
-          <li key={i} data-test-subj="indexPreview">
-            {prefix}
-            <strong>{template}</strong>
-            {suffix}
-          </li>
-        ))}
+        {indicesPreview.map(
+          ({ followPattern: { prefix: fpPrefix, suffix: fpSuffix, template } }, i) => (
+            <li key={i} data-test-subj="indexPreview">
+              {fpPrefix}
+              <strong>{template}</strong>
+              {fpSuffix}
+            </li>
+          )
+        )}
       </ul>
     </EuiCallOut>
   );

@@ -5,7 +5,21 @@
  * 2.0.
  */
 
-export const parseAutoFollowError = (error) => {
+import type { RecentAutoFollowError } from '../../../common/types';
+
+export interface ParsedAutoFollowError {
+  id: string;
+  timestamp: number;
+  leaderIndex: string;
+  autoFollowException: {
+    type: string;
+    reason: string;
+  };
+}
+
+export const parseAutoFollowError = (
+  error: RecentAutoFollowError
+): ParsedAutoFollowError | null => {
   if (!error.leaderIndex) {
     return null;
   }
@@ -25,11 +39,14 @@ export const parseAutoFollowError = (error) => {
  * Parse an array of auto-follow pattern errors and returns
  * an object where each key is an auto-follow pattern id
  */
-export const parseAutoFollowErrors = (recentAutoFollowErrors, maxErrorsToShow = 5) =>
+export const parseAutoFollowErrors = (
+  recentAutoFollowErrors: RecentAutoFollowError[],
+  maxErrorsToShow = 5
+): Record<string, ParsedAutoFollowError[]> =>
   recentAutoFollowErrors
     .map(parseAutoFollowError)
-    .filter((error) => error !== null)
-    .reduce((byId, error) => {
+    .filter((error): error is ParsedAutoFollowError => error !== null)
+    .reduce<Record<string, ParsedAutoFollowError[]>>((byId, error) => {
       if (!byId[error.id]) {
         byId[error.id] = [];
       }

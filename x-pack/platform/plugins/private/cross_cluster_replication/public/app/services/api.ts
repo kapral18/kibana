@@ -35,9 +35,14 @@ import {
 import { trackUserRequest } from './track_ui_metric';
 import { areAllSettingsDefault } from './follower_index_default_settings';
 
-export type AutoFollowPatternConfig = Omit<AutoFollowPattern, 'name'>;
+export type AutoFollowPatternCreateConfig = Pick<
+  AutoFollowPattern,
+  'remoteCluster' | 'leaderIndexPatterns' | 'followIndexPattern'
+>;
+export type AutoFollowPatternConfig = AutoFollowPatternCreateConfig &
+  Pick<AutoFollowPattern, 'active'>;
 
-export interface CreateAutoFollowPatternRequest extends AutoFollowPatternConfig {
+export interface CreateAutoFollowPatternRequest extends AutoFollowPatternCreateConfig {
   id: string;
 }
 
@@ -65,7 +70,7 @@ export interface RemoteClusterRow {
   isConnected: boolean;
 }
 
-export type FollowerIndexSaveBody = Omit<FollowerIndex, 'name'>;
+export type FollowerIndexSaveBody = Omit<FollowerIndex, 'name' | 'status' | 'shards'>;
 
 export interface PauseFollowerIndexResponse {
   errors: BulkIdError[];
@@ -187,7 +192,9 @@ export const loadFollowerIndices = (
 export const getFollowerIndex = (id: string): Promise<FollowerIndex> =>
   httpClient.get<FollowerIndex>(`${API_BASE_PATH}/follower_indices/${encodeURIComponent(id)}`);
 
-export const createFollowerIndex = async (followerIndex: FollowerIndex): Promise<void> => {
+export const createFollowerIndex = async (
+  followerIndex: FollowerIndexSaveBody & { name: string }
+): Promise<void> => {
   const uiMetrics = [UIM_FOLLOWER_INDEX_CREATE];
   const isUsingAdvancedSettings = !areAllSettingsDefault(followerIndex);
   if (isUsingAdvancedSettings) {

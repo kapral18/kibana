@@ -7,7 +7,6 @@
 
 import React, { PureComponent } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
-import PropTypes from 'prop-types';
 
 import {
   EuiButtonEmpty,
@@ -23,14 +22,15 @@ import {
 } from '@elastic/eui';
 
 import { serializeFollowerIndex } from '../../../../common/services/follower_index_serialization';
+import type { FollowerIndexSaveBody } from '../../services/api';
 
-export class FollowerIndexRequestFlyout extends PureComponent {
-  static propTypes = {
-    close: PropTypes.func.isRequired,
-    name: PropTypes.string.isRequired,
-    followerIndex: PropTypes.object.isRequired,
-  };
+interface Props {
+  close: () => void;
+  name: string;
+  followerIndex: FollowerIndexSaveBody;
+}
 
+export class FollowerIndexRequestFlyout extends PureComponent<Props> {
   render() {
     const { name, followerIndex, close } = this.props;
     const endpoint = `PUT /${name ? name : '<followerIndexName>'}/_ccr/follow`;

@@ -115,6 +115,47 @@ describe('Edit follower index', () => {
         })
       );
     });
+
+    // The follower index edit backend route (and likewise the create route)
+    // validates the body with `schema.object({...}).unknowns: 'forbid'`. The
+    // loaded `FollowerIndex` shape includes the read-only server-only fields
+    // `status` and `shards`; if the form forwards them on save, the server
+    // will 400 the request. The PUT body must never contain those fields
+    // regardless of what the GET response looked like.
+    test('should not forward read-only fields (status, shards) in the PUT body', async () => {
+      const maxRetryDelayInput = screen.getByTestId('maxRetryDelayInput');
+      fireEvent.change(maxRetryDelayInput, { target: { value: '10s' } });
+      fireEvent.blur(maxRetryDelayInput);
+
+      const saveButton = screen.getByTestId('submitButton');
+      fireEvent.click(saveButton);
+
+      const confirmButton = await screen.findByTestId('confirmModalConfirmButton');
+      fireEvent.click(confirmButton);
+
+      await act(async () => {
+        await jest.runOnlyPendingTimersAsync();
+      });
+
+      const putEndpoint = `${API_BASE_PATH}/follower_indices/${FOLLOWER_INDEX_EDIT_NAME}`;
+      type PutCall = [string | { path: string }, { body?: string } | undefined];
+      const putCalls = httpSetup.put.mock.calls as unknown as PutCall[];
+      const putCall = putCalls.find(([path]) => {
+        const resolved = typeof path === 'string' ? path : path.path;
+        return resolved === putEndpoint;
+      });
+      expect(putCall).toBeDefined();
+      const [, options] = putCall!;
+      const rawBody = options?.body;
+      expect(typeof rawBody).toBe('string');
+      const body = JSON.parse(rawBody as string);
+
+      expect(body).not.toHaveProperty('status');
+      expect(body).not.toHaveProperty('shards');
+      // And the save must still include the advanced setting the user changed,
+      // guarding against the flip side — accidentally stripping too much.
+      expect(body).toHaveProperty('maxRetryDelay', '10s');
+    });
   });
 
   describe('when the remote cluster is disconnected', () => {

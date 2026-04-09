@@ -6,12 +6,39 @@
  */
 
 import React from 'react';
+import type { ReactElement } from 'react';
+import type { DocLinksStart } from '@kbn/core/public';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { i18n } from '@kbn/i18n';
 import { EuiLink } from '@elastic/eui';
+
+import type { FollowerIndexAdvancedSettings } from '../../../../common/types';
 import { getSettingDefault } from '../../services/follower_index_default_settings';
 
-export const getAdvancedSettingsFields = (documentationLinks) => {
+type DocumentationLinks = DocLinksStart['links'];
+
+type AdvancedSettingField = keyof FollowerIndexAdvancedSettings;
+type AdvancedSettingValue = string | number;
+
+export type AdvancedSettingValidator = (
+  value: AdvancedSettingValue | undefined
+) => ReactElement[] | undefined;
+
+interface AdvancedSettingFieldDefinition {
+  readonly field: AdvancedSettingField;
+  readonly testSubject: string;
+  readonly title: string;
+  readonly description: string;
+  readonly label: string;
+  readonly defaultValue: AdvancedSettingValue;
+  readonly helpText?: React.ReactNode;
+  readonly type?: string;
+  readonly validator?: AdvancedSettingValidator;
+}
+
+export const getAdvancedSettingsFields = (
+  documentationLinks: DocumentationLinks
+): AdvancedSettingFieldDefinition[] => {
   const byteUnitsHelpText = (
     <FormattedMessage
       id="xpack.crossClusterReplication.followerIndexForm.advancedSettings.byteUnitsHelpText"
@@ -307,15 +334,22 @@ export const getAdvancedSettingsFields = (documentationLinks) => {
   ];
 };
 
-export const getEmptyAdvancedSettings = (documentationLinks) =>
-  getAdvancedSettingsFields(documentationLinks).reduce((obj, advancedSetting) => {
-    const { field, defaultValue } = advancedSetting;
-    return { ...obj, [field]: defaultValue };
-  }, {});
+export const getEmptyAdvancedSettings = (documentationLinks: DocumentationLinks) =>
+  getAdvancedSettingsFields(documentationLinks).reduce<Record<string, string | number>>(
+    (obj, advancedSetting) => {
+      const { field, defaultValue } = advancedSetting;
+      return { ...obj, [field]: defaultValue };
+    },
+    {}
+  );
 
-export function areAdvancedSettingsEdited(followerIndex, documentationLinks) {
+export function areAdvancedSettingsEdited(
+  followerIndex: FollowerIndexAdvancedSettings,
+  documentationLinks: DocumentationLinks
+) {
+  const empty = getEmptyAdvancedSettings(documentationLinks);
   return getAdvancedSettingsFields(documentationLinks).some((advancedSetting) => {
     const { field } = advancedSetting;
-    return followerIndex[field] !== getEmptyAdvancedSettings(documentationLinks)[field];
+    return followerIndex[field] !== empty[field];
   });
 }

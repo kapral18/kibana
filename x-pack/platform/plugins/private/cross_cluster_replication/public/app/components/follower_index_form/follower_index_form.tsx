@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React, { PureComponent, Fragment, type ReactElement, type ReactNode } from 'react';
 import { debounce } from 'lodash';
+import type { DebouncedFunc } from 'lodash';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
@@ -27,16 +27,19 @@ import {
   EuiSwitch,
   EuiText,
   EuiTitle,
+  type EuiSwitchEvent,
 } from '@elastic/eui';
 
 import { extractQueryParams, indices } from '../../../shared_imports';
 import { indexNameValidator, leaderIndexValidator } from '../../services/input_validation';
 import { routing } from '../../services/routing';
 import { getFatalErrors } from '../../services/notifications';
-import { loadIndices } from '../../services/api';
+import { loadIndices, type FollowerIndexSaveBody } from '../../services/api';
 import { documentationLinks } from '../../services/documentation_links';
 import { API_STATUS } from '../../constants';
 import { getRemoteClusterName } from '../../services/get_remote_cluster_name';
+import type { CcrApiError } from '../../services/http_error';
+import { getErrorStatus, isHttpFetchError, toCcrApiError } from '../../services/http_error';
 import { RemoteClustersFormField } from '../remote_clusters_form_field';
 import { SectionError } from '../section_error';
 import { FormEntryRow } from '../form_entry_row';
@@ -44,38 +47,84 @@ import {
   getAdvancedSettingsFields,
   getEmptyAdvancedSettings,
   areAdvancedSettingsEdited,
+  type AdvancedSettingValidator,
 } from './advanced_settings_fields';
 
 import { FollowerIndexRequestFlyout } from './follower_index_request_flyout';
+import type {
+  ApiStatus,
+  FollowerIndex,
+  FollowerIndexAdvancedSettings,
+} from '../../../../common/types';
 
 const indexNameIllegalCharacters = indices.INDEX_ILLEGAL_CHARACTERS_VISIBLE.join(' ');
 
-const getFieldToValidatorMap = (advancedSettingsFields) =>
-  advancedSettingsFields.reduce(
-    (map, advancedSetting) => {
-      const { field, validator } = advancedSetting;
-      map[field] = validator;
-      return map;
-    },
-    {
-      name: indexNameValidator,
-      leaderIndex: leaderIndexValidator,
-    }
-  );
+type FieldValidator = (value: string | number | undefined) => ReactElement[] | undefined;
+type FollowerIndexFormFields = FollowerIndexSaveBody & Pick<FollowerIndex, 'name'>;
 
-const getEmptyFollowerIndex = (remoteClusterName = '') => ({
+const getFieldToValidatorMap = (
+  advancedSettingsFields: ReturnType<typeof getAdvancedSettingsFields>
+): Record<string, FieldValidator | undefined> => {
+  const map: Record<string, FieldValidator | undefined> = {
+    name: (value) => indexNameValidator(String(value ?? '')),
+    leaderIndex: (value) => leaderIndexValidator(String(value ?? '')),
+  };
+  for (const advancedSetting of advancedSettingsFields) {
+    if (typeof advancedSetting.validator === 'function') {
+      const validator: AdvancedSettingValidator = advancedSetting.validator;
+      map[advancedSetting.field] = validator;
+    }
+  }
+  return map;
+};
+
+const getEmptyFollowerIndex = (remoteClusterName = ''): FollowerIndexFormFields => ({
   name: '',
   remoteCluster: remoteClusterName,
   leaderIndex: '',
   ...getEmptyAdvancedSettings(documentationLinks),
 });
 
+type FollowerIndexFieldError =
+  | ReactElement[]
+  | { message: ReactNode; alwaysVisible?: boolean }
+  | undefined
+  | null;
+
+interface RemoteClusterOption {
+  name: string;
+  isConnected: boolean;
+}
+
+interface Props {
+  saveFollowerIndex: (name: string, followerIndex: FollowerIndexSaveBody) => void;
+  clearApiError: () => void;
+  followerIndex?: FollowerIndex;
+  apiError?: CcrApiError | null;
+  apiStatus: ApiStatus;
+  remoteClusters?: RemoteClusterOption[];
+  saveButtonLabel: ReactNode;
+  currentUrl: string;
+}
+
+interface State {
+  isNew: boolean;
+  followerIndex: FollowerIndexFormFields;
+  fieldsErrors: Record<string, FollowerIndexFieldError | string | undefined>;
+  areErrorsVisible: boolean;
+  areAdvancedSettingsVisible: boolean;
+  isValidatingIndexName: boolean;
+  isRequestVisible: boolean;
+}
+
+export type FollowerIndexFormState = State;
+
 /**
  * State transitions: fields update
  */
 export const updateFields =
-  (fields) =>
-  ({ followerIndex }) => ({
+  (fields: Partial<FollowerIndexFormFields>) =>
+  ({ followerIndex }: Pick<State, 'followerIndex'>) => ({
     followerIndex: {
       ...followerIndex,
       ...fields,
@@ -86,50 +135,57 @@ export const updateFields =
  * State transitions: errors update
  */
 export const updateFormErrors =
-  (errors) =>
-  ({ fieldsErrors }) => ({
+  (errors: Record<string, FollowerIndexFieldError | string | undefined>) =>
+  ({ fieldsErrors }: Pick<State, 'fieldsErrors'>) => ({
     fieldsErrors: {
       ...fieldsErrors,
       ...errors,
     },
   });
 
-export class FollowerIndexForm extends PureComponent {
-  static propTypes = {
-    saveFollowerIndex: PropTypes.func.isRequired,
-    clearApiError: PropTypes.func.isRequired,
-    followerIndex: PropTypes.object,
-    apiError: PropTypes.object,
-    apiStatus: PropTypes.string.isRequired,
-    remoteClusters: PropTypes.array,
-    saveButtonLabel: PropTypes.node,
-  };
+export class FollowerIndexForm extends PureComponent<Props, State> {
+  cachedAdvancedSettings: Partial<FollowerIndexAdvancedSettings> = {};
 
-  constructor(props) {
+  validateIndexName!: DebouncedFunc<(name: string) => Promise<void>>;
+
+  constructor(props: Props) {
     super(props);
 
+    const reactRouter = routing.reactRouter;
+    if (!reactRouter) {
+      throw new Error('CCR routing was used before reactRouter was set');
+    }
     const {
       route: {
         location: { search },
       },
-    } = routing.reactRouter;
+    } = reactRouter;
     const queryParams = extractQueryParams(search);
+    const rawCluster = queryParams.cluster;
+    const clusterParam =
+      typeof rawCluster === 'string'
+        ? rawCluster
+        : Array.isArray(rawCluster)
+        ? rawCluster[0]
+        : undefined;
 
-    const isNew = this.props.followerIndex === undefined;
-    const remoteClusterName = getRemoteClusterName(this.props.remoteClusters, queryParams.cluster);
-    const followerIndex = isNew
-      ? getEmptyFollowerIndex(remoteClusterName)
-      : {
-          ...getEmptyFollowerIndex(),
-          ...this.props.followerIndex,
-        };
+    const followerIndexProp = this.props.followerIndex;
+    const isNew = followerIndexProp === undefined;
+    const remoteClusterName = getRemoteClusterName(this.props.remoteClusters ?? [], clusterParam);
 
-    // eslint-disable-next-line no-nested-ternary
-    const areAdvancedSettingsVisible = isNew
-      ? false
-      : areAdvancedSettingsEdited(followerIndex, documentationLinks)
-      ? true
-      : false;
+    let followerIndex: FollowerIndexFormFields;
+    if (followerIndexProp === undefined) {
+      followerIndex = getEmptyFollowerIndex(remoteClusterName);
+    } else {
+      const { status: _status, shards: _shards, ...editableFollowerIndex } = followerIndexProp;
+      followerIndex = {
+        ...getEmptyFollowerIndex(),
+        ...editableFollowerIndex,
+      };
+    }
+
+    const areAdvancedSettingsVisible =
+      !isNew && areAdvancedSettingsEdited(followerIndex, documentationLinks);
 
     const fieldsErrors = this.getFieldsErrors(followerIndex);
 
@@ -143,8 +199,7 @@ export class FollowerIndexForm extends PureComponent {
       isRequestVisible: false,
     };
 
-    this.cachedAdvancedSettings = {};
-    this.validateIndexName = debounce(this.validateIndexName, 500, { trailing: true });
+    this.validateIndexName = debounce(this.validateIndexNameImpl, 500, { trailing: true });
   }
 
   toggleRequest = () => {
@@ -153,11 +208,11 @@ export class FollowerIndexForm extends PureComponent {
     }));
   };
 
-  onFieldsChange = (fields) => {
+  onFieldsChange = (fields: Partial<FollowerIndexFormFields>) => {
     this.setState(updateFields(fields));
 
     const newFields = {
-      ...this.state.fields,
+      ...this.state.followerIndex,
       ...fields,
     };
 
@@ -168,14 +223,16 @@ export class FollowerIndexForm extends PureComponent {
     }
   };
 
-  getFieldsErrors = (newFields) => {
-    return Object.keys(newFields).reduce((errors, field) => {
+  getFieldsErrors = (newFields: Partial<FollowerIndexFormFields>) => {
+    return Object.keys(newFields).reduce<
+      Record<string, FollowerIndexFieldError | string | undefined>
+    >((errors, field) => {
       const advancedSettings = getAdvancedSettingsFields(documentationLinks);
       const validator = getFieldToValidatorMap(advancedSettings)[field];
-      const value = newFields[field];
+      const value = newFields[field as keyof FollowerIndexFormFields];
 
       if (validator) {
-        const error = validator(value);
+        const error = validator(value as string | number | undefined);
         errors[field] = error;
       }
 
@@ -183,7 +240,8 @@ export class FollowerIndexForm extends PureComponent {
     }, {});
   };
 
-  onIndexNameChange = ({ name }) => {
+  onIndexNameChange = (values: Record<string, string | number>) => {
+    const name = String(values.name ?? '');
     this.onFieldsChange({ name });
 
     const error = indexNameValidator(name);
@@ -208,10 +266,10 @@ export class FollowerIndexForm extends PureComponent {
     this.validateIndexName(name);
   };
 
-  validateIndexName = async (name) => {
+  validateIndexNameImpl = async (name: string) => {
     try {
-      const indices = await loadIndices();
-      const doesExist = indices.some((index) => index.name === name);
+      const loadedIndices = await loadIndices();
+      const doesExist = loadedIndices.some((index) => index.name === name);
       if (doesExist) {
         const error = {
           message: (
@@ -230,25 +288,25 @@ export class FollowerIndexForm extends PureComponent {
         isValidatingIndexName: false,
       });
     } catch (error) {
-      if (error) {
-        if (error.name === 'AbortError') {
-          // Ignore aborted requests
-          return;
-        }
-        // This could be an HTTP error
-        if (error.body) {
-          // All validation does is check for a name collision, so we can just let the user attempt
-          // to save the follower index and get an error back from the API.
-          return this.setState({
-            isValidatingIndexName: false,
-          });
-        }
+      const apiError = toCcrApiError(error);
+      if (apiError.name === 'AbortError') {
+        // Ignore aborted requests
+        return;
+      }
+
+      // This could be an HTTP error.
+      if (isHttpFetchError(apiError)) {
+        // All validation does is check for a name collision, so we can just let the user attempt
+        // to save the follower index and get an error back from the API.
+        return this.setState({
+          isValidatingIndexName: false,
+        });
       }
 
       // This error isn't an HTTP error, so let the fatal error screen tell the user something
       // unexpected happened.
       getFatalErrors().add(
-        error,
+        apiError,
         i18n.translate(
           'xpack.crossClusterReplication.followerIndexForm.indexNameValidationFatalErrorTitle',
           {
@@ -259,7 +317,7 @@ export class FollowerIndexForm extends PureComponent {
     }
   };
 
-  onClusterChange = (remoteCluster) => {
+  onClusterChange = (remoteCluster: string) => {
     this.onFieldsChange({ remoteCluster });
   };
 
@@ -267,7 +325,7 @@ export class FollowerIndexForm extends PureComponent {
     return this.state.followerIndex;
   };
 
-  toggleAdvancedSettings = (event) => {
+  toggleAdvancedSettings = (event: EuiSwitchEvent) => {
     // If the user edits the advanced settings but then hides them, we need to make sure the
     // edited values don't get sent to the API when the user saves, but we *do* want to restore
     // these values to the form when the user re-opens the advanced settings.
@@ -289,16 +347,15 @@ export class FollowerIndexForm extends PureComponent {
 
     // Save a cache of the advanced settings.
     const fields = this.getFields();
-    this.cachedAdvancedSettings = getAdvancedSettingsFields(documentationLinks).reduce(
-      (cache, { field }) => {
-        const value = fields[field];
-        if (value !== '') {
-          cache[field] = value;
-        }
-        return cache;
-      },
-      {}
-    );
+    this.cachedAdvancedSettings = getAdvancedSettingsFields(documentationLinks).reduce<
+      Partial<FollowerIndexAdvancedSettings>
+    >((cache, { field }) => {
+      const value = fields[field];
+      if (value !== '') {
+        Object.assign(cache, { [field]: value });
+      }
+      return cache;
+    }, {});
 
     // Hide the advanced settings.
     this.setState({
@@ -323,7 +380,14 @@ export class FollowerIndexForm extends PureComponent {
 
     const { name, ...followerIndex } = this.getFields();
 
-    this.props.saveFollowerIndex(name, followerIndex);
+    // Ensure read-only fields never leak into the create/update payload.
+    const {
+      status: _status,
+      shards: _shards,
+      ...saveBody
+    } = followerIndex as FollowerIndexSaveBody & Partial<Pick<FollowerIndex, 'status' | 'shards'>>;
+
+    this.props.saveFollowerIndex(name, saveBody);
   };
 
   cancelForm = () => {
@@ -336,38 +400,36 @@ export class FollowerIndexForm extends PureComponent {
   renderApiErrors() {
     const { apiError } = this.props;
 
-    if (apiError) {
-      const title = i18n.translate(
-        'xpack.crossClusterReplication.followerIndexForm.savingErrorTitle',
-        {
-          defaultMessage: `Can't create follower index`,
-        }
-      );
-      const { leaderIndex } = this.state.followerIndex;
-      const error =
-        apiError.status === 404
-          ? {
-              data: {
-                message: i18n.translate(
-                  'xpack.crossClusterReplication.followerIndexForm.leaderIndexNotFoundError',
-                  {
-                    defaultMessage: `The leader index ''{leaderIndex}'' does not exist.`,
-                    values: { leaderIndex },
-                  }
-                ),
-              },
-            }
-          : apiError;
-
-      return (
-        <Fragment>
-          <SectionError title={title} error={error} />
-          <EuiSpacer size="l" />
-        </Fragment>
-      );
+    if (!apiError) {
+      return null;
     }
 
-    return null;
+    const title = i18n.translate(
+      'xpack.crossClusterReplication.followerIndexForm.savingErrorTitle',
+      {
+        defaultMessage: `Can't create follower index`,
+      }
+    );
+    const { leaderIndex } = this.state.followerIndex;
+    const error =
+      getErrorStatus(apiError) === 404
+        ? {
+            message: i18n.translate(
+              'xpack.crossClusterReplication.followerIndexForm.leaderIndexNotFoundError',
+              {
+                defaultMessage: `The leader index ''{leaderIndex}'' does not exist.`,
+                values: { leaderIndex },
+              }
+            ),
+          }
+        : apiError;
+
+    return (
+      <Fragment>
+        <SectionError title={title} error={error} />
+        <EuiSpacer size="l" />
+      </Fragment>
+    );
   }
 
   renderForm = () => {
@@ -450,7 +512,7 @@ export class FollowerIndexForm extends PureComponent {
             defaultMessage="Replication requires a leader index on a remote cluster."
           />
         ),
-        remoteClusterNotConnectedNotEditable: (name) => ({
+        remoteClusterNotConnectedNotEditable: (name: string) => ({
           title: (
             <FormattedMessage
               id="xpack.crossClusterReplication.followerIndexForm.currentRemoteClusterNotConnectedCallOutTitle"
@@ -465,7 +527,7 @@ export class FollowerIndexForm extends PureComponent {
             />
           ),
         }),
-        remoteClusterDoesNotExist: (name) => (
+        remoteClusterDoesNotExist: (name: string) => (
           <FormattedMessage
             id="xpack.crossClusterReplication.followerIndexForm.currentRemoteClusterNotFoundCallOutDescription"
             defaultMessage="To edit this follower index, you must add a remote cluster
@@ -569,7 +631,7 @@ export class FollowerIndexForm extends PureComponent {
         }
         disabled={!isNew}
         areErrorsVisible={areErrorsVisible}
-        onValueUpdate={this.onFieldsChange}
+        onValueUpdate={(v) => this.onFieldsChange(v as Partial<FollowerIndexFormFields>)}
         testSubj="leaderIndexInput"
       />
     );
@@ -639,7 +701,7 @@ export class FollowerIndexForm extends PureComponent {
                   <FormEntryRow
                     key={field}
                     field={field}
-                    value={followerIndex[field]}
+                    value={followerIndex[field as keyof FollowerIndexFormFields] as string | number}
                     defaultValue={defaultValue}
                     error={fieldsErrors[field]}
                     title={
@@ -652,7 +714,9 @@ export class FollowerIndexForm extends PureComponent {
                     helpText={helpText}
                     type={type}
                     areErrorsVisible={areErrorsVisible}
-                    onValueUpdate={this.onFieldsChange}
+                    onValueUpdate={(v) =>
+                      this.onFieldsChange(v as Partial<FollowerIndexFormFields>)
+                    }
                     testSubj={testSubject}
                   />
                 );
@@ -668,7 +732,6 @@ export class FollowerIndexForm extends PureComponent {
      * Form Error warning message
      */
     const renderFormErrorWarning = () => {
-      const { areErrorsVisible } = this.state;
       const isFormValid = this.isFormValid();
 
       if (!areErrorsVisible || isFormValid) {
@@ -700,7 +763,7 @@ export class FollowerIndexForm extends PureComponent {
      */
     const renderActions = () => {
       const { apiStatus, saveButtonLabel } = this.props;
-      const { areErrorsVisible, isRequestVisible } = this.state;
+      const { isRequestVisible } = this.state;
 
       if (apiStatus === API_STATUS.SAVING) {
         return (
@@ -804,6 +867,13 @@ export class FollowerIndexForm extends PureComponent {
 
   render() {
     const { followerIndex, isRequestVisible } = this.state;
+    const { name, ...followerIndexRequestPayload } = this.getFields();
+    const {
+      status: _status,
+      shards: _shards,
+      ...requestPayload
+    } = followerIndexRequestPayload as FollowerIndexSaveBody &
+      Partial<Pick<FollowerIndex, 'status' | 'shards'>>;
 
     return (
       <Fragment>
@@ -812,8 +882,8 @@ export class FollowerIndexForm extends PureComponent {
 
         {isRequestVisible ? (
           <FollowerIndexRequestFlyout
-            name={followerIndex.name}
-            followerIndex={this.getFields()}
+            name={name || followerIndex.name}
+            followerIndex={requestPayload}
             close={() => this.setState({ isRequestVisible: false })}
           />
         ) : null}

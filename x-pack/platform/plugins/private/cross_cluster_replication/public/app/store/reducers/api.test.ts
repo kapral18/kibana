@@ -24,20 +24,20 @@ describe('CCR Api reducers', () => {
   const scope = 'testSection';
 
   it('API_REQUEST_START should set the Api status to "loading" on scope', () => {
-    const result = reducer(initialState, apiRequestStart({ scope }));
+    const result = reducer(initialState, apiRequestStart({ label: 'test', scope }));
 
     expect(result.status[scope]).toEqual(API_STATUS.LOADING);
   });
 
   it('API_END should set the Api status to "idle" on scope', () => {
-    const updatedState = reducer(initialState, apiRequestStart({ scope }));
-    const result = reducer(updatedState, apiRequestEnd({ scope }));
+    const updatedState = reducer(initialState, apiRequestStart({ label: 'test', scope }));
+    const result = reducer(updatedState, apiRequestEnd({ label: 'test', scope }));
 
     expect(result.status[scope]).toEqual(API_STATUS.IDLE);
   });
 
   it('API_ERROR_SET should set the Api error on scope', () => {
-    const error = { foo: 'bar' };
+    const error = new Error('boom');
     const result = reducer(initialState, setApiError({ error, scope }));
 
     expect(result.error[scope]).toBe(error);

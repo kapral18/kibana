@@ -6,15 +6,18 @@
  */
 
 import { screen, within, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { setupEnvironment, pageHelpers } from './helpers';
 import { AUTO_FOLLOW_PATTERN_EDIT, AUTO_FOLLOW_PATTERN_EDIT_NAME } from './helpers/constants';
 
 const { setup } = pageHelpers.autoFollowPatternEdit;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('Edit Auto-follow pattern', () => {
-  let httpRequestsMockHelpers;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -93,7 +96,7 @@ describe('Edit Auto-follow pattern', () => {
       expect(error).toBeInTheDocument();
 
       const title = error.querySelector('.euiCallOutHeader__title');
-      expect(title.textContent).toBe(
+      expect(title?.textContent).toBe(
         `Can't edit auto-follow pattern because remote cluster '${AUTO_FOLLOW_PATTERN_EDIT.remoteCluster}' is not connected`
       );
 

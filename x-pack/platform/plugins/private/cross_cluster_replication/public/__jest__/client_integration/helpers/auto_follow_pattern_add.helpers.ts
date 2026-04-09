@@ -5,24 +5,24 @@
  * 2.0.
  */
 
-import { renderWithRouter } from './render';
+import type { ComponentProps } from 'react';
+import { renderWithRouter, type CcrRenderResult, type OnRouterPayload } from './render';
 import { AutoFollowPatternAdd } from '../../../app/sections/auto_follow_pattern_add';
 import { createCrossClusterReplicationStore } from '../../../app/store';
-import { routing } from '../../../app/services/routing';
+import { routing, type CcrReactRouter } from '../../../app/services/routing';
 
-/**
- * @param {object} [props]
- * @returns {ReturnType<typeof renderWithRouter>}
- */
-export const setup = (props = {}) => {
+export const setup = (
+  componentProps: Partial<ComponentProps<typeof AutoFollowPatternAdd>> = {}
+): CcrRenderResult => {
   return renderWithRouter(AutoFollowPatternAdd, {
     store: createCrossClusterReplicationStore(),
-    onRouter: (router) => {
-      routing.reactRouter = {
+    onRouter: (router: OnRouterPayload) => {
+      const ccrRouter: CcrReactRouter = {
         ...router,
         getUrlForApp: () => '',
       };
+      routing.reactRouter = ccrRouter;
     },
-    defaultProps: props,
+    componentProps,
   });
 };

@@ -5,27 +5,27 @@
  * 2.0.
  */
 
-import { renderWithRouter } from './render';
+import type { ComponentProps } from 'react';
+import { renderWithRouter, type CcrRenderResult, type OnRouterPayload } from './render';
 import { FollowerIndexEdit } from '../../../app/sections/follower_index_edit';
 import { createCrossClusterReplicationStore } from '../../../app/store';
-import { routing } from '../../../app/services/routing';
+import { routing, type CcrReactRouter } from '../../../app/services/routing';
 import { FOLLOWER_INDEX_EDIT_NAME } from './constants';
 
-/**
- * @param {object} [props]
- * @returns {ReturnType<typeof renderWithRouter>}
- */
-export const setup = (props = {}) => {
+export const setup = (
+  componentProps: Partial<ComponentProps<typeof FollowerIndexEdit>> = {}
+): CcrRenderResult => {
   return renderWithRouter(FollowerIndexEdit, {
     store: createCrossClusterReplicationStore(),
     initialEntries: [`/${FOLLOWER_INDEX_EDIT_NAME}`],
     routePath: '/:id',
-    onRouter: (router) => {
-      routing.reactRouter = {
+    onRouter: (router: OnRouterPayload) => {
+      const ccrRouter: CcrReactRouter = {
         ...router,
         getUrlForApp: () => '',
       };
+      routing.reactRouter = ccrRouter;
     },
-    defaultProps: props,
+    componentProps,
   });
 };

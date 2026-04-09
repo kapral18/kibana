@@ -7,15 +7,18 @@
 
 import { ILLEGAL_CHARACTERS_VISIBLE } from '@kbn/data-views-plugin/public';
 import { fireEvent, screen, within, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { setupEnvironment, pageHelpers, getRandomString } from './helpers';
 
 const { setup } = pageHelpers.autoFollowPatternAdd;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('Create Auto-follow pattern', () => {
-  let httpRequestsMockHelpers;
-  let httpSetup;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -178,7 +181,7 @@ describe('Create Auto-follow pattern', () => {
           const errorCallOut = screen.getByTestId('notConnectedError');
           const title = errorCallOut.querySelector('.euiCallOutHeader__title');
 
-          expect(title.textContent).toBe(`Remote cluster '${clusterName}' is not connected`);
+          expect(title?.textContent).toBe(`Remote cluster '${clusterName}' is not connected`);
 
           const editButton = within(errorCallOut).getByTestId('editButton');
           expect(editButton).toBeInTheDocument();
@@ -194,7 +197,7 @@ describe('Create Auto-follow pattern', () => {
         test('should indicate in the select option that the cluster is not connected', () => {
           const select = screen.getByTestId('remoteClusterSelect');
           const option = select.querySelector('option');
-          expect(option.textContent).toBe(`${clusterName} (not connected)`);
+          expect(option?.textContent).toBe(`${clusterName} (not connected)`);
         });
       });
     });
@@ -214,8 +217,11 @@ describe('Create Auto-follow pattern', () => {
       test('should not allow spaces', () => {
         const comboboxWrapper = screen.getByTestId('indexPatternInput');
         const input =
-          comboboxWrapper.querySelector('[role="combobox"]') ||
+          comboboxWrapper.querySelector('[role="combobox"]') ??
           comboboxWrapper.querySelector('input');
+        if (!input) {
+          throw new Error('expected index pattern input');
+        }
         fireEvent.change(input, { target: { value: 'with space' } });
         fireEvent.blur(input);
 
@@ -226,11 +232,14 @@ describe('Create Auto-follow pattern', () => {
 
       test.each(ILLEGAL_CHARACTERS_VISIBLE)(
         'should not allow invalid character %s',
-        (illegalChar) => {
+        (illegalChar: string) => {
           const comboboxWrapper = screen.getByTestId('indexPatternInput');
           const input =
-            comboboxWrapper.querySelector('[role="combobox"]') ||
+            comboboxWrapper.querySelector('[role="combobox"]') ??
             comboboxWrapper.querySelector('input');
+          if (!input) {
+            throw new Error('expected index pattern input');
+          }
 
           fireEvent.change(input, { target: { value: `legalchar` } });
           fireEvent.blur(input);
@@ -261,8 +270,11 @@ describe('Create Auto-follow pattern', () => {
       // The combobox should already be rendered after beforeEach timer advancement
       const comboboxWrapper = screen.getByTestId('indexPatternInput');
       const input =
-        comboboxWrapper.querySelector('[role="combobox"]') ||
+        comboboxWrapper.querySelector('[role="combobox"]') ??
         comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
       fireEvent.change(input, { target: { value: 'kibana' } });
       fireEvent.blur(input);
 
@@ -272,8 +284,11 @@ describe('Create Auto-follow pattern', () => {
     test('should display 3 indices example when providing a wildcard(*)', () => {
       const comboboxWrapper = screen.getByTestId('indexPatternInput');
       const input =
-        comboboxWrapper.querySelector('[role="combobox"]') ||
+        comboboxWrapper.querySelector('[role="combobox"]') ??
         comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
       fireEvent.change(input, { target: { value: 'kibana-*' } });
       fireEvent.blur(input);
 
@@ -286,8 +301,11 @@ describe('Create Auto-follow pattern', () => {
     test('should only display 1 index example when *not* providing a wildcard', () => {
       const comboboxWrapper = screen.getByTestId('indexPatternInput');
       const input =
-        comboboxWrapper.querySelector('[role="combobox"]') ||
+        comboboxWrapper.querySelector('[role="combobox"]') ??
         comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
       fireEvent.change(input, { target: { value: 'kibana' } });
       fireEvent.blur(input);
 
@@ -303,8 +321,11 @@ describe('Create Auto-follow pattern', () => {
 
       const comboboxWrapper = screen.getByTestId('indexPatternInput');
       const input =
-        comboboxWrapper.querySelector('[role="combobox"]') ||
+        comboboxWrapper.querySelector('[role="combobox"]') ??
         comboboxWrapper.querySelector('input');
+      if (!input) {
+        throw new Error('expected index pattern input');
+      }
       fireEvent.change(input, { target: { value: 'kibana' } });
       fireEvent.blur(input);
 

@@ -6,24 +6,32 @@
  */
 
 import { screen, within, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
 
 import './mocks';
 import { getAutoFollowPatternMock } from './fixtures/auto_follow_pattern';
 import { setupEnvironment, pageHelpers, getRandomString } from './helpers';
+import type { AutoFollowPatternListSetupResult } from './helpers/auto_follow_pattern_list.helpers';
 
 const { setup } = pageHelpers.autoFollowPatternList;
 
-const getActionsCell = (testId, rowIndex = 0) => {
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
+const getActionsCell = (testId: string, rowIndex = 0): HTMLElement => {
   const table = new EuiTableTestHarness(testId);
   const tableRows = table.getRows();
-  return within(tableRows[rowIndex]).getAllByRole('cell').pop();
+  const cell = within(tableRows[rowIndex]).getAllByRole('cell').pop();
+  if (!cell) {
+    throw new Error(`expected actions cell for ${testId} row ${rowIndex}`);
+  }
+  return cell;
 };
 
 describe('<AutoFollowPatternList />', () => {
-  let httpRequestsMockHelpers;
-  let httpSetup;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -75,16 +83,16 @@ describe('<AutoFollowPatternList />', () => {
   });
 
   describe('when there are multiple pages of auto-follow patterns', () => {
-    let actions;
+    let actions: AutoFollowPatternListSetupResult['actions'];
 
     beforeEach(async () => {
       const autoFollowPatterns = [
-        getAutoFollowPatternMock({ name: 'unique', followPattern: '{{leader_index}}' }),
+        getAutoFollowPatternMock({ name: 'unique', followIndexPattern: '{{leader_index}}' }),
       ];
 
       for (let i = 0; i < 29; i++) {
         autoFollowPatterns.push(
-          getAutoFollowPatternMock({ name: `${i}`, followPattern: '{{leader_index}}' })
+          getAutoFollowPatternMock({ name: `${i}`, followIndexPattern: '{{leader_index}}' })
         );
       }
 
@@ -114,7 +122,7 @@ describe('<AutoFollowPatternList />', () => {
   });
 
   describe('when there are auto-follow patterns', () => {
-    let actions;
+    let actions: AutoFollowPatternListSetupResult['actions'];
 
     // For deterministic tests, we need to make sure that autoFollowPattern1 comes before autoFollowPattern2
     // in the table list that is rendered. As the table orders alphabetically by index name
@@ -206,6 +214,7 @@ describe('<AutoFollowPatternList />', () => {
         // We will delete the *first* auto-follow pattern in the table
         httpRequestsMockHelpers.setDeleteAutoFollowPatternResponse(autoFollowPattern1.name, {
           itemsDeleted: [autoFollowPattern1.name],
+          errors: [],
         });
         // After delete, the list loader will fetch again; return remaining item
         httpRequestsMockHelpers.setLoadAutoFollowPatternsResponse({
@@ -385,7 +394,7 @@ describe('<AutoFollowPatternList />', () => {
         expect(within(detailPanel2).getByTestId('titleErrors')).toBeInTheDocument();
 
         const errors = within(detailPanel2).queryAllByTestId('recentError');
-        expect(errors.map((error) => error.textContent)).toEqual([
+        expect(errors.map((error: HTMLElement) => error.textContent)).toEqual([
           'April 16th, 2020 8:00:00 PM: bar',
         ]);
       });

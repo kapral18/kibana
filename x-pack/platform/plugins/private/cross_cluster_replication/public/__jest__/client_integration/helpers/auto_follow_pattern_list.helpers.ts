@@ -6,40 +6,46 @@
  */
 
 import { screen, within, act } from '@testing-library/react';
-import { renderWithRouter } from './render';
+import type { ComponentProps } from 'react';
 import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
+import { renderWithRouter, type CcrRenderResult, type OnRouterPayload } from './render';
 import { AutoFollowPatternList } from '../../../app/sections/home/auto_follow_pattern_list';
 import { createCrossClusterReplicationStore } from '../../../app/store';
-import { routing } from '../../../app/services/routing';
+import { routing, type CcrReactRouter } from '../../../app/services/routing';
 
-/**
- * @param {object} [props]
- * @returns {ReturnType<typeof renderWithRouter>}
- */
-export const setup = (props = {}) => {
+interface AutoFollowPatternListActions {
+  selectAutoFollowPatternAt: (index: number) => Promise<void>;
+  clickBulkDeleteButton: () => Promise<void>;
+  clickConfirmModalDeleteAutoFollowPattern: () => Promise<void>;
+  clickAutoFollowPatternAt: (index: number) => Promise<void>;
+  clickPaginationNextButton: () => Promise<void>;
+  search: (value: string) => Promise<void>;
+}
+
+export type AutoFollowPatternListSetupResult = CcrRenderResult & {
+  actions: AutoFollowPatternListActions;
+};
+
+export const setup = (
+  componentProps: Partial<ComponentProps<typeof AutoFollowPatternList>> = {}
+): AutoFollowPatternListSetupResult => {
   const result = renderWithRouter(AutoFollowPatternList, {
     store: createCrossClusterReplicationStore(),
-    onRouter: (router) => {
-      routing.reactRouter = {
+    onRouter: (router: OnRouterPayload) => {
+      const ccrRouter: CcrReactRouter = {
         ...router,
-        history: {
-          ...router.history,
-          parentHistory: {
-            createHref: () => '',
-            push: () => {},
-          },
-        },
         getUrlForApp: () => '',
       };
+      routing.reactRouter = ccrRouter;
     },
-    defaultProps: props,
+    componentProps,
   });
 
   return {
     ...result,
     // Helper actions for this specific page
     actions: {
-      async selectAutoFollowPatternAt(index) {
+      async selectAutoFollowPatternAt(index: number) {
         const table = new EuiTableTestHarness('autoFollowPatternListTable');
         const checkbox = within(table.getRows()[index]).getByRole('checkbox');
         await result.user.click(checkbox);
@@ -59,12 +65,11 @@ export const setup = (props = {}) => {
         await result.user.click(confirmBtn);
         // Wait for delete HTTP request and list reload
         await act(async () => {
-          // eslint-disable-next-line no-undef
           await jest.runOnlyPendingTimersAsync();
         });
       },
 
-      async clickAutoFollowPatternAt(index) {
+      async clickAutoFollowPatternAt(index: number) {
         const link = screen.getAllByTestId('autoFollowPatternLink')[index];
         await result.user.click(link);
       },
@@ -75,7 +80,7 @@ export const setup = (props = {}) => {
         await result.user.click(nextBtn);
       },
 
-      async search(value) {
+      async search(value: string) {
         const input = screen.getByTestId('autoFollowPatternSearch');
         await result.user.clear(input);
         await result.user.type(input, value);

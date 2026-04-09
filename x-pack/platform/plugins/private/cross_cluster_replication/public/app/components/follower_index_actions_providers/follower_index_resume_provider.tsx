@@ -5,41 +5,54 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React, { PureComponent, Fragment, type ReactNode, type SyntheticEvent } from 'react';
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiConfirmModal, EuiLink, htmlIdGenerator } from '@elastic/eui';
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
+import type { CcrState } from '../../store/reducers';
 import { routing } from '../../services/routing';
 import { resumeFollowerIndex } from '../../store/actions';
 import { arrify } from '../../../../common/services/utils';
 
-class FollowerIndexResumeProviderUi extends PureComponent {
-  static propTypes = {
-    onConfirm: PropTypes.func,
-  };
+interface Props {
+  resumeFollowerIndex: (id: string | string[]) => void;
+  children: (resumeFollowerIndex: (id: string | string[]) => void) => ReactNode;
+  onConfirm?: () => void;
+}
 
-  state = {
+interface State {
+  isModalOpen: boolean;
+  ids: string[] | null;
+}
+
+class FollowerIndexResumeProviderUi extends PureComponent<Props, State> {
+  state: State = {
     isModalOpen: false,
     ids: null,
   };
 
-  onMouseOverModal = (event) => {
+  stopModalEventPropagation = (event: SyntheticEvent) => {
     // This component can sometimes be used inside of an EuiToolTip, in which case mousing over
     // the modal can trigger the tooltip. Stopping propagation prevents this.
     event.stopPropagation();
   };
 
-  resumeFollowerIndex = (id) => {
-    this.setState({ isModalOpen: true, ids: arrify(id) });
+  resumeFollowerIndex = (id: string | string[]) => {
+    this.setState({ isModalOpen: true, ids: arrify(id) as string[] });
   };
 
   onConfirm = () => {
-    this.props.resumeFollowerIndex(this.state.ids);
+    const { ids } = this.state;
+    if (!ids) {
+      return;
+    }
+    this.props.resumeFollowerIndex(ids);
     this.setState({ isModalOpen: false, ids: null });
-    this.props.onConfirm && this.props.onConfirm();
+    this.props.onConfirm?.();
   };
 
   closeConfirmModal = () => {
@@ -50,6 +63,9 @@ class FollowerIndexResumeProviderUi extends PureComponent {
 
   renderModal = () => {
     const { ids } = this.state;
+    if (!ids) {
+      return null;
+    }
     const isSingle = ids.length === 1;
     const title = isSingle
       ? i18n.translate(
@@ -70,7 +86,6 @@ class FollowerIndexResumeProviderUi extends PureComponent {
     const confirmModalTitleId = htmlIdGenerator()('confirmModalTitle');
 
     return (
-      // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events
       <EuiConfirmModal
         aria-labelledby={confirmModalTitleId}
         title={title}
@@ -90,7 +105,8 @@ class FollowerIndexResumeProviderUi extends PureComponent {
             defaultMessage: 'Resume replication',
           }
         )}
-        onMouseOver={this.onMouseOverModal}
+        onMouseOver={this.stopModalEventPropagation}
+        onFocus={this.stopModalEventPropagation}
         data-test-subj="resumeReplicationConfirmation"
       >
         {isSingle ? (
@@ -103,7 +119,7 @@ class FollowerIndexResumeProviderUi extends PureComponent {
                 editLink: (
                   <EuiLink
                     {...reactRouterNavigate(
-                      routing._reactRouter.history,
+                      routing._reactRouter!.history,
                       routing.getFollowerIndexPath(ids[0])
                     )}
                     data-test-subj="editLink"
@@ -157,8 +173,8 @@ class FollowerIndexResumeProviderUi extends PureComponent {
   }
 }
 
-const mapDispatchToProps = (dispatch) => ({
-  resumeFollowerIndex: (id) => dispatch(resumeFollowerIndex(id)),
+const mapDispatchToProps = (dispatch: ThunkDispatch<CcrState, undefined, AnyAction>) => ({
+  resumeFollowerIndex: (id: string | string[]) => dispatch(resumeFollowerIndex(id)),
 });
 
 export const FollowerIndexResumeProvider = connect(

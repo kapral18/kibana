@@ -6,8 +6,11 @@
  */
 
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../../constants';
+import type { CcrState } from '../../../store';
 import {
   getListFollowerIndices,
   getSelectedFollowerIndexId,
@@ -20,7 +23,9 @@ import { FollowerIndicesList as FollowerIndicesListView } from './follower_indic
 
 const scope = SECTIONS.FOLLOWER_INDEX;
 
-const mapStateToProps = (state) => ({
+type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
+
+const mapStateToProps = (state: CcrState) => ({
   followerIndices: getListFollowerIndices(state),
   followerIndexId: getSelectedFollowerIndexId('detail')(state),
   apiStatus: getApiStatus(scope)(state),
@@ -28,9 +33,9 @@ const mapStateToProps = (state) => ({
   isAuthorized: isApiAuthorized(scope)(state),
 });
 
-const mapDispatchToProps = (dispatch) => ({
-  loadFollowerIndices: (inBackground) => dispatch(loadFollowerIndices(inBackground)),
-  selectFollowerIndex: (id) => dispatch(selectDetailFollowerIndex(id)),
+const mapDispatchToProps = (dispatch: CcrDispatch) => ({
+  loadFollowerIndices: (inBackground?: boolean) => dispatch(loadFollowerIndices(inBackground)),
+  selectFollowerIndex: (id: string | null) => dispatch(selectDetailFollowerIndex(id)),
 });
 
 export const FollowerIndicesList = connect(

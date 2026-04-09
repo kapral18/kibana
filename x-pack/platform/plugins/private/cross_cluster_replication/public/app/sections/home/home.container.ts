@@ -6,8 +6,10 @@
  */
 
 import { connect } from 'react-redux';
+import type { RouteComponentProps } from 'react-router-dom';
 
 import { SECTIONS } from '../../constants';
+import type { CcrState } from '../../store';
 import {
   getListAutoFollowPatterns,
   getListFollowerIndices,
@@ -15,14 +17,19 @@ import {
 } from '../../store/selectors';
 import { CrossClusterReplicationHome as CrossClusterReplicationHomeView } from './home';
 
-const mapStateToProps = (state) => ({
+const mapStateToProps = (state: CcrState) => ({
   autoFollowPatterns: getListAutoFollowPatterns(state),
   isAutoFollowApiAuthorized: isApiAuthorized(SECTIONS.AUTO_FOLLOW_PATTERN)(state),
   followerIndices: getListFollowerIndices(state),
   isFollowerIndexApiAuthorized: isApiAuthorized(SECTIONS.FOLLOWER_INDEX)(state),
 });
 
-export const CrossClusterReplicationHome = connect(
-  mapStateToProps,
-  null
-)(CrossClusterReplicationHomeView);
+type CrossClusterReplicationHomeOwnProps = RouteComponentProps<{ section: string }>;
+type CrossClusterReplicationHomeStateProps = ReturnType<typeof mapStateToProps>;
+
+export const CrossClusterReplicationHome = connect<
+  CrossClusterReplicationHomeStateProps,
+  {},
+  CrossClusterReplicationHomeOwnProps,
+  CcrState
+>(mapStateToProps)(CrossClusterReplicationHomeView);

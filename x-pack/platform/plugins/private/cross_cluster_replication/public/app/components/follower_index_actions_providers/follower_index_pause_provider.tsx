@@ -5,41 +5,51 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React, { PureComponent, Fragment, type ReactNode, type SyntheticEvent } from 'react';
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiConfirmModal, htmlIdGenerator } from '@elastic/eui';
+import type { CcrState } from '../../store/reducers';
 
+import type { FollowerIndex } from '../../../../common/types';
 import { pauseFollowerIndex } from '../../store/actions';
 import { arrify } from '../../../../common/services/utils';
 import { areAllSettingsDefault } from '../../services/follower_index_default_settings';
 
-class FollowerIndexPauseProviderUi extends PureComponent {
-  static propTypes = {
-    onConfirm: PropTypes.func,
-  };
+interface Props {
+  pauseFollowerIndex: (id: string | string[]) => void;
+  children: (pauseFollowerIndex: (index: FollowerIndex | FollowerIndex[]) => void) => ReactNode;
+  onConfirm?: () => void;
+}
 
-  state = {
+interface State {
+  isModalOpen: boolean;
+  indices: FollowerIndex[];
+}
+
+class FollowerIndexPauseProviderUi extends PureComponent<Props, State> {
+  state: State = {
     isModalOpen: false,
     indices: [],
   };
 
-  onMouseOverModal = (event) => {
+  stopModalEventPropagation = (event: SyntheticEvent) => {
     // This component can sometimes be used inside of an EuiToolTip, in which case mousing over
     // the modal can trigger the tooltip. Stopping propagation prevents this.
     event.stopPropagation();
   };
 
-  pauseFollowerIndex = (index) => {
-    this.setState({ isModalOpen: true, indices: arrify(index) });
+  pauseFollowerIndex = (index: FollowerIndex | FollowerIndex[]) => {
+    this.setState({ isModalOpen: true, indices: arrify(index) as FollowerIndex[] });
   };
 
   onConfirm = () => {
     this.props.pauseFollowerIndex(this.state.indices.map((index) => index.name));
     this.setState({ isModalOpen: false, indices: [] });
-    this.props.onConfirm && this.props.onConfirm();
+    this.props.onConfirm?.();
   };
 
   closeConfirmModal = () => {
@@ -50,6 +60,9 @@ class FollowerIndexPauseProviderUi extends PureComponent {
 
   renderModal = () => {
     const { indices } = this.state;
+    if (!indices.length) {
+      return null;
+    }
     const isSingle = indices.length === 1;
     const title = isSingle
       ? i18n.translate(
@@ -71,7 +84,6 @@ class FollowerIndexPauseProviderUi extends PureComponent {
     const confirmModalTitleId = htmlIdGenerator()('confirmModalTitle');
 
     return (
-      // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events
       <EuiConfirmModal
         aria-labelledby={confirmModalTitleId}
         title={title}
@@ -91,7 +103,8 @@ class FollowerIndexPauseProviderUi extends PureComponent {
             defaultMessage: 'Pause replication',
           }
         )}
-        onMouseOver={this.onMouseOverModal}
+        onMouseOver={this.stopModalEventPropagation}
+        onFocus={this.stopModalEventPropagation}
         data-test-subj="pauseReplicationConfirmation"
       >
         {hasCustomSettings && (
@@ -144,8 +157,8 @@ class FollowerIndexPauseProviderUi extends PureComponent {
   }
 }
 
-const mapDispatchToProps = (dispatch) => ({
-  pauseFollowerIndex: (id) => dispatch(pauseFollowerIndex(id)),
+const mapDispatchToProps = (dispatch: ThunkDispatch<CcrState, undefined, AnyAction>) => ({
+  pauseFollowerIndex: (id: string | string[]) => dispatch(pauseFollowerIndex(id)),
 });
 
 export const FollowerIndexPauseProvider = connect(

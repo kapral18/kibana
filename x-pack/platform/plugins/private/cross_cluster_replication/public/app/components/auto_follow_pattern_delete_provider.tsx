@@ -5,33 +5,51 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
+import React, { PureComponent, Fragment, type ReactNode, type SyntheticEvent } from 'react';
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiConfirmModal, htmlIdGenerator } from '@elastic/eui';
+import type { CcrState } from '../store/reducers';
 
 import { deleteAutoFollowPattern } from '../store/actions';
 import { arrify } from '../../../common/services/utils';
 
-class AutoFollowPatternDeleteProviderUi extends PureComponent {
-  state = {
+interface Props {
+  /** Thunk is typed as `string` but the API accepts single or multiple ids. */
+  deleteAutoFollowPattern: (id: string | string[]) => void;
+  children: (deleteAutoFollowPattern: (id: string | string[]) => void) => ReactNode;
+}
+
+interface State {
+  isModalOpen: boolean;
+  ids: string[] | null;
+}
+
+class AutoFollowPatternDeleteProviderUi extends PureComponent<Props, State> {
+  state: State = {
     isModalOpen: false,
     ids: null,
   };
 
-  onMouseOverModal = (event) => {
+  stopModalEventPropagation = (event: SyntheticEvent) => {
     // This component can sometimes be used inside of an EuiToolTip, in which case mousing over
     // the modal can trigger the tooltip. Stopping propagation prevents this.
     event.stopPropagation();
   };
 
-  deleteAutoFollowPattern = (id) => {
+  deleteAutoFollowPattern = (id: string | string[]) => {
     this.setState({ isModalOpen: true, ids: arrify(id) });
   };
 
   onConfirm = () => {
-    this.props.deleteAutoFollowPattern(this.state.ids);
+    const { ids } = this.state;
+    if (!ids) {
+      return;
+    }
+    this.props.deleteAutoFollowPattern(ids);
     this.setState({ isModalOpen: false, ids: null });
   };
 
@@ -43,6 +61,9 @@ class AutoFollowPatternDeleteProviderUi extends PureComponent {
 
   renderModal = () => {
     const { ids } = this.state;
+    if (!ids) {
+      return null;
+    }
     const isSingle = ids.length === 1;
     const title = isSingle
       ? i18n.translate(
@@ -63,7 +84,6 @@ class AutoFollowPatternDeleteProviderUi extends PureComponent {
     const confirmModalTitleId = htmlIdGenerator()('confirmModalTitle');
 
     return (
-      // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events
       <EuiConfirmModal
         aria-labelledby={confirmModalTitleId}
         title={title}
@@ -83,7 +103,8 @@ class AutoFollowPatternDeleteProviderUi extends PureComponent {
             defaultMessage: 'Remove',
           }
         )}
-        onMouseOver={this.onMouseOverModal}
+        onMouseOver={this.stopModalEventPropagation}
+        onFocus={this.stopModalEventPropagation}
         data-test-subj="deleteAutoFollowPatternConfirmation"
       >
         {!isSingle && (
@@ -118,8 +139,8 @@ class AutoFollowPatternDeleteProviderUi extends PureComponent {
   }
 }
 
-const mapDispatchToProps = (dispatch) => ({
-  deleteAutoFollowPattern: (id) => dispatch(deleteAutoFollowPattern(id)),
+const mapDispatchToProps = (dispatch: ThunkDispatch<CcrState, undefined, AnyAction>) => ({
+  deleteAutoFollowPattern: (id: string | string[]) => dispatch(deleteAutoFollowPattern(id)),
 });
 
 export const AutoFollowPatternDeleteProvider = connect(

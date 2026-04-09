@@ -6,18 +6,19 @@
  */
 
 import { connect } from 'react-redux';
-import { DetailPanel as DetailPanelView } from './detail_panel';
 
+import type { CcrState } from '../../../../../store';
 import {
   getSelectedAutoFollowPattern,
   getSelectedAutoFollowPatternId,
   getApiStatus,
 } from '../../../../../store/selectors';
 import { SECTIONS } from '../../../../../constants';
+import { DetailPanel as DetailPanelView } from './detail_panel';
 
 const scope = SECTIONS.AUTO_FOLLOW_PATTERN;
 
-const mapStateToProps = (state) => ({
+const mapStateToProps = (state: CcrState) => ({
   autoFollowPatternId: getSelectedAutoFollowPatternId('detail')(state),
   autoFollowPattern: getSelectedAutoFollowPattern('detail')(state),
   apiStatus: getApiStatus(scope)(state),

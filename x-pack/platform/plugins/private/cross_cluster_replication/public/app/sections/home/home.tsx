@@ -6,22 +6,46 @@
  */
 
 import React, { PureComponent } from 'react';
+import type { ReactNode } from 'react';
+import type { RouteComponentProps } from 'react-router-dom';
 import { Route, Routes } from '@kbn/shared-ux-router';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { EuiSpacer, EuiPageHeader } from '@elastic/eui';
 
+import type { FollowerIndexWithPausedStatus } from '../../../../common/types';
+import type { ParsedAutoFollowPattern } from '../../store/reducers/auto_follow_pattern';
 import { setBreadcrumbs, listBreadcrumb } from '../../services/breadcrumbs';
 import { routing } from '../../services/routing';
 import { AutoFollowPatternList } from './auto_follow_pattern_list';
 import { FollowerIndicesList } from './follower_indices_list';
 
-export class CrossClusterReplicationHome extends PureComponent {
-  state = {
+export interface CrossClusterReplicationHomeProps extends RouteComponentProps<{ section: string }> {
+  autoFollowPatterns: ParsedAutoFollowPattern[];
+  isAutoFollowApiAuthorized: boolean;
+  followerIndices: FollowerIndexWithPausedStatus[];
+  isFollowerIndexApiAuthorized: boolean;
+}
+
+interface CrossClusterReplicationHomeState {
+  activeSection: string;
+}
+
+interface HomeTab {
+  id: string;
+  name: ReactNode;
+  testSubj: string;
+}
+
+export class CrossClusterReplicationHome extends PureComponent<
+  CrossClusterReplicationHomeProps,
+  CrossClusterReplicationHomeState
+> {
+  state: CrossClusterReplicationHomeState = {
     activeSection: 'follower_indices',
   };
 
-  tabs = [
+  readonly tabs: HomeTab[] = [
     {
       id: 'follower_indices',
       name: (
@@ -48,7 +72,7 @@ export class CrossClusterReplicationHome extends PureComponent {
     setBreadcrumbs([listBreadcrumb()]);
   }
 
-  static getDerivedStateFromProps(props) {
+  static getDerivedStateFromProps(props: CrossClusterReplicationHomeProps) {
     const {
       match: {
         params: { section },
@@ -59,7 +83,7 @@ export class CrossClusterReplicationHome extends PureComponent {
     };
   }
 
-  onSectionChange = (section) => {
+  onSectionChange = (section: string) => {
     setBreadcrumbs([listBreadcrumb(`/${section}`)]);
     routing.navigate(`/${section}`);
   };

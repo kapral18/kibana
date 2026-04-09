@@ -5,40 +5,53 @@
  * 2.0.
  */
 
-import React, { PureComponent, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React, { PureComponent, Fragment, type ReactNode, type SyntheticEvent } from 'react';
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiConfirmModal, htmlIdGenerator } from '@elastic/eui';
+import type { CcrState } from '../../store/reducers';
 
 import { unfollowLeaderIndex } from '../../store/actions';
 import { arrify } from '../../../../common/services/utils';
 
-class FollowerIndexUnfollowProviderUi extends PureComponent {
-  static propTypes = {
-    onConfirm: PropTypes.func,
-  };
+interface Props {
+  unfollowLeaderIndex: (id: string | string[]) => void;
+  children: (unfollowLeaderIndex: (id: string | string[]) => void) => ReactNode;
+  onConfirm?: () => void;
+}
 
-  state = {
+interface State {
+  isModalOpen: boolean;
+  ids: string[] | null;
+}
+
+class FollowerIndexUnfollowProviderUi extends PureComponent<Props, State> {
+  state: State = {
     isModalOpen: false,
     ids: null,
   };
 
-  onMouseOverModal = (event) => {
+  stopModalEventPropagation = (event: SyntheticEvent) => {
     // This component can sometimes be used inside of an EuiToolTip, in which case mousing over
     // the modal can trigger the tooltip. Stopping propagation prevents this.
     event.stopPropagation();
   };
 
-  unfollowLeaderIndex = (id) => {
-    this.setState({ isModalOpen: true, ids: arrify(id) });
+  unfollowLeaderIndex = (id: string | string[]) => {
+    this.setState({ isModalOpen: true, ids: arrify(id) as string[] });
   };
 
   onConfirm = () => {
-    this.props.unfollowLeaderIndex(this.state.ids);
+    const { ids } = this.state;
+    if (!ids) {
+      return;
+    }
+    this.props.unfollowLeaderIndex(ids);
     this.setState({ isModalOpen: false, ids: null });
-    this.props.onConfirm && this.props.onConfirm();
+    this.props.onConfirm?.();
   };
 
   closeConfirmModal = () => {
@@ -49,6 +62,9 @@ class FollowerIndexUnfollowProviderUi extends PureComponent {
 
   renderModal = () => {
     const { ids } = this.state;
+    if (!ids) {
+      return null;
+    }
     const isSingle = ids.length === 1;
     const title = isSingle
       ? i18n.translate(
@@ -68,7 +84,6 @@ class FollowerIndexUnfollowProviderUi extends PureComponent {
     const modalTitleId = htmlIdGenerator()('confirmModalTitle');
 
     return (
-      // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events
       <EuiConfirmModal
         aria-labelledby={modalTitleId}
         titleProps={{ id: modalTitleId }}
@@ -88,7 +103,8 @@ class FollowerIndexUnfollowProviderUi extends PureComponent {
             defaultMessage: 'Unfollow leader',
           }
         )}
-        onMouseOver={this.onMouseOverModal}
+        onMouseOver={this.stopModalEventPropagation}
+        onFocus={this.stopModalEventPropagation}
         data-test-subj="unfollowLeaderConfirmation"
       >
         {isSingle ? (
@@ -136,8 +152,8 @@ class FollowerIndexUnfollowProviderUi extends PureComponent {
   }
 }
 
-const mapDispatchToProps = (dispatch) => ({
-  unfollowLeaderIndex: (id) => dispatch(unfollowLeaderIndex(id)),
+const mapDispatchToProps = (dispatch: ThunkDispatch<CcrState, undefined, AnyAction>) => ({
+  unfollowLeaderIndex: (id: string | string[]) => dispatch(unfollowLeaderIndex(id)),
 });
 
 export const FollowerIndexUnfollowProvider = connect(

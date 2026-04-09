@@ -6,7 +6,8 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { History } from 'history';
+import type { RouteComponentProps } from 'react-router-dom';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiButton, EuiText, EuiSpacer, EuiPageTemplate } from '@elastic/eui';
@@ -14,26 +15,48 @@ import { EuiButton, EuiText, EuiSpacer, EuiPageTemplate } from '@elastic/eui';
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
 import { extractQueryParams, PageLoading, PageError } from '../../../../shared_imports';
 import { trackUiMetric, METRIC_TYPE } from '../../../services/track_ui_metric';
+import type { CcrApiError } from '../../../services/http_error';
+import { getErrorBody } from '../../../services/http_error';
 import { API_STATUS, UIM_FOLLOWER_INDEX_LIST_LOAD } from '../../../constants';
+import type { ApiStatus, FollowerIndexWithPausedStatus } from '../../../../../common/types';
 import { FollowerIndicesTable, DetailPanel } from './components';
 
 const REFRESH_RATE_MS = 30000;
 
-const getQueryParamName = ({ location: { search } }) => {
-  const { name } = extractQueryParams(search);
-  return name ? decodeURIComponent(name) : null;
+const getQueryParamName = (history: History) => {
+  const { name } = extractQueryParams(history.location.search);
+  if (!name) {
+    return null;
+  }
+  const nameStr = Array.isArray(name) ? name[0] : name;
+  return decodeURIComponent(String(nameStr));
 };
 
-export class FollowerIndicesList extends PureComponent {
-  static propTypes = {
-    loadFollowerIndices: PropTypes.func,
-    selectFollowerIndex: PropTypes.func,
-    followerIndices: PropTypes.array,
-    apiStatus: PropTypes.string,
-    apiError: PropTypes.object,
-  };
+export interface FollowerIndicesListProps extends RouteComponentProps {
+  loadFollowerIndices: (inBackground?: boolean) => void;
+  selectFollowerIndex: (id: string | null) => void;
+  followerIndices: FollowerIndexWithPausedStatus[];
+  followerIndexId: string | null;
+  apiStatus: ApiStatus;
+  apiError: CcrApiError | null;
+  isAuthorized: boolean;
+}
 
-  static getDerivedStateFromProps({ followerIndexId }, { lastFollowerIndexId }) {
+interface FollowerIndicesListState {
+  lastFollowerIndexId: string | null;
+  isDetailPanelOpen: boolean;
+}
+
+export class FollowerIndicesList extends PureComponent<
+  FollowerIndicesListProps,
+  FollowerIndicesListState
+> {
+  private interval?: ReturnType<typeof setInterval>;
+
+  static getDerivedStateFromProps(
+    { followerIndexId }: Pick<FollowerIndicesListProps, 'followerIndexId'>,
+    { lastFollowerIndexId }: FollowerIndicesListState
+  ): Partial<FollowerIndicesListState> | null {
     if (followerIndexId !== lastFollowerIndexId) {
       return {
         lastFollowerIndexId: followerIndexId,
@@ -43,7 +66,7 @@ export class FollowerIndicesList extends PureComponent {
     return null;
   }
 
-  state = {
+  state: FollowerIndicesListState = {
     lastFollowerIndexId: null,
     isDetailPanelOpen: false,
   };
@@ -61,7 +84,7 @@ export class FollowerIndicesList extends PureComponent {
     this.interval = setInterval(() => loadFollowerIndices(true), REFRESH_RATE_MS);
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps: FollowerIndicesListProps, prevState: FollowerIndicesListState) {
     const { history } = this.props;
     const { lastFollowerIndexId } = this.state;
 
@@ -86,7 +109,9 @@ export class FollowerIndicesList extends PureComponent {
   }
 
   componentWillUnmount() {
-    clearInterval(this.interval);
+    if (this.interval !== undefined) {
+      clearInterval(this.interval);
+    }
   }
 
   renderEmpty() {
@@ -170,18 +195,18 @@ export class FollowerIndicesList extends PureComponent {
     if (!isAuthorized) {
       return (
         <PageError
-          title={
-            <FormattedMessage
-              id="xpack.crossClusterReplication.followerIndexList.permissionErrorTitle"
-              defaultMessage="Permission error"
-            />
-          }
+          title={i18n.translate(
+            'xpack.crossClusterReplication.followerIndexList.permissionErrorTitle',
+            {
+              defaultMessage: 'Permission error',
+            }
+          )}
           error={{
-            error: (
-              <FormattedMessage
-                id="xpack.crossClusterReplication.followerIndexList.noPermissionText"
-                defaultMessage="You do not have permission to view or add follower indices."
-              />
+            error: i18n.translate(
+              'xpack.crossClusterReplication.followerIndexList.noPermissionText',
+              {
+                defaultMessage: 'You do not have permission to view or add follower indices.',
+              }
             ),
           }}
         />
@@ -196,7 +221,9 @@ export class FollowerIndicesList extends PureComponent {
         }
       );
 
-      return <PageError title={title} error={apiError.body} />;
+      const body = getErrorBody(apiError);
+      const error = { error: body?.message ?? apiError.message, statusCode: body?.statusCode };
+      return <PageError title={title} error={error} />;
     }
 
     if (isEmpty) {

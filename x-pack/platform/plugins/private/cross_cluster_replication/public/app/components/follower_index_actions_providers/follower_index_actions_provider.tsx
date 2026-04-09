@@ -5,13 +5,25 @@
  * 2.0.
  */
 
-import React from 'react';
+import React, { type ReactNode } from 'react';
+
+import type { FollowerIndex } from '../../../../common/types';
 
 import { FollowerIndexPauseProvider } from './follower_index_pause_provider';
 import { FollowerIndexResumeProvider } from './follower_index_resume_provider';
 import { FollowerIndexUnfollowProvider } from './follower_index_unfollow_provider';
 
-export const FollowerIndexActionsProvider = (props) => {
+export interface FollowerIndexActionsCallbacks {
+  pauseFollowerIndex: (index: FollowerIndex | FollowerIndex[]) => void;
+  resumeFollowerIndex: (id: string | string[]) => void;
+  unfollowLeaderIndex: (id: string | string[]) => void;
+}
+
+interface Props {
+  children: (getActions: () => FollowerIndexActionsCallbacks) => ReactNode;
+}
+
+export const FollowerIndexActionsProvider = (props: Props) => {
   return (
     <FollowerIndexPauseProvider>
       {(pauseFollowerIndex) => (

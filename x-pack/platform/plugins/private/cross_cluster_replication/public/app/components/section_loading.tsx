@@ -5,11 +5,16 @@
  * 2.0.
  */
 
-import React from 'react';
+import React, { type ReactNode } from 'react';
 
 import { EuiFlexGroup, EuiFlexItem, EuiLoadingSpinner, EuiText, EuiTextColor } from '@elastic/eui';
 
-export function SectionLoading({ children, dataTestSubj = '' }) {
+interface Props {
+  children: ReactNode;
+  dataTestSubj?: string;
+}
+
+export function SectionLoading({ children, dataTestSubj = '' }: Props) {
   return (
     <EuiFlexGroup
       justifyContent="flexStart"

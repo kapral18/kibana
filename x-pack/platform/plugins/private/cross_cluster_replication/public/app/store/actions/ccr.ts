@@ -5,14 +5,17 @@
  * 2.0.
  */
 
+import type { AnyAction } from 'redux';
+import type { ThunkAction } from 'redux-thunk';
 import { SECTIONS } from '../../constants';
 import { loadAutoFollowStats as loadAutoFollowStatsRequest } from '../../services/api';
 import * as t from '../action_types';
 import { sendApiRequest } from './api';
+import type { CcrState } from '../reducers';
 
 const { CCR_STATS: scope } = SECTIONS;
 
-export const loadAutoFollowStats = () =>
+export const loadAutoFollowStats = (): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest({
     label: t.AUTO_FOLLOW_STATS_LOAD,
     scope,

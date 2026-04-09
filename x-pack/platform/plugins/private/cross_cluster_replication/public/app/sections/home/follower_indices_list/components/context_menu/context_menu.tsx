@@ -6,14 +6,16 @@
  */
 
 import React, { PureComponent, Fragment } from 'react';
+import type { ReactNode } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
-import PropTypes from 'prop-types';
 import {
   EuiButton,
   EuiContextMenuPanel,
   EuiContextMenuItem,
   EuiPopover,
   EuiPopoverTitle,
+  type EuiButtonProps,
+  type EuiPopoverProps,
 } from '@elastic/eui';
 
 import { routing } from '../../../../../services/routing';
@@ -23,17 +25,24 @@ import {
   FollowerIndexUnfollowProvider,
 } from '../../../../../components';
 
-export class ContextMenu extends PureComponent {
-  static propTypes = {
-    iconSide: PropTypes.string,
-    iconType: PropTypes.string,
-    anchorPosition: PropTypes.string,
-    label: PropTypes.node,
-    followerIndices: PropTypes.array.isRequired,
-    isPollingStatus: PropTypes.bool,
-  };
+import type { FollowerIndexWithPausedStatus } from '../../../../../../../common/types';
 
-  state = {
+export interface ContextMenuProps {
+  iconSide?: EuiButtonProps['iconSide'];
+  iconType?: EuiButtonProps['iconType'];
+  anchorPosition?: EuiPopoverProps['anchorPosition'];
+  label?: ReactNode;
+  followerIndices: FollowerIndexWithPausedStatus[];
+  isPollingStatus?: boolean;
+  testSubj?: string;
+}
+
+interface ContextMenuState {
+  isPopoverOpen: boolean;
+}
+
+export class ContextMenu extends PureComponent<ContextMenuProps, ContextMenuState> {
+  state: ContextMenuState = {
     isPopoverOpen: false,
   };
 
@@ -49,7 +58,7 @@ export class ContextMenu extends PureComponent {
     });
   };
 
-  editFollowerIndex = (id) => {
+  editFollowerIndex = (id: string) => {
     const uri = routing.getFollowerIndexPath(id);
     routing.navigate(uri);
   };

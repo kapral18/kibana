@@ -6,9 +6,9 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
+import type { EuiInMemoryTableProps } from '@elastic/eui';
 import {
   EuiHealth,
   EuiButton,
@@ -18,12 +18,13 @@ import {
   EuiOverlayMask,
 } from '@elastic/eui';
 
+import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
 import { API_STATUS, UIM_FOLLOWER_INDEX_SHOW_DETAILS_CLICK } from '../../../../../constants';
 import { FollowerIndexActionsProvider } from '../../../../../components';
 import { routing } from '../../../../../services/routing';
 import { trackUiMetric } from '../../../../../services/track_ui_metric';
 import { ContextMenu } from '../context_menu';
-import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
+import type { ApiStatus, FollowerIndexWithPausedStatus } from '../../../../../../../common/types';
 
 const actionI18nTexts = {
   pause: i18n.translate(
@@ -52,7 +53,10 @@ const actionI18nTexts = {
   ),
 };
 
-const getFilteredIndices = (followerIndices, queryText) => {
+const getFilteredIndices = (
+  followerIndices: FollowerIndexWithPausedStatus[],
+  queryText: string
+): FollowerIndexWithPausedStatus[] => {
   if (queryText) {
     const normalizedSearchText = queryText.toLowerCase();
 
@@ -79,13 +83,27 @@ const getFilteredIndices = (followerIndices, queryText) => {
   return followerIndices;
 };
 
-export class FollowerIndicesTable extends PureComponent {
-  static propTypes = {
-    followerIndices: PropTypes.array,
-    selectFollowerIndex: PropTypes.func.isRequired,
-  };
+export interface FollowerIndicesTableProps {
+  followerIndices: FollowerIndexWithPausedStatus[];
+  selectFollowerIndex: (name: string) => void;
+  apiStatusDelete: ApiStatus;
+}
 
-  static getDerivedStateFromProps(props, state) {
+interface FollowerIndicesTableState {
+  prevFollowerIndices: FollowerIndexWithPausedStatus[];
+  selectedItems: FollowerIndexWithPausedStatus[];
+  filteredIndices: FollowerIndexWithPausedStatus[];
+  queryText: string;
+}
+
+export class FollowerIndicesTable extends PureComponent<
+  FollowerIndicesTableProps,
+  FollowerIndicesTableState
+> {
+  static getDerivedStateFromProps(
+    props: FollowerIndicesTableProps,
+    state: FollowerIndicesTableState
+  ): Partial<FollowerIndicesTableState> | null {
     const { followerIndices } = props;
     const { prevFollowerIndices, queryText } = state;
 
@@ -100,7 +118,7 @@ export class FollowerIndicesTable extends PureComponent {
     return null;
   }
 
-  constructor(props) {
+  constructor(props: FollowerIndicesTableProps) {
     super(props);
 
     this.state = {
@@ -111,7 +129,7 @@ export class FollowerIndicesTable extends PureComponent {
     };
   }
 
-  onSearch = ({ query }) => {
+  onSearch = ({ query }: { query: { text: string } }) => {
     const { followerIndices } = this.props;
     const { text } = query;
 
@@ -123,12 +141,16 @@ export class FollowerIndicesTable extends PureComponent {
     });
   };
 
-  editFollowerIndex = (id) => {
+  editFollowerIndex = (id: string) => {
     const uri = routing.getFollowerIndexPath(id);
     routing.navigate(uri);
   };
 
-  getTableColumns(actionHandlers) {
+  getTableColumns(actionHandlers: {
+    pauseFollowerIndex: (item: FollowerIndexWithPausedStatus) => void;
+    resumeFollowerIndex: (name: string) => void;
+    unfollowLeaderIndex: (name: string) => void;
+  }) {
     const { selectFollowerIndex } = this.props;
 
     const actions = [
@@ -137,8 +159,8 @@ export class FollowerIndicesTable extends PureComponent {
         name: actionI18nTexts.pause,
         description: actionI18nTexts.pause,
         icon: 'pause',
-        onClick: (item) => actionHandlers.pauseFollowerIndex(item),
-        available: (item) => !item.isPaused,
+        onClick: (item: FollowerIndexWithPausedStatus) => actionHandlers.pauseFollowerIndex(item),
+        available: (item: FollowerIndexWithPausedStatus) => !item.isPaused,
         'data-test-subj': 'pauseButton',
       },
       /* Resume follower index */
@@ -146,15 +168,16 @@ export class FollowerIndicesTable extends PureComponent {
         name: actionI18nTexts.resume,
         description: actionI18nTexts.resume,
         icon: 'play',
-        onClick: (item) => actionHandlers.resumeFollowerIndex(item.name),
-        available: (item) => item.isPaused,
+        onClick: (item: FollowerIndexWithPausedStatus) =>
+          actionHandlers.resumeFollowerIndex(item.name),
+        available: (item: FollowerIndexWithPausedStatus) => item.isPaused,
         'data-test-subj': 'resumeButton',
       },
       /* Edit follower index */
       {
         name: actionI18nTexts.edit,
         description: actionI18nTexts.edit,
-        onClick: (item) => this.editFollowerIndex(item.name),
+        onClick: (item: FollowerIndexWithPausedStatus) => this.editFollowerIndex(item.name),
         icon: 'pencil',
         'data-test-subj': 'editButton',
       },
@@ -162,7 +185,8 @@ export class FollowerIndicesTable extends PureComponent {
       {
         name: actionI18nTexts.unfollow,
         description: actionI18nTexts.unfollow,
-        onClick: (item) => actionHandlers.unfollowLeaderIndex(item.name),
+        onClick: (item: FollowerIndexWithPausedStatus) =>
+          actionHandlers.unfollowLeaderIndex(item.name),
         icon: 'chartThreshold',
         'data-test-subj': 'unfollowButton',
       },
@@ -179,7 +203,7 @@ export class FollowerIndicesTable extends PureComponent {
         ),
         sortable: true,
         truncateText: false,
-        render: (name) => {
+        render: (name: string) => {
           return (
             <EuiLink
               onClick={() => {
@@ -203,7 +227,7 @@ export class FollowerIndicesTable extends PureComponent {
         ),
         truncateText: true,
         sortable: true,
-        render: (isPaused) => {
+        render: (isPaused: boolean) => {
           return isPaused ? (
             <EuiHealth color="subdued">
               <FormattedMessage
@@ -275,7 +299,7 @@ export class FollowerIndicesTable extends PureComponent {
     const sorting = {
       sort: {
         field: 'name',
-        direction: 'asc',
+        direction: 'asc' as const,
       },
     };
 
@@ -285,7 +309,8 @@ export class FollowerIndicesTable extends PureComponent {
     };
 
     const selection = {
-      onSelectionChange: (newSelectedItems) => this.setState({ selectedItems: newSelectedItems }),
+      onSelectionChange: (newSelectedItems: FollowerIndexWithPausedStatus[]) =>
+        this.setState({ selectedItems: newSelectedItems }),
     };
 
     const search = {
@@ -294,7 +319,7 @@ export class FollowerIndicesTable extends PureComponent {
       ) : undefined,
       toolsRight: (
         <EuiButton
-          {...reactRouterNavigate(routing._reactRouter.history, `/follower_indices/add`)}
+          {...reactRouterNavigate(routing._reactRouter!.history, `/follower_indices/add`)}
           fill
           iconType="plusCircle"
           data-test-subj="createFollowerIndexButton"
@@ -327,8 +352,12 @@ export class FollowerIndicesTable extends PureComponent {
                 )}
                 items={filteredIndices}
                 itemId="name"
-                columns={this.getTableColumns(actionHandlers)}
-                search={search}
+                columns={
+                  this.getTableColumns(
+                    actionHandlers
+                  ) as EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['columns']
+                }
+                search={search as EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['search']}
                 pagination={pagination}
                 sorting={sorting}
                 selection={selection}
@@ -336,7 +365,7 @@ export class FollowerIndicesTable extends PureComponent {
                   'data-test-subj': 'row',
                 })}
                 cellProps={(item, column) => ({
-                  'data-test-subj': `cell-${column.field}`,
+                  'data-test-subj': `cell-${'field' in column ? column.field : ''}`,
                 })}
                 data-test-subj="followerIndexListTable"
               />

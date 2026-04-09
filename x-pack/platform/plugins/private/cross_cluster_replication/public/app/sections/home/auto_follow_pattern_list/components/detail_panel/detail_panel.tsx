@@ -6,7 +6,6 @@
  */
 
 import React, { Component } from 'react';
-import PropTypes from 'prop-types';
 import { FormattedMessage } from '@kbn/i18n-react';
 import moment from 'moment';
 
@@ -38,21 +37,24 @@ import {
   AutoFollowPatternActionMenu,
 } from '../../../../../components';
 
-export class DetailPanel extends Component {
-  static propTypes = {
-    apiStatus: PropTypes.string,
-    autoFollowPatternId: PropTypes.string,
-    autoFollowPattern: PropTypes.object,
-    closeDetailPanel: PropTypes.func.isRequired,
-  };
+import type { ApiStatus } from '../../../../../../../common/types';
+import type { AutoFollowPatternWithErrors } from '../../../../../store/selectors';
 
+export interface DetailPanelProps {
+  apiStatus: ApiStatus;
+  autoFollowPatternId: string | null;
+  autoFollowPattern: AutoFollowPatternWithErrors | null;
+  closeDetailPanel: () => void;
+}
+
+export class DetailPanel extends Component<DetailPanelProps> {
   renderAutoFollowPattern({
     followIndexPatternPrefix,
     followIndexPatternSuffix,
     remoteCluster,
     leaderIndexPatterns,
     active,
-  }) {
+  }: AutoFollowPatternWithErrors) {
     return (
       <>
         <section>
@@ -194,7 +196,11 @@ export class DetailPanel extends Component {
     );
   }
 
-  renderIndicesPreview(prefix, suffix, leaderIndexPatterns) {
+  renderIndicesPreview(
+    prefix: string | undefined,
+    suffix: string | undefined,
+    leaderIndexPatterns: string[]
+  ) {
     return (
       <section data-test-subj="indicesPreviewSection">
         <AutoFollowPatternIndicesPreview
@@ -229,8 +235,8 @@ export class DetailPanel extends Component {
     );
   }
 
-  renderAutoFollowPatternErrors(autoFollowPattern) {
-    if (!autoFollowPattern.errors.length) {
+  renderAutoFollowPatternErrors(pattern: AutoFollowPatternWithErrors) {
+    if (!pattern.errors.length) {
       return null;
     }
 
@@ -255,7 +261,7 @@ export class DetailPanel extends Component {
         <EuiSpacer size="s" />
         <EuiText>
           <ul>
-            {autoFollowPattern.errors.map((error, i) => (
+            {pattern.errors.map((error, i) => (
               <li key={i} data-test-subj="recentError">
                 <strong>{moment(error.timestamp).format('MMMM Do, YYYY h:mm:ss A')}</strong>:{' '}
                 {error.autoFollowException.reason}
@@ -302,7 +308,7 @@ export class DetailPanel extends Component {
         <EuiSpacer size="l" />
 
         <EuiLink
-          href={routing._reactRouter.getUrlForApp('management', {
+          href={routing._reactRouter!.getUrlForApp('management', {
             path: `data/index_management${indexManagementUri}`,
           })}
           data-test-subj="viewIndexManagementLink"

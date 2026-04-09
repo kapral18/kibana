@@ -6,8 +6,11 @@
  */
 
 import { connect } from 'react-redux';
+import type { AnyAction } from 'redux';
+import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../../../../constants';
+import type { CcrState } from '../../../../../store';
 import {
   selectDetailAutoFollowPattern,
   pauseAutoFollowPattern,
@@ -18,14 +21,16 @@ import { AutoFollowPatternTable as AutoFollowPatternTableComponent } from './aut
 
 const scope = SECTIONS.AUTO_FOLLOW_PATTERN;
 
-const mapStateToProps = (state) => ({
+type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
+
+const mapStateToProps = (state: CcrState) => ({
   apiStatusDelete: getApiStatus(`${scope}-delete`)(state),
 });
 
-const mapDispatchToProps = (dispatch) => ({
-  selectAutoFollowPattern: (name) => dispatch(selectDetailAutoFollowPattern(name)),
-  pauseAutoFollowPattern: (name) => dispatch(pauseAutoFollowPattern(name)),
-  resumeAutoFollowPattern: (name) => dispatch(resumeAutoFollowPattern(name)),
+const mapDispatchToProps = (dispatch: CcrDispatch) => ({
+  selectAutoFollowPattern: (name: string) => dispatch(selectDetailAutoFollowPattern(name)),
+  pauseAutoFollowPattern: (name: string) => dispatch(pauseAutoFollowPattern(name)),
+  resumeAutoFollowPattern: (name: string) => dispatch(resumeAutoFollowPattern(name)),
 });
 
 export const AutoFollowPatternTable = connect(

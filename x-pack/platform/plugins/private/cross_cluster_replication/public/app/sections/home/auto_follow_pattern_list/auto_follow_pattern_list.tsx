@@ -6,7 +6,8 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { History } from 'history';
+import type { RouteComponentProps } from 'react-router-dom';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiButton, EuiText, EuiSpacer, EuiPageTemplate } from '@elastic/eui';
@@ -14,27 +15,50 @@ import { EuiButton, EuiText, EuiSpacer, EuiPageTemplate } from '@elastic/eui';
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
 import { extractQueryParams, PageError, PageLoading } from '../../../../shared_imports';
 import { trackUiMetric, METRIC_TYPE } from '../../../services/track_ui_metric';
+import type { CcrApiError } from '../../../services/http_error';
+import { getErrorBody } from '../../../services/http_error';
 import { API_STATUS, UIM_AUTO_FOLLOW_PATTERN_LIST_LOAD } from '../../../constants';
+import type { ApiStatus } from '../../../../../common/types';
+import type { ParsedAutoFollowPattern } from '../../../store/reducers/auto_follow_pattern';
 import { AutoFollowPatternTable, DetailPanel } from './components';
 
 const REFRESH_RATE_MS = 30000;
 
-const getQueryParamPattern = ({ location: { search } }) => {
-  const { pattern } = extractQueryParams(search);
-  return pattern ? decodeURIComponent(pattern) : null;
+const getQueryParamPattern = (history: History) => {
+  const { pattern } = extractQueryParams(history.location.search);
+  if (!pattern) {
+    return null;
+  }
+  const patternStr = Array.isArray(pattern) ? pattern[0] : pattern;
+  return decodeURIComponent(String(patternStr));
 };
 
-export class AutoFollowPatternList extends PureComponent {
-  static propTypes = {
-    loadAutoFollowPatterns: PropTypes.func,
-    selectAutoFollowPattern: PropTypes.func,
-    loadAutoFollowStats: PropTypes.func,
-    autoFollowPatterns: PropTypes.array,
-    apiStatus: PropTypes.string,
-    apiError: PropTypes.object,
-  };
+export interface AutoFollowPatternListProps extends RouteComponentProps {
+  loadAutoFollowPatterns: (inBackground?: boolean) => void;
+  selectAutoFollowPattern: (id: string | null) => void;
+  loadAutoFollowStats: () => void;
+  autoFollowPatterns: ParsedAutoFollowPattern[];
+  autoFollowPatternId: string | null;
+  apiStatus: ApiStatus;
+  apiError: CcrApiError | null;
+  isAuthorized: boolean;
+}
 
-  static getDerivedStateFromProps({ autoFollowPatternId }, { lastAutoFollowPatternId }) {
+interface AutoFollowPatternListState {
+  lastAutoFollowPatternId: string | null;
+  isDetailPanelOpen: boolean;
+}
+
+export class AutoFollowPatternList extends PureComponent<
+  AutoFollowPatternListProps,
+  AutoFollowPatternListState
+> {
+  private interval?: ReturnType<typeof setInterval>;
+
+  static getDerivedStateFromProps(
+    { autoFollowPatternId }: Pick<AutoFollowPatternListProps, 'autoFollowPatternId'>,
+    { lastAutoFollowPatternId }: AutoFollowPatternListState
+  ): Partial<AutoFollowPatternListState> | null {
     if (autoFollowPatternId !== lastAutoFollowPatternId) {
       return {
         lastAutoFollowPatternId: autoFollowPatternId,
@@ -44,7 +68,7 @@ export class AutoFollowPatternList extends PureComponent {
     return null;
   }
 
-  state = {
+  state: AutoFollowPatternListState = {
     lastAutoFollowPatternId: null,
     isDetailPanelOpen: false,
   };
@@ -64,7 +88,7 @@ export class AutoFollowPatternList extends PureComponent {
     this.interval = setInterval(() => loadAutoFollowPatterns(true), REFRESH_RATE_MS);
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps: AutoFollowPatternListProps, prevState: AutoFollowPatternListState) {
     const { history, loadAutoFollowStats } = this.props;
     const { lastAutoFollowPatternId } = this.state;
 
@@ -88,7 +112,9 @@ export class AutoFollowPatternList extends PureComponent {
   }
 
   componentWillUnmount() {
-    clearInterval(this.interval);
+    if (this.interval !== undefined) {
+      clearInterval(this.interval);
+    }
   }
 
   renderEmpty() {
@@ -164,18 +190,18 @@ export class AutoFollowPatternList extends PureComponent {
     if (!isAuthorized) {
       return (
         <PageError
-          title={
-            <FormattedMessage
-              id="xpack.crossClusterReplication.autoFollowPatternList.permissionErrorTitle"
-              defaultMessage="Permission error"
-            />
-          }
+          title={i18n.translate(
+            'xpack.crossClusterReplication.autoFollowPatternList.permissionErrorTitle',
+            {
+              defaultMessage: 'Permission error',
+            }
+          )}
           error={{
-            error: (
-              <FormattedMessage
-                id="xpack.crossClusterReplication.autoFollowPatternList.noPermissionText"
-                defaultMessage="You do not have permission to view or add auto-follow patterns."
-              />
+            error: i18n.translate(
+              'xpack.crossClusterReplication.autoFollowPatternList.noPermissionText',
+              {
+                defaultMessage: 'You do not have permission to view or add auto-follow patterns.',
+              }
             ),
           }}
         />
@@ -190,7 +216,9 @@ export class AutoFollowPatternList extends PureComponent {
         }
       );
 
-      return <PageError title={title} error={apiError.body} />;
+      const body = getErrorBody(apiError);
+      const error = { error: body?.message ?? apiError.message, statusCode: body?.statusCode };
+      return <PageError title={title} error={error} />;
     }
 
     if (isEmpty) {

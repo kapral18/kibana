@@ -5,11 +5,27 @@
  * 2.0.
  */
 
-import { PureComponent } from 'react'; // eslint-disable-line no-unused-vars
-import { loadRemoteClusters } from '../services/api';
+import { PureComponent, type ReactNode } from 'react';
+import { loadRemoteClusters, type RemoteClusterRow } from '../services/api';
+import type { CcrApiError } from '../services/http_error';
+import { toCcrApiError } from '../services/http_error';
 
-export class RemoteClustersProvider extends PureComponent {
-  state = {
+interface State {
+  isLoading: boolean;
+  error: CcrApiError | null;
+  remoteClusters: RemoteClusterRow[];
+}
+
+interface Props {
+  children: (params: {
+    isLoading: boolean;
+    error: CcrApiError | null;
+    remoteClusters: RemoteClusterRow[];
+  }) => ReactNode;
+}
+
+export class RemoteClustersProvider extends PureComponent<Props, State> {
+  state: State = {
     isLoading: true,
     error: null,
     remoteClusters: [],
@@ -20,8 +36,8 @@ export class RemoteClustersProvider extends PureComponent {
   }
 
   loadRemoteClusters() {
-    const sortClusterByName = (remoteClusters) =>
-      remoteClusters.sort((a, b) => {
+    const sortClusterByName = (remoteClusters: RemoteClusterRow[]) =>
+      remoteClusters.sort((a: RemoteClusterRow, b: RemoteClusterRow) => {
         if (a.name < b.name) {
           return -1;
         }
@@ -31,7 +47,7 @@ export class RemoteClustersProvider extends PureComponent {
         return 0;
       });
     loadRemoteClusters()
-      .then(sortClusterByName)
+      .then((clusters) => sortClusterByName(clusters))
       .then((remoteClusters) => {
         this.setState({
           isLoading: false,
@@ -41,7 +57,7 @@ export class RemoteClustersProvider extends PureComponent {
       .catch((error) => {
         this.setState({
           isLoading: false,
-          error,
+          error: toCcrApiError(error),
         });
       });
   }

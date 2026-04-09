@@ -5,19 +5,88 @@
  * 2.0.
  */
 
+import type { AutoFollowPattern } from '../../../../common/types';
 import * as t from '../action_types';
 import { arrayToObject } from '../../services/utils';
 import { getPrefixSuffixFromFollowPattern } from '../../services/auto_follow_pattern';
+import type {
+  DeleteAutoFollowPatternResponse,
+  PauseAutoFollowPatternResponse,
+  ResumeAutoFollowPatternResponse,
+} from '../../services/api';
 
-const initialState = {
+export interface ParsedAutoFollowPattern extends AutoFollowPattern {
+  followIndexPatternPrefix?: string;
+  followIndexPatternSuffix?: string;
+}
+
+export interface AutoFollowPatternState {
+  byId: Record<string, ParsedAutoFollowPattern>;
+  selectedDetailId: string | null;
+  selectedEditId: string | null;
+}
+
+const initialState: AutoFollowPatternState = {
   byId: {},
   selectedDetailId: null,
   selectedEditId: null,
 };
 
-const success = (action) => `${action}_SUCCESS`;
+const AUTO_FOLLOW_PATTERN_LOAD_SUCCESS: `${typeof t.AUTO_FOLLOW_PATTERN_LOAD}_SUCCESS` = `${t.AUTO_FOLLOW_PATTERN_LOAD}_SUCCESS`;
+const AUTO_FOLLOW_PATTERN_GET_SUCCESS: `${typeof t.AUTO_FOLLOW_PATTERN_GET}_SUCCESS` = `${t.AUTO_FOLLOW_PATTERN_GET}_SUCCESS`;
+const AUTO_FOLLOW_PATTERN_DELETE_SUCCESS: `${typeof t.AUTO_FOLLOW_PATTERN_DELETE}_SUCCESS` = `${t.AUTO_FOLLOW_PATTERN_DELETE}_SUCCESS`;
+const AUTO_FOLLOW_PATTERN_PAUSE_SUCCESS: `${typeof t.AUTO_FOLLOW_PATTERN_PAUSE}_SUCCESS` = `${t.AUTO_FOLLOW_PATTERN_PAUSE}_SUCCESS`;
+const AUTO_FOLLOW_PATTERN_RESUME_SUCCESS: `${typeof t.AUTO_FOLLOW_PATTERN_RESUME}_SUCCESS` = `${t.AUTO_FOLLOW_PATTERN_RESUME}_SUCCESS`;
 
-const setActiveForIds = (ids, byId, active) => {
+interface LoadAutoFollowPatternsSuccessAction {
+  type: typeof AUTO_FOLLOW_PATTERN_LOAD_SUCCESS;
+  payload: { patterns: AutoFollowPattern[] };
+}
+
+interface GetAutoFollowPatternSuccessAction {
+  type: typeof AUTO_FOLLOW_PATTERN_GET_SUCCESS;
+  payload: AutoFollowPattern;
+}
+
+interface SelectAutoFollowPatternDetailAction {
+  type: typeof t.AUTO_FOLLOW_PATTERN_SELECT_DETAIL;
+  payload: string | null;
+}
+
+interface SelectAutoFollowPatternEditAction {
+  type: typeof t.AUTO_FOLLOW_PATTERN_SELECT_EDIT;
+  payload: string | null;
+}
+
+interface DeleteAutoFollowPatternSuccessAction {
+  type: typeof AUTO_FOLLOW_PATTERN_DELETE_SUCCESS;
+  payload: DeleteAutoFollowPatternResponse;
+}
+
+interface PauseAutoFollowPatternSuccessAction {
+  type: typeof AUTO_FOLLOW_PATTERN_PAUSE_SUCCESS;
+  payload: PauseAutoFollowPatternResponse;
+}
+
+interface ResumeAutoFollowPatternSuccessAction {
+  type: typeof AUTO_FOLLOW_PATTERN_RESUME_SUCCESS;
+  payload: ResumeAutoFollowPatternResponse;
+}
+
+export type AutoFollowPatternReducerAction =
+  | LoadAutoFollowPatternsSuccessAction
+  | GetAutoFollowPatternSuccessAction
+  | SelectAutoFollowPatternDetailAction
+  | SelectAutoFollowPatternEditAction
+  | DeleteAutoFollowPatternSuccessAction
+  | PauseAutoFollowPatternSuccessAction
+  | ResumeAutoFollowPatternSuccessAction;
+
+const setActiveForIds = (
+  ids: string[],
+  byId: Record<string, ParsedAutoFollowPattern>,
+  active: boolean
+): Record<string, ParsedAutoFollowPattern> => {
   const shallowCopyByIds = { ...byId };
   ids.forEach((id) => {
     shallowCopyByIds[id].active = active;
@@ -25,7 +94,7 @@ const setActiveForIds = (ids, byId, active) => {
   return shallowCopyByIds;
 };
 
-const parseAutoFollowPattern = (autoFollowPattern) => {
+const parseAutoFollowPattern = (autoFollowPattern: AutoFollowPattern): ParsedAutoFollowPattern => {
   // Extract prefix and suffix from follow index pattern
   const { followIndexPatternPrefix, followIndexPatternSuffix } = getPrefixSuffixFromFollowPattern(
     autoFollowPattern.followIndexPattern
@@ -34,18 +103,23 @@ const parseAutoFollowPattern = (autoFollowPattern) => {
   return { ...autoFollowPattern, followIndexPatternPrefix, followIndexPatternSuffix };
 };
 
-export const reducer = (state = initialState, action) => {
+export const reducer = (
+  state: AutoFollowPatternState = initialState,
+  action: AutoFollowPatternReducerAction
+): AutoFollowPatternState => {
   switch (action.type) {
-    case success(t.AUTO_FOLLOW_PATTERN_LOAD): {
+    case AUTO_FOLLOW_PATTERN_LOAD_SUCCESS: {
+      const payload = action.payload;
       return {
         ...state,
-        byId: arrayToObject(action.payload.patterns.map(parseAutoFollowPattern), 'name'),
+        byId: arrayToObject(payload.patterns.map(parseAutoFollowPattern), 'name'),
       };
     }
-    case success(t.AUTO_FOLLOW_PATTERN_GET): {
+    case AUTO_FOLLOW_PATTERN_GET_SUCCESS: {
+      const payload = action.payload;
       return {
         ...state,
-        byId: { ...state.byId, [action.payload.name]: parseAutoFollowPattern(action.payload) },
+        byId: { ...state.byId, [payload.name]: parseAutoFollowPattern(payload) },
       };
     }
     case t.AUTO_FOLLOW_PATTERN_SELECT_DETAIL: {
@@ -54,19 +128,19 @@ export const reducer = (state = initialState, action) => {
     case t.AUTO_FOLLOW_PATTERN_SELECT_EDIT: {
       return { ...state, selectedEditId: action.payload };
     }
-    case success(t.AUTO_FOLLOW_PATTERN_DELETE): {
+    case AUTO_FOLLOW_PATTERN_DELETE_SUCCESS: {
+      const payload = action.payload;
       const byId = { ...state.byId };
-      const { itemsDeleted } = action.payload;
-      itemsDeleted.forEach((id) => delete byId[id]);
+      payload.itemsDeleted.forEach((id) => delete byId[id]);
       return { ...state, byId };
     }
-    case success(t.AUTO_FOLLOW_PATTERN_PAUSE): {
-      const { itemsPaused } = action.payload;
-      return { ...state, byId: setActiveForIds(itemsPaused, state.byId, false) };
+    case AUTO_FOLLOW_PATTERN_PAUSE_SUCCESS: {
+      const payload = action.payload;
+      return { ...state, byId: setActiveForIds(payload.itemsPaused, state.byId, false) };
     }
-    case success(t.AUTO_FOLLOW_PATTERN_RESUME): {
-      const { itemsResumed } = action.payload;
-      return { ...state, byId: setActiveForIds(itemsResumed, state.byId, true) };
+    case AUTO_FOLLOW_PATTERN_RESUME_SUCCESS: {
+      const payload = action.payload;
+      return { ...state, byId: setActiveForIds(payload.itemsResumed, state.byId, true) };
     }
     default:
       return state;

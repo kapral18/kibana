@@ -5,12 +5,19 @@
  * 2.0.
  */
 
+import type { AnyAction } from 'redux';
+import type { ThunkAction } from 'redux-thunk';
 import { i18n } from '@kbn/i18n';
+import type { FollowerIndex } from '../../../../common/types';
 
 import { routing } from '../../services/routing';
 import { getToasts } from '../../services/notifications';
 import { SECTIONS, API_STATUS } from '../../constants';
 import {
+  type FollowerIndexSaveBody,
+  type PauseFollowerIndexResponse,
+  type ResumeFollowerIndexResponse,
+  type UnfollowLeaderIndexResponse,
   loadFollowerIndices as loadFollowerIndicesRequest,
   getFollowerIndex as getFollowerIndexRequest,
   createFollowerIndex as createFollowerIndexRequest,
@@ -21,21 +28,24 @@ import {
 } from '../../services/api';
 import * as t from '../action_types';
 import { sendApiRequest } from './api';
+import type { CcrState } from '../reducers';
 import { getSelectedFollowerIndexId } from '../selectors';
 
 const { FOLLOWER_INDEX: scope } = SECTIONS;
 
-export const selectDetailFollowerIndex = (id) => ({
+export const selectDetailFollowerIndex = (id: string | null) => ({
   type: t.FOLLOWER_INDEX_SELECT_DETAIL,
   payload: id,
 });
 
-export const selectEditFollowerIndex = (id) => ({
+export const selectEditFollowerIndex = (id: string | null) => ({
   type: t.FOLLOWER_INDEX_SELECT_EDIT,
   payload: id,
 });
 
-export const loadFollowerIndices = (isUpdating = false) =>
+export const loadFollowerIndices = (
+  isUpdating = false
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest({
     label: t.FOLLOWER_INDEX_LOAD,
     scope,
@@ -43,15 +53,21 @@ export const loadFollowerIndices = (isUpdating = false) =>
     handler: async () => await loadFollowerIndicesRequest(isUpdating),
   });
 
-export const getFollowerIndex = (id) =>
+export const getFollowerIndex = (
+  id: string
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest({
     label: t.FOLLOWER_INDEX_GET,
     scope: `${scope}-get`,
     handler: async () => await getFollowerIndexRequest(id),
   });
 
-export const saveFollowerIndex = (name, followerIndex, isUpdating = false) =>
-  sendApiRequest({
+export const saveFollowerIndex = (
+  name: string,
+  followerIndex: FollowerIndexSaveBody,
+  isUpdating = false
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<void>({
     label: t.FOLLOWER_INDEX_CREATE,
     status: API_STATUS.SAVING,
     scope: `${scope}-save`,
@@ -59,7 +75,8 @@ export const saveFollowerIndex = (name, followerIndex, isUpdating = false) =>
       if (isUpdating) {
         return await updateFollowerIndexRequest(name, followerIndex);
       }
-      return await createFollowerIndexRequest({ name, ...followerIndex });
+      const request: FollowerIndex = { name, ...followerIndex };
+      return await createFollowerIndexRequest(request);
     },
     onSuccess() {
       const successMessage = isUpdating
@@ -86,12 +103,14 @@ export const saveFollowerIndex = (name, followerIndex, isUpdating = false) =>
     },
   });
 
-export const pauseFollowerIndex = (id) =>
-  sendApiRequest({
+export const pauseFollowerIndex = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<PauseFollowerIndexResponse>({
     label: t.FOLLOWER_INDEX_PAUSE,
     status: API_STATUS.SAVING,
     scope,
-    handler: async () => pauseFollowerIndexRequest(id),
+    handler: async () => await pauseFollowerIndexRequest(id),
     onSuccess(response, dispatch) {
       /**
        * We can have 1 or more follower index pause operation
@@ -145,12 +164,14 @@ export const pauseFollowerIndex = (id) =>
     },
   });
 
-export const resumeFollowerIndex = (id) =>
-  sendApiRequest({
+export const resumeFollowerIndex = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<ResumeFollowerIndexResponse>({
     label: t.FOLLOWER_INDEX_RESUME,
     status: API_STATUS.SAVING,
     scope,
-    handler: async () => resumeFollowerIndexRequest(id),
+    handler: async () => await resumeFollowerIndexRequest(id),
     onSuccess(response, dispatch) {
       /**
        * We can have 1 or more follower index resume operation
@@ -204,12 +225,14 @@ export const resumeFollowerIndex = (id) =>
     },
   });
 
-export const unfollowLeaderIndex = (id) =>
-  sendApiRequest({
+export const unfollowLeaderIndex = (
+  id: string | string[]
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<UnfollowLeaderIndexResponse>({
     label: t.FOLLOWER_INDEX_UNFOLLOW,
     status: API_STATUS.DELETING,
     scope: `${scope}-delete`,
-    handler: async () => unfollowLeaderIndexRequest(id),
+    handler: async () => await unfollowLeaderIndexRequest(id),
     onSuccess(response, dispatch, getState) {
       /**
        * We can have 1 or more follower index unfollow operation
@@ -282,7 +305,7 @@ export const unfollowLeaderIndex = (id) =>
 
       // If we've just unfollowed a follower index we were looking at, we need to close the panel.
       const followerIndexId = getSelectedFollowerIndexId('detail')(getState());
-      if (response.itemsUnfollowed.includes(followerIndexId)) {
+      if (followerIndexId != null && response.itemsUnfollowed.includes(followerIndexId)) {
         dispatch(selectDetailFollowerIndex(null));
       }
     },

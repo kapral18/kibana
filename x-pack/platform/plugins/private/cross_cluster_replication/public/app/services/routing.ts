@@ -9,10 +9,18 @@
  * This file based on guidance from https://github.com/elastic/eui/blob/main/wiki/consuming-eui/react-router.md
  */
 
+import type { History } from 'history';
+import type { ApplicationStart } from '@kbn/core/public';
 import { stringify } from 'query-string';
 import { BASE_PATH_REMOTE_CLUSTERS } from '../../../common/constants';
 
-const queryParamsFromObject = (params, encodeParams = false) => {
+export type QueryParamValue = string | number | boolean | null;
+export type QueryParams = Record<string, QueryParamValue | QueryParamValue[] | undefined>;
+
+const queryParamsFromObject = (
+  params: QueryParams | undefined | null,
+  encodeParams = false
+): string | undefined => {
   if (!params) {
     return;
   }
@@ -21,38 +29,54 @@ const queryParamsFromObject = (params, encodeParams = false) => {
   return `?${paramsStr}`;
 };
 
-class Routing {
-  _reactRouter = null;
+export interface CcrReactRouter {
+  history: History;
+  route: {
+    location: History['location'];
+  };
+  getUrlForApp: ApplicationStart['getUrlForApp'];
+}
 
-  getHrefToRemoteClusters(route = '/', params, encodeParams = false) {
+class Routing {
+  _reactRouter: CcrReactRouter | null = null;
+
+  private getReactRouterOrThrow(): CcrReactRouter {
+    if (!this._reactRouter) {
+      throw new Error('CCR routing was used before reactRouter was set');
+    }
+
+    return this._reactRouter;
+  }
+
+  getHrefToRemoteClusters(route = '/', params?: QueryParams | null, encodeParams = false): string {
     const search = queryParamsFromObject(params, encodeParams) || '';
-    return this._reactRouter.getUrlForApp('management', {
+    return this.getReactRouterOrThrow().getUrlForApp('management', {
       path: `${BASE_PATH_REMOTE_CLUSTERS}${route}${search}`,
     });
   }
 
-  navigate(route = '/home', params, encodeParams = false) {
+  navigate(route = '/home', params?: QueryParams | null, encodeParams = false): void {
     const search = queryParamsFromObject(params, encodeParams);
 
-    this._reactRouter.history.push({
+    this.getReactRouterOrThrow().history.push({
       pathname: encodeURI(route),
       search,
     });
   }
 
-  getAutoFollowPatternPath = (name, section = '/edit') => {
+  getAutoFollowPatternPath = (name: string, section = '/edit'): string => {
     return encodeURI(`/auto_follow_patterns${section}/${encodeURIComponent(name)}`);
   };
 
-  getFollowerIndexPath = (name, section = '/edit') => {
+  getFollowerIndexPath = (name: string, section = '/edit'): string => {
     return encodeURI(`/follower_indices${section}/${encodeURIComponent(name)}`);
   };
 
-  get reactRouter() {
+  public get reactRouter(): CcrReactRouter | null {
     return this._reactRouter;
   }
 
-  set reactRouter(router) {
+  public set reactRouter(router: CcrReactRouter) {
     this._reactRouter = router;
   }
 }

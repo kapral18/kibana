@@ -5,15 +5,18 @@
  * 2.0.
  */
 
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { type ReactNode } from 'react';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { EuiSpacer, EuiPageHeader, EuiButtonEmpty } from '@elastic/eui';
 
 import { documentationLinks } from '../services/documentation_links';
 
-export const AutoFollowPatternPageTitle = ({ title }) => (
+interface Props {
+  title: ReactNode;
+}
+
+export const AutoFollowPatternPageTitle = ({ title }: Props) => (
   <>
     <EuiPageHeader
       bottomBorder
@@ -38,7 +41,3 @@ export const AutoFollowPatternPageTitle = ({ title }) => (
     <EuiSpacer size="l" />
   </>
 );
-
-AutoFollowPatternPageTitle.propTypes = {
-  title: PropTypes.node.isRequired,
-};

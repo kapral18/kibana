@@ -6,11 +6,14 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { RouteComponentProps } from 'react-router-dom';
 import { FormattedMessage } from '@kbn/i18n-react';
 import { EuiPageSection } from '@elastic/eui';
 
+import type { ApiStatus } from '../../../../common/types';
 import { listBreadcrumb, addBreadcrumb, setBreadcrumbs } from '../../services/breadcrumbs';
+import type { AutoFollowPatternConfig } from '../../services/api';
+import type { CcrApiError } from '../../services/http_error';
 import {
   AutoFollowPatternForm,
   AutoFollowPatternPageTitle,
@@ -18,14 +21,14 @@ import {
 } from '../../components';
 import { SectionLoading } from '../../../shared_imports';
 
-export class AutoFollowPatternAdd extends PureComponent {
-  static propTypes = {
-    saveAutoFollowPattern: PropTypes.func.isRequired,
-    clearApiError: PropTypes.func.isRequired,
-    apiError: PropTypes.object,
-    apiStatus: PropTypes.string.isRequired,
-  };
+export interface AutoFollowPatternAddProps extends RouteComponentProps {
+  saveAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternConfig) => void;
+  clearApiError: () => void;
+  apiError: CcrApiError | null;
+  apiStatus: ApiStatus;
+}
 
+export class AutoFollowPatternAdd extends PureComponent<AutoFollowPatternAddProps> {
   componentDidMount() {
     setBreadcrumbs([listBreadcrumb('/auto_follow_patterns'), addBreadcrumb]);
   }

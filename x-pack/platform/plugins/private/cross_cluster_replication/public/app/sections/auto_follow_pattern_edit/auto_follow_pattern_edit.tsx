@@ -6,42 +6,58 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { ReactNode } from 'react';
+import type { RouteComponentProps } from 'react-router-dom';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
 import { EuiButton, EuiPageSection, EuiPageTemplate } from '@elastic/eui';
 
-import { listBreadcrumb, editBreadcrumb, setBreadcrumbs } from '../../services/breadcrumbs';
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
+import type { ApiStatus } from '../../../../common/types';
+import type { AutoFollowPatternWithErrors } from '../../store/selectors';
+import { listBreadcrumb, editBreadcrumb, setBreadcrumbs } from '../../services/breadcrumbs';
+import type { AutoFollowPatternConfig } from '../../services/api';
 import {
   AutoFollowPatternForm,
   AutoFollowPatternPageTitle,
   RemoteClustersProvider,
 } from '../../components';
+import type { CcrApiError } from '../../services/http_error';
+import { getErrorBody, getErrorStatus } from '../../services/http_error';
 import { API_STATUS } from '../../constants';
 import { SectionLoading } from '../../../shared_imports';
 
-export class AutoFollowPatternEdit extends PureComponent {
-  static propTypes = {
-    getAutoFollowPattern: PropTypes.func.isRequired,
-    selectAutoFollowPattern: PropTypes.func.isRequired,
-    saveAutoFollowPattern: PropTypes.func.isRequired,
-    clearApiError: PropTypes.func.isRequired,
-    apiError: PropTypes.object.isRequired,
-    apiStatus: PropTypes.object.isRequired,
-    autoFollowPattern: PropTypes.object,
-    autoFollowPatternId: PropTypes.string,
-  };
+export interface AutoFollowPatternEditProps extends RouteComponentProps<{ id: string }> {
+  getAutoFollowPattern: (id: string) => void;
+  selectAutoFollowPattern: (id: string | null) => void;
+  saveAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternConfig) => void;
+  clearApiError: () => void;
+  apiError: { get: CcrApiError | null; save: CcrApiError | null };
+  apiStatus: { get: ApiStatus; save: ApiStatus };
+  autoFollowPattern: AutoFollowPatternWithErrors | null;
+  autoFollowPatternId: string | null;
+}
 
-  static getDerivedStateFromProps({ autoFollowPatternId }, { lastAutoFollowPatternId }) {
+export interface AutoFollowPatternEditState {
+  lastAutoFollowPatternId: string | undefined;
+}
+
+export class AutoFollowPatternEdit extends PureComponent<
+  AutoFollowPatternEditProps,
+  AutoFollowPatternEditState
+> {
+  static getDerivedStateFromProps(
+    { autoFollowPatternId }: Pick<AutoFollowPatternEditProps, 'autoFollowPatternId'>,
+    { lastAutoFollowPatternId }: AutoFollowPatternEditState
+  ): Partial<AutoFollowPatternEditState> | null {
     if (lastAutoFollowPatternId !== autoFollowPatternId) {
-      return { lastAutoFollowPatternId: autoFollowPatternId };
+      return { lastAutoFollowPatternId: autoFollowPatternId ?? undefined };
     }
     return null;
   }
 
-  state = { lastAutoFollowPatternId: undefined };
+  state: AutoFollowPatternEditState = { lastAutoFollowPatternId: undefined };
 
   componentDidMount() {
     const {
@@ -57,14 +73,17 @@ export class AutoFollowPatternEdit extends PureComponent {
     setBreadcrumbs([listBreadcrumb('/auto_follow_patterns'), editBreadcrumb]);
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps: AutoFollowPatternEditProps, prevState: AutoFollowPatternEditState) {
     const { autoFollowPattern, getAutoFollowPattern } = this.props;
     // Fetch the auto-follow pattern on the server if we don't have it (i.e. page reload)
     if (
       !autoFollowPattern &&
       prevState.lastAutoFollowPatternId !== this.state.lastAutoFollowPatternId
     ) {
-      getAutoFollowPattern(this.state.lastAutoFollowPatternId);
+      const id = this.state.lastAutoFollowPatternId;
+      if (id !== undefined) {
+        getAutoFollowPattern(id);
+      }
     }
   }
 
@@ -72,25 +91,27 @@ export class AutoFollowPatternEdit extends PureComponent {
     this.props.clearApiError();
   }
 
-  renderGetAutoFollowPatternError(error) {
+  renderGetAutoFollowPatternError(error: CcrApiError) {
     const {
       match: {
         params: { id: name },
       },
     } = this.props;
 
-    const errorMessage =
-      error.body.statusCode === 404
-        ? {
-            error: i18n.translate(
-              'xpack.crossClusterReplication.autoFollowPatternEditForm.loadingErrorMessage',
-              {
-                defaultMessage: `The auto-follow pattern ''{name}'' does not exist.`,
-                values: { name },
-              }
-            ),
-          }
-        : error;
+    const statusCode = getErrorStatus(error);
+    const body = getErrorBody(error);
+    const errorMessage: ReactNode =
+      statusCode === 404
+        ? i18n.translate(
+            'xpack.crossClusterReplication.autoFollowPatternEditForm.loadingErrorMessage',
+            {
+              defaultMessage: `The auto-follow pattern ''{name}'' does not exist.`,
+              values: { name },
+            }
+          )
+        : body?.message ?? error.message;
+
+    const listNav = reactRouterNavigate(this.props.history, `/auto_follow_patterns`);
 
     return (
       <EuiPageTemplate.EmptyPrompt
@@ -107,9 +128,9 @@ export class AutoFollowPatternEdit extends PureComponent {
         body={<p>{errorMessage}</p>}
         actions={
           <EuiButton
-            {...reactRouterNavigate(this.props.history, `/auto_follow_patterns`)}
+            href={listNav.href}
+            onClick={listNav.onClick}
             color="danger"
-            flush="left"
             iconType="chevronSingleLeft"
             data-test-subj="viewAutoFollowPatternListButton"
           >
@@ -123,7 +144,7 @@ export class AutoFollowPatternEdit extends PureComponent {
     );
   }
 
-  renderLoading(loadingTitle) {
+  renderLoading(loadingTitle: ReactNode) {
     return <SectionLoading>{loadingTitle}</SectionLoading>;
   }
 

@@ -6,7 +6,8 @@
  */
 
 import React, { PureComponent } from 'react';
-import PropTypes from 'prop-types';
+import type { ReactNode } from 'react';
+import type { RouteComponentProps } from 'react-router-dom';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
@@ -18,8 +19,16 @@ import {
   htmlIdGenerator,
 } from '@elastic/eui';
 
-import { setBreadcrumbs, listBreadcrumb, editBreadcrumb } from '../../services/breadcrumbs';
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
+import type {
+  ApiStatus,
+  FollowerIndex,
+  FollowerIndexWithPausedStatus,
+} from '../../../../common/types';
+import { setBreadcrumbs, listBreadcrumb, editBreadcrumb } from '../../services/breadcrumbs';
+import type { CcrApiError } from '../../services/http_error';
+import { getErrorBody, getErrorStatus } from '../../services/http_error';
+import type { FollowerIndexSaveBody } from '../../services/api';
 import {
   FollowerIndexForm,
   FollowerIndexPageTitle,
@@ -28,26 +37,39 @@ import {
 import { API_STATUS } from '../../constants';
 import { SectionLoading } from '../../../shared_imports';
 
-export class FollowerIndexEdit extends PureComponent {
-  static propTypes = {
-    getFollowerIndex: PropTypes.func.isRequired,
-    selectFollowerIndex: PropTypes.func.isRequired,
-    saveFollowerIndex: PropTypes.func.isRequired,
-    clearApiError: PropTypes.func.isRequired,
-    apiError: PropTypes.object.isRequired,
-    apiStatus: PropTypes.object.isRequired,
-    followerIndex: PropTypes.object,
-    followerIndexId: PropTypes.string,
-  };
+export interface FollowerIndexEditProps extends RouteComponentProps<{ id: string }> {
+  getFollowerIndex: (id: string) => void;
+  selectFollowerIndex: (id: string | null) => void;
+  saveFollowerIndex: (name: string, followerIndex: FollowerIndexSaveBody) => void;
+  clearApiError: () => void;
+  apiError: { get: CcrApiError | null; save: CcrApiError | null };
+  apiStatus: { get: ApiStatus; save: ApiStatus };
+  followerIndex: FollowerIndexWithPausedStatus | null;
+  followerIndexId: string | null;
+}
 
-  static getDerivedStateFromProps({ followerIndexId }, { lastFollowerIndexId }) {
+export interface FollowerIndexEditState {
+  lastFollowerIndexId: string | undefined;
+  showConfirmModal: boolean;
+}
+
+export class FollowerIndexEdit extends PureComponent<
+  FollowerIndexEditProps,
+  FollowerIndexEditState
+> {
+  private editedFollowerIndexPayload?: { name: string; followerIndex: FollowerIndexSaveBody };
+
+  static getDerivedStateFromProps(
+    { followerIndexId }: Pick<FollowerIndexEditProps, 'followerIndexId'>,
+    { lastFollowerIndexId }: FollowerIndexEditState
+  ): Partial<FollowerIndexEditState> | null {
     if (lastFollowerIndexId !== followerIndexId) {
-      return { lastFollowerIndexId: followerIndexId };
+      return { lastFollowerIndexId: followerIndexId ?? undefined };
     }
     return null;
   }
 
-  state = {
+  state: FollowerIndexEditState = {
     lastFollowerIndexId: undefined,
     showConfirmModal: false,
   };
@@ -59,7 +81,7 @@ export class FollowerIndexEdit extends PureComponent {
       },
       selectFollowerIndex,
     } = this.props;
-    let decodedId;
+    let decodedId: string;
     try {
       // When we navigate through the router (history.push) we need to decode both the uri and the id
       decodedId = decodeURI(id);
@@ -75,11 +97,14 @@ export class FollowerIndexEdit extends PureComponent {
     setBreadcrumbs([listBreadcrumb('/follower_indices'), editBreadcrumb]);
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps: FollowerIndexEditProps, prevState: FollowerIndexEditState) {
     const { followerIndex, getFollowerIndex } = this.props;
     // Fetch the follower index on the server if we don't have it (i.e. page reload)
     if (!followerIndex && prevState.lastFollowerIndexId !== this.state.lastFollowerIndexId) {
-      getFollowerIndex(this.state.lastFollowerIndexId);
+      const id = this.state.lastFollowerIndexId;
+      if (id !== undefined) {
+        getFollowerIndex(id);
+      }
     }
   }
 
@@ -87,13 +112,17 @@ export class FollowerIndexEdit extends PureComponent {
     this.props.clearApiError();
   }
 
-  saveFollowerIndex = (name, followerIndex) => {
+  saveFollowerIndex = (name: string, followerIndex: FollowerIndexSaveBody) => {
     this.editedFollowerIndexPayload = { name, followerIndex };
     this.showConfirmModal();
   };
 
   confirmSaveFollowerIhdex = () => {
-    const { name, followerIndex } = this.editedFollowerIndexPayload;
+    const payload = this.editedFollowerIndexPayload;
+    if (!payload) {
+      return;
+    }
+    const { name, followerIndex } = payload;
     this.props.saveFollowerIndex(name, followerIndex);
     this.closeConfirmModal();
   };
@@ -102,29 +131,31 @@ export class FollowerIndexEdit extends PureComponent {
 
   closeConfirmModal = () => this.setState({ showConfirmModal: false });
 
-  renderLoading(loadingTitle) {
+  renderLoading(loadingTitle: ReactNode) {
     return <SectionLoading>{loadingTitle}</SectionLoading>;
   }
 
-  renderGetFollowerIndexError(error) {
+  renderGetFollowerIndexError(error: CcrApiError) {
     const {
       match: {
         params: { id: name },
       },
     } = this.props;
 
-    const errorMessage =
-      error.body.statusCode === 404
-        ? {
-            error: i18n.translate(
-              'xpack.crossClusterReplication.followerIndexEditForm.loadingErrorMessage',
-              {
-                defaultMessage: `The follower index ''{name}'' does not exist.`,
-                values: { name },
-              }
-            ),
-          }
-        : error;
+    const statusCode = getErrorStatus(error);
+    const body = getErrorBody(error);
+    const errorMessage: ReactNode =
+      statusCode === 404
+        ? i18n.translate(
+            'xpack.crossClusterReplication.followerIndexEditForm.loadingErrorMessage',
+            {
+              defaultMessage: `The follower index ''{name}'' does not exist.`,
+              values: { name },
+            }
+          )
+        : body?.message ?? error.message;
+
+    const listNav = reactRouterNavigate(this.props.history, `/follower_indices`);
 
     return (
       <EuiPageTemplate.EmptyPrompt
@@ -141,9 +172,9 @@ export class FollowerIndexEdit extends PureComponent {
         body={<p>{errorMessage}</p>}
         actions={
           <EuiButton
-            {...reactRouterNavigate(this.props.history, `/follower_indices`)}
+            href={listNav.href}
+            onClick={listNav.onClick}
             color="danger"
-            flush="left"
             iconType="chevronSingleLeft"
           >
             <FormattedMessage
@@ -157,10 +188,13 @@ export class FollowerIndexEdit extends PureComponent {
   }
 
   renderConfirmModal = () => {
-    const {
-      followerIndexId,
-      followerIndex: { isPaused },
-    } = this.props;
+    const { followerIndexId, followerIndex } = this.props;
+
+    if (!followerIndex) {
+      return null;
+    }
+
+    const { isPaused } = followerIndex;
     const confirmModalTitleId = htmlIdGenerator()('confirmModalTitle');
     const title = i18n.translate(
       'xpack.crossClusterReplication.followerIndexEditForm.confirmModal.title',
@@ -226,9 +260,6 @@ export class FollowerIndexEdit extends PureComponent {
 
     const { showConfirmModal } = this.state;
 
-    /* remove non-editable properties */
-    const { shards, ...rest } = followerIndex || {}; // eslint-disable-line no-unused-vars
-
     if (apiStatus.get === API_STATUS.LOADING || !followerIndex) {
       return this.renderLoading(
         i18n.translate(
@@ -241,6 +272,8 @@ export class FollowerIndexEdit extends PureComponent {
     if (apiError.get) {
       return this.renderGetFollowerIndexError(apiError.get);
     }
+
+    const { shards: _shards, ...rest } = followerIndex;
 
     return (
       <RemoteClustersProvider>
@@ -266,7 +299,7 @@ export class FollowerIndexEdit extends PureComponent {
               />
 
               <FollowerIndexForm
-                followerIndex={rest}
+                followerIndex={rest as FollowerIndex}
                 apiStatus={apiStatus.save}
                 apiError={apiError.save}
                 currentUrl={currentUrl}

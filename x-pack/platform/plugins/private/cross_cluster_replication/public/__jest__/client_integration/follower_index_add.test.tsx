@@ -7,15 +7,18 @@
 
 import { ILLEGAL_CHARACTERS_VISIBLE } from '@kbn/data-views-plugin/public';
 import { fireEvent, screen, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { setupEnvironment, pageHelpers } from './helpers';
 
 const { setup } = pageHelpers.followerIndexAdd;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('Create Follower index', () => {
-  let httpSetup;
-  let httpRequestsMockHelpers;
-  let user;
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -248,7 +251,7 @@ describe('Create Follower index', () => {
         await user.click(toggle);
 
         Object.entries(advancedSettingsInputFields).forEach(([testSubj, data]) => {
-          const input = screen.getByTestId(testSubj);
+          const input = screen.getByTestId(testSubj) as HTMLInputElement;
           if (data.type === 'number') {
             expect(input.type).toBe('number');
           }

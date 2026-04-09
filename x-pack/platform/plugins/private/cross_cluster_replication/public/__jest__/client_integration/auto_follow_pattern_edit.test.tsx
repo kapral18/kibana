@@ -142,7 +142,7 @@ describe('Edit Auto-follow pattern', () => {
       expect(error).toBeInTheDocument();
 
       const title = error.querySelector('.euiCallOutHeader__title');
-      expect(title.textContent).toBe(
+      expect(title?.textContent).toBe(
         `Can't edit auto-follow pattern because remote cluster '${AUTO_FOLLOW_PATTERN_EDIT.remoteCluster}' is not connected`
       );
 

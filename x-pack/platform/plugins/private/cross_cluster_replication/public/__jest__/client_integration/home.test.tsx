@@ -6,10 +6,13 @@
  */
 
 import { screen, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { setupEnvironment, pageHelpers } from './helpers';
 
 const { setup } = pageHelpers.home;
+
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
 
 const getSelectedTabText = () => {
   const container = document;
@@ -20,8 +23,8 @@ const getSelectedTabText = () => {
 };
 
 describe('<CrossClusterReplicationHome />', () => {
-  let httpRequestsMockHelpers;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();

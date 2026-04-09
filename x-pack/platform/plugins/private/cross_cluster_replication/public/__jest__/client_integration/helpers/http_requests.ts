@@ -5,42 +5,115 @@
  * 2.0.
  */
 
+import type { HttpFetchOptionsWithPath } from '@kbn/core-http-browser';
 import { httpServiceMock } from '@kbn/core/public/mocks';
 import { API_BASE_PATH } from '../../../../common/constants';
+import type { AutoFollowPattern, AutoFollowStats, FollowerIndex } from '../../../../common/types';
+import type { DeleteAutoFollowPatternResponse, RemoteClusterRow } from '../../../app/services/api';
+
+type HttpMethod = 'GET' | 'PUT' | 'DELETE' | 'POST';
+
+type HttpSetupMock = ReturnType<typeof httpServiceMock.createSetupContract>;
+
+const resolvePath = (pathOrOptions: string | HttpFetchOptionsWithPath): string =>
+  typeof pathOrOptions === 'string' ? pathOrOptions : pathOrOptions.path;
+
+type MockHttpError =
+  | string
+  | { body: string }
+  | { message: string }
+  | { body: { message: string } };
 
 // Register helpers to mock HTTP Requests
-const registerHttpRequestMockHelpers = (httpSetup) => {
-  const mockResponses = new Map(
-    ['GET', 'PUT', 'DELETE', 'POST'].map((method) => [method, new Map()])
+const registerHttpRequestMockHelpers = (httpSetup: HttpSetupMock) => {
+  const mockResponses = new Map<HttpMethod, Map<string, Promise<unknown>>>(
+    ['GET', 'PUT', 'DELETE', 'POST'].map(
+      (method) => [method, new Map()] as [HttpMethod, Map<string, Promise<unknown>>]
+    )
   );
 
-  const mockMethodImplementation = (method, path) => {
+  const mockMethodImplementation = (method: HttpMethod, path: string) => {
     return mockResponses.get(method)?.get(path) ?? Promise.resolve({});
   };
 
-  httpSetup.get.mockImplementation((path) => mockMethodImplementation('GET', path));
-  httpSetup.delete.mockImplementation((path) => mockMethodImplementation('DELETE', path));
-  httpSetup.post.mockImplementation((path) => mockMethodImplementation('POST', path));
-  httpSetup.put.mockImplementation((path) => mockMethodImplementation('PUT', path));
+  httpSetup.get.mockImplementation((path) => mockMethodImplementation('GET', resolvePath(path)));
+  httpSetup.delete.mockImplementation((path) =>
+    mockMethodImplementation('DELETE', resolvePath(path))
+  );
+  httpSetup.post.mockImplementation((path) => mockMethodImplementation('POST', resolvePath(path)));
+  httpSetup.put.mockImplementation((path) => mockMethodImplementation('PUT', resolvePath(path)));
 
-  const mockResponse = (method, path, response, error) => {
-    const defuse = (promise) => {
+  const mockResponse = (
+    method: HttpMethod,
+    path: string,
+    response?: unknown,
+    error?: MockHttpError
+  ) => {
+    const defuse = (promise: Promise<unknown>) => {
       promise.catch(() => {});
       return promise;
     };
 
+    const createHttpFetchError = (mockError: MockHttpError) => {
+      const isObject = (value: unknown): value is Record<string, unknown> =>
+        typeof value === 'object' && value !== null;
+
+      const getBody = (mockErr: MockHttpError): unknown => {
+        if (typeof mockErr === 'string') {
+          return mockErr;
+        }
+
+        return 'body' in mockErr ? mockErr.body : mockErr;
+      };
+
+      const body = getBody(mockError);
+
+      const message = (() => {
+        if (typeof body === 'string') {
+          return body;
+        }
+
+        if (isObject(body) && 'message' in body) {
+          return String(body.message);
+        }
+
+        return 'Request failed';
+      })();
+
+      const request: HttpFetchOptionsWithPath = { path };
+
+      const httpError = Object.assign(new Error(message), { body, request });
+
+      if (isObject(body) && 'statusCode' in body && typeof body.statusCode === 'number') {
+        Object.assign(httpError, { response: { status: body.statusCode } });
+      }
+
+      return httpError;
+    };
+
     return mockResponses
-      .get(method)
-      .set(path, error ? defuse(Promise.reject({ body: error })) : Promise.resolve(response));
+      .get(method)!
+      .set(
+        path,
+        error ? defuse(Promise.reject(createHttpFetchError(error))) : Promise.resolve(response)
+      );
   };
 
-  const setLoadFollowerIndicesResponse = (response = { indices: [] }, error) =>
-    mockResponse('GET', `${API_BASE_PATH}/follower_indices`, response, error);
+  const setLoadFollowerIndicesResponse = (
+    response: { indices: FollowerIndex[] } = { indices: [] },
+    error?: MockHttpError
+  ) => mockResponse('GET', `${API_BASE_PATH}/follower_indices`, response, error);
 
-  const setLoadAutoFollowPatternsResponse = (response = { patterns: [] }, error) =>
-    mockResponse('GET', `${API_BASE_PATH}/auto_follow_patterns`, response, error);
+  const setLoadAutoFollowPatternsResponse = (
+    response: { patterns: AutoFollowPattern[] } = { patterns: [] },
+    error?: MockHttpError
+  ) => mockResponse('GET', `${API_BASE_PATH}/auto_follow_patterns`, response, error);
 
-  const setDeleteAutoFollowPatternResponse = (autoFollowId, response, error) =>
+  const setDeleteAutoFollowPatternResponse = (
+    autoFollowId?: string,
+    response?: DeleteAutoFollowPatternResponse,
+    error?: MockHttpError
+  ) =>
     mockResponse(
       'DELETE',
       `${API_BASE_PATH}/auto_follow_patterns/${autoFollowId}`,
@@ -48,20 +121,30 @@ const registerHttpRequestMockHelpers = (httpSetup) => {
       error
     );
 
-  const setAutoFollowStatsResponse = (response, error) =>
+  const setAutoFollowStatsResponse = (response?: Partial<AutoFollowStats>, error?: MockHttpError) =>
     mockResponse('GET', `${API_BASE_PATH}/stats/auto_follow`, response, error);
 
-  const setLoadRemoteClustersResponse = (response = [], error) =>
-    mockResponse('GET', '/api/remote_clusters', response, error);
+  const setLoadRemoteClustersResponse = (
+    response: Array<RemoteClusterRow & { seeds?: string[] }> = [],
+    error?: MockHttpError
+  ) => mockResponse('GET', '/api/remote_clusters', response, error);
 
-  const setGetAutoFollowPatternResponse = (patternId, response = {}, error) =>
-    mockResponse('GET', `${API_BASE_PATH}/auto_follow_patterns/${patternId}`, response, error);
+  const setGetAutoFollowPatternResponse = (
+    patternId: string,
+    response: AutoFollowPattern,
+    error?: MockHttpError
+  ) => mockResponse('GET', `${API_BASE_PATH}/auto_follow_patterns/${patternId}`, response, error);
 
-  const setGetClusterIndicesResponse = (response = [], error) =>
-    mockResponse('GET', '/api/index_management/indices', response, error);
+  const setGetClusterIndicesResponse = (
+    response: Array<{ name: string }> = [],
+    error?: MockHttpError
+  ) => mockResponse('GET', '/api/index_management/indices', response, error);
 
-  const setGetFollowerIndexResponse = (patternId, response = {}, error) =>
-    mockResponse('GET', `${API_BASE_PATH}/follower_indices/${patternId}`, response, error);
+  const setGetFollowerIndexResponse = (
+    followerIndexId: string,
+    response: FollowerIndex,
+    error?: MockHttpError
+  ) => mockResponse('GET', `${API_BASE_PATH}/follower_indices/${followerIndexId}`, response, error);
 
   return {
     setLoadFollowerIndicesResponse,
@@ -75,6 +158,8 @@ const registerHttpRequestMockHelpers = (httpSetup) => {
   };
 };
 
+export type HttpRequestsMockHelpers = ReturnType<typeof registerHttpRequestMockHelpers>;
+
 export const init = () => {
   const httpSetup = httpServiceMock.createSetupContract();
 
@@ -83,3 +168,5 @@ export const init = () => {
     httpRequestsMockHelpers: registerHttpRequestMockHelpers(httpSetup),
   };
 };
+
+export type InitHttpRequestsResult = ReturnType<typeof init>;

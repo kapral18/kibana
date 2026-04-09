@@ -6,17 +6,22 @@
  */
 
 import { fireEvent, screen, within, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import './mocks';
 import { getFollowerIndexMock } from './fixtures/follower_index';
 import { setupEnvironment, pageHelpers, getRandomString } from './helpers';
+import type { FollowerIndexListSetupResult } from './helpers/follower_index_list.helpers';
 import { EuiTableTestHarness } from '@kbn/test-eui-helpers';
+import type { FollowerIndex } from '../../../common/types';
 
 const { setup } = pageHelpers.followerIndexList;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('<FollowerIndicesList />', () => {
-  let httpRequestsMockHelpers;
-  let httpSetup;
-  let user;
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -64,10 +69,10 @@ describe('<FollowerIndicesList />', () => {
   });
 
   describe('when there are multiple pages of follower indices', () => {
-    const followerIndices = [{ name: 'unique', seeds: [] }];
+    const followerIndices: FollowerIndex[] = [getFollowerIndexMock({ name: 'unique' })];
 
     for (let i = 0; i < 29; i++) {
-      followerIndices.push({ name: `name${i}`, seeds: [] });
+      followerIndices.push(getFollowerIndexMock({ name: `name${i}` }));
     }
 
     beforeEach(async () => {
@@ -102,9 +107,9 @@ describe('<FollowerIndicesList />', () => {
   });
 
   describe('when there are follower indices', () => {
-    let table;
-    let tableCellsValues;
-    let actions;
+    let table: EuiTableTestHarness;
+    let tableCellsValues: string[][];
+    let actions: FollowerIndexListSetupResult['actions'];
 
     const index1 = getFollowerIndexMock({ name: `a${getRandomString()}` });
     const index2 = getFollowerIndexMock({ name: `b${getRandomString()}`, status: 'paused' });
@@ -165,7 +170,7 @@ describe('<FollowerIndicesList />', () => {
 
         const contextMenu = await screen.findByTestId('contextMenu');
         const buttons = within(contextMenu).queryAllByRole('button');
-        const buttonsLabel = buttons.map((btn) => btn.textContent);
+        const buttonsLabel = buttons.map((btn: HTMLElement) => btn.textContent);
 
         expect(buttonsLabel).toEqual([
           'Pause replication',
@@ -183,7 +188,7 @@ describe('<FollowerIndicesList />', () => {
 
         const contextMenu = await screen.findByTestId('contextMenu');
         const buttons = within(contextMenu).queryAllByRole('button');
-        const buttonsLabel = buttons.map((btn) => btn.textContent);
+        const buttonsLabel = buttons.map((btn: HTMLElement) => btn.textContent);
 
         expect(buttonsLabel).toEqual([
           'Resume replication',
@@ -244,8 +249,11 @@ describe('<FollowerIndicesList />', () => {
         await user.click(actionButton);
 
         const contextMenuPanel = document.querySelector('.euiContextMenuPanel');
+        if (!contextMenuPanel) {
+          throw new Error('expected row context menu panel');
+        }
         const buttons = contextMenuPanel.querySelectorAll('button.euiContextMenuItem');
-        const buttonLabels = Array.from(buttons).map((btn) => btn.textContent);
+        const buttonLabels = Array.from(buttons).map((btn: Element) => btn.textContent);
 
         expect(buttonLabels).toEqual([
           'Pause replication',
@@ -261,8 +269,11 @@ describe('<FollowerIndicesList />', () => {
         await user.click(actionButton);
 
         const contextMenuPanel = document.querySelector('.euiContextMenuPanel');
+        if (!contextMenuPanel) {
+          throw new Error('expected row context menu panel');
+        }
         const buttons = contextMenuPanel.querySelectorAll('button.euiContextMenuItem');
-        const buttonLabels = Array.from(buttons).map((btn) => btn.textContent);
+        const buttonLabels = Array.from(buttons).map((btn: Element) => btn.textContent);
 
         expect(buttonLabels).toEqual([
           'Resume replication',
@@ -358,7 +369,7 @@ describe('<FollowerIndicesList />', () => {
       });
 
       test('should set the correct follower index settings values', async () => {
-        const mapSettingsToFollowerIndexProp = {
+        const mapSettingsToFollowerIndexProp: Record<string, keyof FollowerIndex> = {
           maxReadReqOpCount: 'maxReadRequestOperationCount',
           maxOutstandingReadReq: 'maxOutstandingReadRequests',
           maxReadReqSize: 'maxReadRequestSize',
@@ -379,7 +390,8 @@ describe('<FollowerIndicesList />', () => {
 
         Object.entries(mapSettingsToFollowerIndexProp).forEach(([setting, prop]) => {
           const element = within(detailPanel).getByTestId(setting);
-          expect(element.textContent).toEqual(index1[prop].toString());
+          const value = index1[prop];
+          expect(element.textContent).toEqual(value !== undefined ? String(value) : '');
         });
       });
 
@@ -406,8 +418,8 @@ describe('<FollowerIndicesList />', () => {
         const codeBlocks = within(detailPanel).queryAllByTestId('shardsStats');
         expect(codeBlocks.length).toBe(index1.shards.length);
 
-        codeBlocks.forEach((codeBlock, i) => {
-          expect(JSON.parse(codeBlock.textContent)).toEqual(index1.shards[i]);
+        codeBlocks.forEach((codeBlock: HTMLElement, i: number) => {
+          expect(JSON.parse(codeBlock.textContent ?? '')).toEqual(index1.shards[i]);
         });
       });
     });

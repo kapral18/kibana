@@ -5,27 +5,27 @@
  * 2.0.
  */
 
-import { renderWithRouter } from './render';
+import type { ComponentProps } from 'react';
+import { renderWithRouter, type CcrRenderResult, type OnRouterPayload } from './render';
 import { AutoFollowPatternEdit } from '../../../app/sections/auto_follow_pattern_edit';
 import { createCrossClusterReplicationStore } from '../../../app/store';
-import { routing } from '../../../app/services/routing';
+import { routing, type CcrReactRouter } from '../../../app/services/routing';
 import { AUTO_FOLLOW_PATTERN_EDIT_NAME } from './constants';
 
-/**
- * @param {object} [props]
- * @returns {ReturnType<typeof renderWithRouter>}
- */
-export const setup = (props = {}) => {
+export const setup = (
+  componentProps: Partial<ComponentProps<typeof AutoFollowPatternEdit>> = {}
+): CcrRenderResult => {
   return renderWithRouter(AutoFollowPatternEdit, {
     store: createCrossClusterReplicationStore(),
     initialEntries: [`/${AUTO_FOLLOW_PATTERN_EDIT_NAME}`],
     routePath: '/:id',
-    onRouter: (router) => {
-      routing.reactRouter = {
+    onRouter: (router: OnRouterPayload) => {
+      const ccrRouter: CcrReactRouter = {
         ...router,
         getUrlForApp: () => '',
       };
+      routing.reactRouter = ccrRouter;
     },
-    defaultProps: props,
+    componentProps,
   });
 };

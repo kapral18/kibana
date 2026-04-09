@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import { getRandomString } from '@kbn/test-jest-helpers';
 import { setup as autoFollowPatternListSetup } from './auto_follow_pattern_list.helpers';
 import { setup as autoFollowPatternAddSetup } from './auto_follow_pattern_add.helpers';
 import { setup as autoFollowPatternEditSetup } from './auto_follow_pattern_edit.helpers';
@@ -12,7 +13,6 @@ import { setup as followerIndexListSetup } from './follower_index_list.helpers';
 import { setup as followerIndexAddSetup } from './follower_index_add.helpers';
 import { setup as followerIndexEditSetup } from './follower_index_edit.helpers';
 import { setup as homeSetup } from './home.helpers';
-import { getRandomString } from '@kbn/test-jest-helpers';
 
 export { getRandomString };
 export { setupEnvironment } from './setup_environment';
@@ -25,4 +25,14 @@ export const pageHelpers = {
   followerIndexAdd: { setup: followerIndexAddSetup },
   followerIndexEdit: { setup: followerIndexEditSetup },
   home: { setup: homeSetup },
+} as const satisfies {
+  autoFollowPatternList: {
+    setup: typeof autoFollowPatternListSetup;
+  };
+  autoFollowPatternAdd: { setup: typeof autoFollowPatternAddSetup };
+  autoFollowPatternEdit: { setup: typeof autoFollowPatternEditSetup };
+  followerIndexList: { setup: typeof followerIndexListSetup };
+  followerIndexAdd: { setup: typeof followerIndexAddSetup };
+  followerIndexEdit: { setup: typeof followerIndexEditSetup };
+  home: { setup: typeof homeSetup };
 };

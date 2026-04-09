@@ -6,6 +6,7 @@
  */
 
 import { screen, within, act, fireEvent } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import { API_BASE_PATH } from '../../../common/constants';
 import './mocks';
 import { FOLLOWER_INDEX_EDIT, FOLLOWER_INDEX_EDIT_NAME } from './helpers/constants';
@@ -13,10 +14,12 @@ import { setupEnvironment, pageHelpers } from './helpers';
 
 const { setup } = pageHelpers.followerIndexEdit;
 
+type SetupEnvironmentReturn = ReturnType<typeof setupEnvironment>;
+
 describe('Edit follower index', () => {
-  let httpSetup;
-  let httpRequestsMockHelpers;
-  let user;
+  let httpSetup: SetupEnvironmentReturn['httpSetup'];
+  let httpRequestsMockHelpers: SetupEnvironmentReturn['httpRequestsMockHelpers'];
+  let user: UserEvent;
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -86,7 +89,8 @@ describe('Edit follower index', () => {
       // Verify GET was called during mount
       const getCalls = httpSetup.get.mock.calls;
       const getFollowerCall = getCalls.find(
-        (call) => call[0] === `${API_BASE_PATH}/follower_indices/${FOLLOWER_INDEX_EDIT_NAME}`
+        (call: unknown[]) =>
+          call[0] === `${API_BASE_PATH}/follower_indices/${FOLLOWER_INDEX_EDIT_NAME}`
       );
       expect(getFollowerCall).toBeDefined();
 

@@ -9,6 +9,7 @@ export const AUTO_FOLLOW_PATTERN_EDIT_NAME = 'my-autofollow';
 
 export const AUTO_FOLLOW_PATTERN_EDIT = {
   name: AUTO_FOLLOW_PATTERN_EDIT_NAME,
+  active: true,
   remoteCluster: 'cluster-2',
   leaderIndexPatterns: ['my-pattern-*'],
   followIndexPattern: 'prefix_{{leader_index}}_suffix',
@@ -31,4 +32,5 @@ export const FOLLOWER_INDEX_EDIT = {
   maxWriteBufferSize: '256mb',
   maxRetryDelay: '225ms',
   readPollTimeout: '2m',
+  shards: [],
 };

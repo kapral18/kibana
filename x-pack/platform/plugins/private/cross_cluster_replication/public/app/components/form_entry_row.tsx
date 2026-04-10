@@ -140,9 +140,7 @@ export class FormEntryRow extends PureComponent<Props> {
         <EuiFormRow
           label={label}
           helpText={fieldHelpText}
-          error={
-            (structured?.message !== undefined ? structured.message : error) as ReactNode
-          }
+          error={(structured?.message !== undefined ? structured.message : error) as ReactNode}
           isInvalid={isInvalid}
           fullWidth
         >

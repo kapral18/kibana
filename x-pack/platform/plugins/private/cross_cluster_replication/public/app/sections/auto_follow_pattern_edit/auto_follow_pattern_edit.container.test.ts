@@ -7,20 +7,20 @@
 
 jest.mock('../../store/actions', () => ({
   getAutoFollowPattern: jest.fn(() => ({ type: 'MOCK/GET_AUTO_FOLLOW_PATTERN' })),
-  saveAutoFollowPattern: jest.fn(() => ({ type: 'MOCK/SAVE_AUTO_FOLLOW_PATTERN' })),
+  updateAutoFollowPattern: jest.fn(() => ({ type: 'MOCK/UPDATE_AUTO_FOLLOW_PATTERN' })),
   selectEditAutoFollowPattern: jest.fn(() => ({ type: 'MOCK/SELECT_EDIT_AUTO_FOLLOW_PATTERN' })),
   clearApiError: jest.fn((scope: string) => ({ type: 'MOCK/CLEAR_API_ERROR', payload: scope })),
 }));
 
 import { mapDispatchToProps } from './auto_follow_pattern_edit.container';
 import {
-  saveAutoFollowPattern,
+  updateAutoFollowPattern,
   clearApiError,
   selectEditAutoFollowPattern,
   getAutoFollowPattern,
 } from '../../store/actions';
 
-const mockedSaveAutoFollowPattern = jest.mocked(saveAutoFollowPattern);
+const mockedUpdateAutoFollowPattern = jest.mocked(updateAutoFollowPattern);
 const mockedClearApiError = jest.mocked(clearApiError);
 const mockedSelectEditAutoFollowPattern = jest.mocked(selectEditAutoFollowPattern);
 const mockedGetAutoFollowPattern = jest.mocked(getAutoFollowPattern);
@@ -30,13 +30,13 @@ describe('auto_follow_pattern_edit.container mapDispatchToProps', () => {
 
   beforeEach(() => {
     dispatch.mockClear();
-    mockedSaveAutoFollowPattern.mockClear();
+    mockedUpdateAutoFollowPattern.mockClear();
     mockedClearApiError.mockClear();
     mockedSelectEditAutoFollowPattern.mockClear();
     mockedGetAutoFollowPattern.mockClear();
   });
 
-  describe('saveAutoFollowPattern', () => {
+  describe('updateAutoFollowPattern', () => {
     it('should strip unknown fields from the update payload (defense-in-depth against strict backend schema)', () => {
       const actions = mapDispatchToProps(dispatch);
 
@@ -53,35 +53,19 @@ describe('auto_follow_pattern_edit.container mapDispatchToProps', () => {
         name: 'should-not-leak',
         errors: ['should-not-leak'],
         unexpected: 42,
-      } as unknown as Parameters<ReturnType<typeof mapDispatchToProps>['saveAutoFollowPattern']>[1];
+      } as unknown as Parameters<
+        ReturnType<typeof mapDispatchToProps>['updateAutoFollowPattern']
+      >[1];
 
-      actions.saveAutoFollowPattern('my-pattern', enrichedPayload);
+      actions.updateAutoFollowPattern('my-pattern', enrichedPayload);
 
-      expect(mockedSaveAutoFollowPattern).toHaveBeenCalledTimes(1);
-      expect(mockedSaveAutoFollowPattern).toHaveBeenCalledWith(
-        'my-pattern',
-        {
-          active: true,
-          remoteCluster: 'cluster-a',
-          leaderIndexPatterns: ['logs-*'],
-          followIndexPattern: 'replica-{{leader_index}}',
-        },
-        true
-      );
-    });
-
-    it('should pass isUpdating=true to the save action', () => {
-      const actions = mapDispatchToProps(dispatch);
-
-      actions.saveAutoFollowPattern('my-pattern', {
+      expect(mockedUpdateAutoFollowPattern).toHaveBeenCalledTimes(1);
+      expect(mockedUpdateAutoFollowPattern).toHaveBeenCalledWith('my-pattern', {
         active: true,
         remoteCluster: 'cluster-a',
         leaderIndexPatterns: ['logs-*'],
         followIndexPattern: 'replica-{{leader_index}}',
       });
-
-      const [, , isUpdating] = mockedSaveAutoFollowPattern.mock.calls[0];
-      expect(isUpdating).toBe(true);
     });
   });
 

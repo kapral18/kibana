@@ -83,18 +83,31 @@ interface RemoteClusterOption {
   isConnected: boolean;
 }
 
-interface Props {
-  saveAutoFollowPattern: (
-    name: string,
-    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
-  ) => void;
-  autoFollowPattern?: ParsedAutoFollowPattern;
+interface BaseProps {
   apiError?: CcrApiError | null;
   apiStatus: ApiStatus;
   currentUrl: string;
   remoteClusters?: RemoteClusterOption[];
   saveButtonLabel: ReactNode;
 }
+
+interface CreateModeProps extends BaseProps {
+  autoFollowPattern?: undefined;
+  createAutoFollowPattern: (name: string, autoFollowPattern: AutoFollowPatternCreateConfig) => void;
+  // Disallow providing the update handler in create mode; without this, callers passing a props bag
+  // (e.g. via spread) can accidentally provide both handlers when `autoFollowPattern` is omitted.
+  updateAutoFollowPattern?: never;
+}
+
+interface UpdateModeProps extends BaseProps {
+  autoFollowPattern: ParsedAutoFollowPattern;
+  updateAutoFollowPattern: (name: string, autoFollowPattern: AutoFollowPatternConfig) => void;
+  // Disallow providing the create handler in update mode; without this, callers passing a props bag
+  // (e.g. via spread) can accidentally provide both handlers.
+  createAutoFollowPattern?: never;
+}
+
+type Props = CreateModeProps | UpdateModeProps;
 
 interface State {
   autoFollowPattern: AutoFollowPatternFormFields;
@@ -272,13 +285,13 @@ export class AutoFollowPatternForm extends PureComponent<Props, State> {
 
     this.setState({ areErrorsVisible: false });
 
-    const { isNew } = this.state;
     const { name, active, ...autoFollowPattern } = this.getFields();
-    if (isNew) {
-      this.props.saveAutoFollowPattern(name, autoFollowPattern);
+    const props = this.props;
+    if (props.autoFollowPattern === undefined) {
+      props.createAutoFollowPattern(name, autoFollowPattern);
       return;
     }
-    this.props.saveAutoFollowPattern(name, {
+    props.updateAutoFollowPattern(name, {
       ...autoFollowPattern,
       active: active ?? true,
     });

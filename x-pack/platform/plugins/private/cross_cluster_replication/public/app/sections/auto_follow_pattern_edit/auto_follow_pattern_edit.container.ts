@@ -10,7 +10,7 @@ import type { AnyAction } from 'redux';
 import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../constants';
-import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../../services/api';
+import type { AutoFollowPatternConfig } from '../../services/api';
 import type { CcrState } from '../../store';
 import {
   getApiStatus,
@@ -20,7 +20,7 @@ import {
 } from '../../store/selectors';
 import {
   getAutoFollowPattern,
-  saveAutoFollowPattern,
+  updateAutoFollowPattern,
   selectEditAutoFollowPattern,
   clearApiError,
 } from '../../store/actions';
@@ -46,24 +46,20 @@ const mapStateToProps = (state: CcrState) => ({
 export const mapDispatchToProps = (dispatch: CcrDispatch) => ({
   getAutoFollowPattern: (id: string) => dispatch(getAutoFollowPattern(id)),
   selectAutoFollowPattern: (id: string | null) => dispatch(selectEditAutoFollowPattern(id)),
-  saveAutoFollowPattern: (
-    id: string,
-    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
-  ) => {
+  updateAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternConfig) => {
     // Only forward the fields accepted by the update route's body schema
     // (`schema.object({...}).unknowns: 'forbid'` by default). Upstream sources
     // of `autoFollowPattern` (selectors, reducers) may include extra fields
     // such as `name` or `errors`; forwarding those would produce a 400 at the
     // server boundary.
-    const { active, remoteCluster, leaderIndexPatterns, followIndexPattern } =
-      autoFollowPattern as AutoFollowPatternConfig;
+    const { active, remoteCluster, leaderIndexPatterns, followIndexPattern } = autoFollowPattern;
     const updatePayload: AutoFollowPatternConfig = {
       active,
       remoteCluster,
       leaderIndexPatterns,
       followIndexPattern,
     };
-    return dispatch(saveAutoFollowPattern(id, updatePayload, true));
+    return dispatch(updateAutoFollowPattern(id, updatePayload));
   },
   clearApiError: () => {
     dispatch(clearApiError(`${scope}-get`));

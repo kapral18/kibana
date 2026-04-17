@@ -10,10 +10,10 @@ import type { AnyAction } from 'redux';
 import type { ThunkDispatch } from 'redux-thunk';
 
 import { SECTIONS } from '../../constants';
-import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../../services/api';
+import type { AutoFollowPatternCreateConfig } from '../../services/api';
 import type { CcrState } from '../../store';
 import { getApiStatus, getApiError } from '../../store/selectors';
-import { saveAutoFollowPattern, clearApiError } from '../../store/actions';
+import { createAutoFollowPattern, clearApiError } from '../../store/actions';
 import { AutoFollowPatternAdd as AutoFollowPatternAddView } from './auto_follow_pattern_add';
 
 const scope = SECTIONS.AUTO_FOLLOW_PATTERN;
@@ -26,10 +26,8 @@ const mapStateToProps = (state: CcrState) => ({
 });
 
 const mapDispatchToProps = (dispatch: CcrDispatch) => ({
-  saveAutoFollowPattern: (
-    id: string,
-    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
-  ) => dispatch(saveAutoFollowPattern(id, autoFollowPattern)),
+  createAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternCreateConfig) =>
+    dispatch(createAutoFollowPattern(id, autoFollowPattern)),
   clearApiError: () => dispatch(clearApiError(`${scope}-save`)),
 });
 

@@ -61,44 +61,54 @@ export const getAutoFollowPattern = (
     handler: async () => await getAutoFollowPatternRequest(id),
   });
 
-export const saveAutoFollowPattern = (
+export const createAutoFollowPattern = (
   id: string,
-  autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig,
-  isUpdating = false
+  autoFollowPattern: AutoFollowPatternCreateConfig
 ): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
   sendApiRequest<void>({
-    label: isUpdating ? t.AUTO_FOLLOW_PATTERN_UPDATE : t.AUTO_FOLLOW_PATTERN_CREATE,
+    label: t.AUTO_FOLLOW_PATTERN_CREATE,
     status: API_STATUS.SAVING,
     scope: `${scope}-save`,
-    handler: async () => {
-      if (isUpdating) {
-        const updatePayload = autoFollowPattern as AutoFollowPatternConfig;
-        return await updateAutoFollowPatternRequest(id, updatePayload);
-      }
-      const createPayload = autoFollowPattern as AutoFollowPatternCreateConfig;
-      return await createAutoFollowPatternRequest({
+    handler: async () =>
+      await createAutoFollowPatternRequest({
         id,
-        ...createPayload,
+        ...autoFollowPattern,
+      }),
+    onSuccess() {
+      getToasts().addSuccess(
+        i18n.translate(
+          'xpack.crossClusterReplication.autoFollowPattern.addAction.successNotificationTitle',
+          {
+            defaultMessage: `Added auto-follow pattern ''{name}''`,
+            values: { name: id },
+          }
+        )
+      );
+      routing.navigate(`/auto_follow_patterns`, {
+        pattern: encodeURIComponent(id),
       });
     },
-    onSuccess() {
-      const successMessage = isUpdating
-        ? i18n.translate(
-            'xpack.crossClusterReplication.autoFollowPattern.updateAction.successNotificationTitle',
-            {
-              defaultMessage: `Auto-follow pattern ''{name}'' updated successfully`,
-              values: { name: id },
-            }
-          )
-        : i18n.translate(
-            'xpack.crossClusterReplication.autoFollowPattern.addAction.successNotificationTitle',
-            {
-              defaultMessage: `Added auto-follow pattern ''{name}''`,
-              values: { name: id },
-            }
-          );
+  });
 
-      getToasts().addSuccess(successMessage);
+export const updateAutoFollowPattern = (
+  id: string,
+  autoFollowPattern: AutoFollowPatternConfig
+): ThunkAction<Promise<void>, CcrState, undefined, AnyAction> =>
+  sendApiRequest<void>({
+    label: t.AUTO_FOLLOW_PATTERN_UPDATE,
+    status: API_STATUS.SAVING,
+    scope: `${scope}-save`,
+    handler: async () => await updateAutoFollowPatternRequest(id, autoFollowPattern),
+    onSuccess() {
+      getToasts().addSuccess(
+        i18n.translate(
+          'xpack.crossClusterReplication.autoFollowPattern.updateAction.successNotificationTitle',
+          {
+            defaultMessage: `Auto-follow pattern ''{name}'' updated successfully`,
+            values: { name: id },
+          }
+        )
+      );
       routing.navigate(`/auto_follow_patterns`, {
         pattern: encodeURIComponent(id),
       });

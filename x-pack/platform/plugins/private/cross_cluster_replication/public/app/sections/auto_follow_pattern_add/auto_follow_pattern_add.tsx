@@ -12,7 +12,7 @@ import { EuiPageSection } from '@elastic/eui';
 
 import type { ApiStatus } from '../../../../common/types';
 import { listBreadcrumb, addBreadcrumb, setBreadcrumbs } from '../../services/breadcrumbs';
-import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../../services/api';
+import type { AutoFollowPatternCreateConfig } from '../../services/api';
 import type { CcrApiError } from '../../services/http_error';
 import {
   AutoFollowPatternForm,
@@ -22,10 +22,7 @@ import {
 import { SectionLoading } from '../../../shared_imports';
 
 export interface AutoFollowPatternAddProps extends RouteComponentProps {
-  saveAutoFollowPattern: (
-    id: string,
-    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
-  ) => void;
+  createAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternCreateConfig) => void;
   clearApiError: () => void;
   apiError: CcrApiError | null;
   apiStatus: ApiStatus;
@@ -42,7 +39,7 @@ export class AutoFollowPatternAdd extends PureComponent<AutoFollowPatternAddProp
 
   render() {
     const {
-      saveAutoFollowPattern,
+      createAutoFollowPattern,
       apiStatus,
       apiError,
       match: { url: currentUrl },
@@ -78,7 +75,7 @@ export class AutoFollowPatternAdd extends PureComponent<AutoFollowPatternAddProp
                 apiError={apiError}
                 currentUrl={currentUrl}
                 remoteClusters={error ? [] : remoteClusters}
-                saveAutoFollowPattern={saveAutoFollowPattern}
+                createAutoFollowPattern={createAutoFollowPattern}
                 saveButtonLabel={
                   <FormattedMessage
                     id="xpack.crossClusterReplication.autoFollowPatternCreateForm.saveButtonLabel"

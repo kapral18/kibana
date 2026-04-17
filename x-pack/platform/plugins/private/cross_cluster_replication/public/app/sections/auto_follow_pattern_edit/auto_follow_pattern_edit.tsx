@@ -17,7 +17,7 @@ import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
 import type { ApiStatus } from '../../../../common/types';
 import type { AutoFollowPatternWithErrors } from '../../store/selectors';
 import { listBreadcrumb, editBreadcrumb, setBreadcrumbs } from '../../services/breadcrumbs';
-import type { AutoFollowPatternConfig, AutoFollowPatternCreateConfig } from '../../services/api';
+import type { AutoFollowPatternConfig } from '../../services/api';
 import {
   AutoFollowPatternForm,
   AutoFollowPatternPageTitle,
@@ -31,10 +31,7 @@ import { SectionLoading } from '../../../shared_imports';
 export interface AutoFollowPatternEditProps extends RouteComponentProps<{ id: string }> {
   getAutoFollowPattern: (id: string) => void;
   selectAutoFollowPattern: (id: string | null) => void;
-  saveAutoFollowPattern: (
-    id: string,
-    autoFollowPattern: AutoFollowPatternCreateConfig | AutoFollowPatternConfig
-  ) => void;
+  updateAutoFollowPattern: (id: string, autoFollowPattern: AutoFollowPatternConfig) => void;
   clearApiError: () => void;
   apiError: { get: CcrApiError | null; save: CcrApiError | null };
   apiStatus: { get: ApiStatus; save: ApiStatus };
@@ -153,7 +150,7 @@ export class AutoFollowPatternEdit extends PureComponent<
 
   render() {
     const {
-      saveAutoFollowPattern,
+      updateAutoFollowPattern,
       apiStatus,
       apiError,
       autoFollowPattern,
@@ -201,7 +198,7 @@ export class AutoFollowPatternEdit extends PureComponent<
                 currentUrl={currentUrl}
                 remoteClusters={error ? [] : remoteClusters}
                 autoFollowPattern={autoFollowPattern}
-                saveAutoFollowPattern={saveAutoFollowPattern}
+                updateAutoFollowPattern={updateAutoFollowPattern}
                 saveButtonLabel={
                   <FormattedMessage
                     id="xpack.crossClusterReplication.autoFollowPatternEditForm.saveButtonLabel"

@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-import type { ComponentType } from 'react';
 import type { AnyAction } from 'redux';
 import type { ThunkDispatch } from 'redux-thunk';
 import { connect } from 'react-redux';
@@ -16,9 +15,10 @@ import type { CcrState } from '../../store';
 import { pauseAutoFollowPattern, resumeAutoFollowPattern } from '../../store/actions';
 
 type OwnProps = Pick<Props, 'edit' | 'patterns' | 'arrowDirection'>;
+type DispatchProps = Pick<Props, 'pauseAutoFollowPattern' | 'resumeAutoFollowPattern'>;
 type CcrDispatch = ThunkDispatch<CcrState, undefined, AnyAction>;
 
-const mapDispatchToProps = (dispatch: CcrDispatch) => ({
+const mapDispatchToProps = (dispatch: CcrDispatch): DispatchProps => ({
   pauseAutoFollowPattern: (ids: string[]) => {
     dispatch(pauseAutoFollowPattern(ids));
   },
@@ -27,7 +27,7 @@ const mapDispatchToProps = (dispatch: CcrDispatch) => ({
   },
 });
 
-export const AutoFollowPatternActionMenu = connect(
+export const AutoFollowPatternActionMenu = connect<{}, DispatchProps, OwnProps, CcrState>(
   null,
   mapDispatchToProps
-)(AutoFollowPatternActionMenuView) as ComponentType<OwnProps>;
+)(AutoFollowPatternActionMenuView);

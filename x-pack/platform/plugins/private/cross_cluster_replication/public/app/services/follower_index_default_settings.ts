@@ -20,6 +20,10 @@ export const getSettingDefault = (name: FollowerIndexAdvancedSettingName): Setti
   return FOLLOWER_INDEX_ADVANCED_SETTINGS[name];
 };
 
+/**
+ * A setting is considered default when it is `undefined` (the user has not
+ * entered a value) or when the entered value equals the documented default.
+ */
 export const isSettingDefault = (
   name: FollowerIndexAdvancedSettingName,
   value: SettingDefaultValue | undefined

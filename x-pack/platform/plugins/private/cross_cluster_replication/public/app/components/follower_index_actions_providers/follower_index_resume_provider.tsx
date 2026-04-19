@@ -42,7 +42,7 @@ class FollowerIndexResumeProviderUi extends PureComponent<Props, State> {
   };
 
   resumeFollowerIndex = (id: string | string[]) => {
-    this.setState({ isModalOpen: true, ids: arrify(id) as string[] });
+    this.setState({ isModalOpen: true, ids: arrify(id) });
   };
 
   onConfirm = () => {

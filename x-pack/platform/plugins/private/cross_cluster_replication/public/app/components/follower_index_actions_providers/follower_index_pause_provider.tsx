@@ -43,7 +43,7 @@ class FollowerIndexPauseProviderUi extends PureComponent<Props, State> {
   };
 
   pauseFollowerIndex = (index: FollowerIndex | FollowerIndex[]) => {
-    this.setState({ isModalOpen: true, indices: arrify(index) as FollowerIndex[] });
+    this.setState({ isModalOpen: true, indices: arrify(index) });
   };
 
   onConfirm = () => {

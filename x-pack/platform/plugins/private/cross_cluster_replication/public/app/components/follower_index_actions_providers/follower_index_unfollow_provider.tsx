@@ -41,7 +41,7 @@ class FollowerIndexUnfollowProviderUi extends PureComponent<Props, State> {
   };
 
   unfollowLeaderIndex = (id: string | string[]) => {
-    this.setState({ isModalOpen: true, ids: arrify(id) as string[] });
+    this.setState({ isModalOpen: true, ids: arrify(id) });
   };
 
   onConfirm = () => {

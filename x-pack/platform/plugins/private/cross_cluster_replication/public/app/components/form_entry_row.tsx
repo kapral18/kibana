@@ -36,7 +36,7 @@ type FormEntryError =
 
 interface Props {
   /** EuiDescribedFormGroup expects a React element for the title slot. */
-  title?: ReactElement;
+  title: ReactElement;
   description?: ReactNode;
   label?: ReactNode;
   helpText?: ReactNode;
@@ -136,7 +136,7 @@ export class FormEntryRow extends PureComponent<Props> {
     );
 
     return (
-      <EuiDescribedFormGroup title={title!} description={description} fullWidth key={field}>
+      <EuiDescribedFormGroup title={title} description={description} fullWidth key={field}>
         <EuiFormRow
           label={label}
           helpText={fieldHelpText}

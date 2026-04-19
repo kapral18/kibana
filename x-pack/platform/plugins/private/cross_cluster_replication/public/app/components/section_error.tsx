@@ -19,8 +19,7 @@ interface Props {
 export function SectionError({ title, error, ...rest }: Props) {
   const errorBody =
     error instanceof Error && isHttpFetchError(error) ? getErrorBody(error) : undefined;
-  const message: ReactNode | undefined =
-    errorBody?.message ?? (error instanceof Error ? error.message : error.message);
+  const message: ReactNode | undefined = errorBody?.message ?? error.message;
   const errorString: string | undefined =
     error instanceof Error || errorBody ? undefined : error.error;
 

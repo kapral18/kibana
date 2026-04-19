@@ -310,6 +310,7 @@ export class AutoFollowPatternTable extends PureComponent<
 
   render() {
     const { selectedItems, filteredAutoFollowPatterns } = this.state;
+    const reactRouter = routing.reactRouterOrThrow;
 
     const sorting = {
       sort: {
@@ -340,7 +341,7 @@ export class AutoFollowPatternTable extends PureComponent<
       ) : undefined,
       toolsRight: (
         <EuiButton
-          {...reactRouterNavigate(routing._reactRouter!.history, `/auto_follow_patterns/add`)}
+          {...reactRouterNavigate(reactRouter.history, `/auto_follow_patterns/add`)}
           fill
           iconType="plusCircle"
           data-test-subj="createAutoFollowPatternButton"

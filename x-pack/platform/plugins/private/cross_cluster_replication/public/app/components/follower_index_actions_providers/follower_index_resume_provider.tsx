@@ -66,6 +66,7 @@ class FollowerIndexResumeProviderUi extends PureComponent<Props, State> {
     if (!ids) {
       return null;
     }
+    const reactRouter = routing.reactRouterOrThrow;
     const isSingle = ids.length === 1;
     const title = isSingle
       ? i18n.translate(
@@ -119,7 +120,7 @@ class FollowerIndexResumeProviderUi extends PureComponent<Props, State> {
                 editLink: (
                   <EuiLink
                     {...reactRouterNavigate(
-                      routing._reactRouter!.history,
+                      reactRouter.history,
                       routing.getFollowerIndexPath(ids[0])
                     )}
                     data-test-subj="editLink"

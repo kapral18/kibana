@@ -280,6 +280,8 @@ export class DetailPanel extends Component<DetailPanelProps> {
       return this.renderAutoFollowPatternNotFound();
     }
 
+    const reactRouter = routing.reactRouterOrThrow;
+
     const { followIndexPatternPrefix, followIndexPatternSuffix, leaderIndexPatterns } =
       autoFollowPattern;
 
@@ -308,7 +310,7 @@ export class DetailPanel extends Component<DetailPanelProps> {
         <EuiSpacer size="l" />
 
         <EuiLink
-          href={routing._reactRouter!.getUrlForApp('management', {
+          href={reactRouter.getUrlForApp('management', {
             path: `data/index_management${indexManagementUri}`,
           })}
           data-test-subj="viewIndexManagementLink"

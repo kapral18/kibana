@@ -122,15 +122,11 @@ export class AutoFollowPatternForm extends PureComponent<Props, State> {
     super(props);
 
     const isNew = this.props.autoFollowPattern === undefined;
-    const reactRouter = routing.reactRouter;
-    if (!reactRouter) {
-      throw new Error('CCR routing was used before reactRouter was set');
-    }
     const {
       route: {
         location: { search },
       },
-    } = reactRouter;
+    } = routing.reactRouterOrThrow;
     const queryParams = extractQueryParams(search);
     const rawCluster = queryParams.cluster;
     const clusterParam =

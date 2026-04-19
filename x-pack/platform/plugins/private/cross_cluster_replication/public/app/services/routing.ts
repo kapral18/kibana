@@ -38,19 +38,11 @@ export interface CcrReactRouter {
 }
 
 class Routing {
-  _reactRouter: CcrReactRouter | null = null;
-
-  private getReactRouterOrThrow(): CcrReactRouter {
-    if (!this._reactRouter) {
-      throw new Error('CCR routing was used before reactRouter was set');
-    }
-
-    return this._reactRouter;
-  }
+  #reactRouter: CcrReactRouter | null = null;
 
   getHrefToRemoteClusters(route = '/', params?: QueryParams | null, encodeParams = false): string {
     const search = queryParamsFromObject(params, encodeParams) || '';
-    return this.getReactRouterOrThrow().getUrlForApp('management', {
+    return this.reactRouterOrThrow.getUrlForApp('management', {
       path: `${BASE_PATH_REMOTE_CLUSTERS}${route}${search}`,
     });
   }
@@ -58,7 +50,7 @@ class Routing {
   navigate(route = '/home', params?: QueryParams | null, encodeParams = false): void {
     const search = queryParamsFromObject(params, encodeParams);
 
-    this.getReactRouterOrThrow().history.push({
+    this.reactRouterOrThrow.history.push({
       pathname: encodeURI(route),
       search,
     });
@@ -73,11 +65,18 @@ class Routing {
   };
 
   public get reactRouter(): CcrReactRouter | null {
-    return this._reactRouter;
+    return this.#reactRouter;
   }
 
   public set reactRouter(router: CcrReactRouter) {
-    this._reactRouter = router;
+    this.#reactRouter = router;
+  }
+
+  public get reactRouterOrThrow(): CcrReactRouter {
+    if (!this.#reactRouter) {
+      throw new Error('CCR routing was used before reactRouter was set');
+    }
+    return this.#reactRouter;
   }
 }
 

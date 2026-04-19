@@ -553,13 +553,9 @@ export const DetailPanel = ({
             <EuiFlexGroup>
               <EuiFlexItem grow={false}>
                 <EuiButton
-                  href={
-                    routing._reactRouter
-                      ? routing._reactRouter.getUrlForApp('management', {
-                          path: `data/index_management${indexManagementUri}`,
-                        })
-                      : undefined
-                  }
+                  href={routing.reactRouter?.getUrlForApp('management', {
+                    path: `data/index_management${indexManagementUri}`,
+                  })}
                   data-test-subj="viewIndexManagementButton"
                 >
                   <FormattedMessage

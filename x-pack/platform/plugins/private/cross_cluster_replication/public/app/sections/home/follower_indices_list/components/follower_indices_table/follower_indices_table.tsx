@@ -303,6 +303,7 @@ export class FollowerIndicesTable extends PureComponent<
 
   render() {
     const { selectedItems, filteredIndices } = this.state;
+    const reactRouter = routing.reactRouterOrThrow;
 
     const sorting = {
       sort: {
@@ -327,7 +328,7 @@ export class FollowerIndicesTable extends PureComponent<
       ) : undefined,
       toolsRight: (
         <EuiButton
-          {...reactRouterNavigate(routing._reactRouter!.history, `/follower_indices/add`)}
+          {...reactRouterNavigate(reactRouter.history, `/follower_indices/add`)}
           fill
           iconType="plusCircle"
           data-test-subj="createFollowerIndexButton"

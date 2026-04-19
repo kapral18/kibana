@@ -36,7 +36,6 @@ export interface RenderWithRouterOptions<ExtraProps extends object = {}> {
   onRouter?: (router: OnRouterPayload) => void;
   initialEntries?: string[];
   routePath?: string;
-  defaultProps?: Partial<ExtraProps>;
   componentProps?: Partial<ExtraProps>;
 }
 
@@ -58,7 +57,6 @@ export const renderWithRouter = <ExtraProps extends object = {}>(
     onRouter,
     initialEntries = ['/'],
     routePath = '/',
-    defaultProps = {},
     componentProps = {},
   }: RenderWithRouterOptions<ExtraProps> = {}
 ): CcrRenderResult => {
@@ -79,7 +77,6 @@ export const renderWithRouter = <ExtraProps extends object = {}>(
 
     const ComponentWithProps = (
       <Component
-        {...defaultProps}
         {...componentProps}
         match={routeProps.match}
         history={routeProps.history}

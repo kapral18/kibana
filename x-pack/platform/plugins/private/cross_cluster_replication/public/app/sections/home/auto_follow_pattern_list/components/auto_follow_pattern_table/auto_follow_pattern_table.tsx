@@ -9,7 +9,7 @@ import React, { PureComponent } from 'react';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
 
-import type { EuiInMemoryTableProps } from '@elastic/eui';
+import type { EuiInMemoryTableProps, EuiSearchBarOnChangeArgs } from '@elastic/eui';
 import {
   EuiInMemoryTable,
   EuiButton,
@@ -132,9 +132,9 @@ export class AutoFollowPatternTable extends PureComponent<
     };
   }
 
-  onSearch = ({ query }: { query: { text: string } }) => {
+  onSearch = ({ query, queryText }: EuiSearchBarOnChangeArgs) => {
     const { autoFollowPatterns } = this.props;
-    const { text } = query;
+    const text = query?.text ?? queryText;
 
     // We cache the filtered indices instead of calculating them inside render() because
     // of https://github.com/elastic/eui/issues/3445.
@@ -144,7 +144,9 @@ export class AutoFollowPatternTable extends PureComponent<
     });
   };
 
-  getTableColumns(deleteAutoFollowPattern: (name: string) => void) {
+  getTableColumns(
+    deleteAutoFollowPattern: (name: string) => void
+  ): EuiInMemoryTableProps<ParsedAutoFollowPattern>['columns'] {
     const { selectAutoFollowPattern } = this.props;
 
     return [
@@ -251,6 +253,7 @@ export class AutoFollowPatternTable extends PureComponent<
         ),
         actions: [
           {
+            type: 'icon',
             name: actionI18nTexts.pause,
             description: actionI18nTexts.pause,
             icon: 'pause',
@@ -260,6 +263,7 @@ export class AutoFollowPatternTable extends PureComponent<
             'data-test-subj': 'contextMenuPauseButton',
           },
           {
+            type: 'icon',
             name: actionI18nTexts.resume,
             description: actionI18nTexts.resume,
             icon: 'play',
@@ -269,6 +273,7 @@ export class AutoFollowPatternTable extends PureComponent<
             'data-test-subj': 'contextMenuResumeButton',
           },
           {
+            type: 'icon',
             name: actionI18nTexts.edit,
             description: actionI18nTexts.edit,
             icon: 'pencil',
@@ -277,6 +282,7 @@ export class AutoFollowPatternTable extends PureComponent<
             'data-test-subj': 'contextMenuEditButton',
           },
           {
+            type: 'icon',
             name: actionI18nTexts.delete,
             description: actionI18nTexts.delete,
             icon: 'trash',
@@ -322,7 +328,7 @@ export class AutoFollowPatternTable extends PureComponent<
         this.setState({ selectedItems: rows.map(({ name }) => name) }),
     };
 
-    const search = {
+    const search: EuiInMemoryTableProps<ParsedAutoFollowPattern>['search'] = {
       toolsLeft: selectedItems.length ? (
         <AutoFollowPatternActionMenu
           edit={false}
@@ -359,12 +365,8 @@ export class AutoFollowPatternTable extends PureComponent<
             <EuiInMemoryTable
               items={filteredAutoFollowPatterns}
               itemId="name"
-              columns={
-                this.getTableColumns(
-                  deleteAutoFollowPattern
-                ) as EuiInMemoryTableProps<ParsedAutoFollowPattern>['columns']
-              }
-              search={search as EuiInMemoryTableProps<ParsedAutoFollowPattern>['search']}
+              columns={this.getTableColumns(deleteAutoFollowPattern)}
+              search={search}
               pagination={pagination}
               sorting={sorting}
               selection={selection}

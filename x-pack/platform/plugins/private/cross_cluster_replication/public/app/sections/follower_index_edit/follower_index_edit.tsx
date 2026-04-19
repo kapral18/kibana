@@ -20,11 +20,7 @@ import {
 } from '@elastic/eui';
 
 import { reactRouterNavigate } from '@kbn/kibana-react-plugin/public';
-import type {
-  ApiStatus,
-  FollowerIndex,
-  FollowerIndexWithPausedStatus,
-} from '../../../../common/types';
+import type { ApiStatus, FollowerIndexWithPausedStatus } from '../../../../common/types';
 import { setBreadcrumbs, listBreadcrumb, editBreadcrumb } from '../../services/breadcrumbs';
 import type { CcrApiError } from '../../services/http_error';
 import { getErrorBody, getErrorStatus } from '../../services/http_error';
@@ -299,7 +295,7 @@ export class FollowerIndexEdit extends PureComponent<
               />
 
               <FollowerIndexForm
-                followerIndex={rest as FollowerIndex}
+                followerIndex={rest}
                 apiStatus={apiStatus.save}
                 apiError={apiError.save}
                 currentUrl={currentUrl}

@@ -99,7 +99,7 @@ interface RemoteClusterOption {
 interface Props {
   saveFollowerIndex: (name: string, followerIndex: FollowerIndexSaveBody) => void;
   clearApiError: () => void;
-  followerIndex?: FollowerIndex;
+  followerIndex?: Omit<FollowerIndex, 'shards'>;
   apiError?: CcrApiError | null;
   apiStatus: ApiStatus;
   remoteClusters?: RemoteClusterOption[];
@@ -177,7 +177,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
     if (followerIndexProp === undefined) {
       followerIndex = getEmptyFollowerIndex(remoteClusterName);
     } else {
-      const { status: _status, shards: _shards, ...editableFollowerIndex } = followerIndexProp;
+      const { status: _status, ...editableFollowerIndex } = followerIndexProp;
       followerIndex = {
         ...getEmptyFollowerIndex(),
         ...editableFollowerIndex,

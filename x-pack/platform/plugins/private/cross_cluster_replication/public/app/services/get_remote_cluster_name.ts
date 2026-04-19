@@ -5,14 +5,11 @@
  * 2.0.
  */
 
-interface RemoteCluster {
-  name: string;
-  isConnected: boolean;
-}
+import type { RemoteClusterRow } from './api';
 
 const getFirstConnectedCluster = (
-  clusters: RemoteCluster[]
-): RemoteCluster | Record<string, never> => {
+  clusters: RemoteClusterRow[]
+): RemoteClusterRow | Record<string, never> => {
   for (let i = 0; i < clusters.length; i++) {
     if (clusters[i].isConnected) {
       return clusters[i];
@@ -24,7 +21,7 @@ const getFirstConnectedCluster = (
 };
 
 export const getRemoteClusterName = (
-  remoteClusters: RemoteCluster[],
+  remoteClusters: RemoteClusterRow[],
   selected: string | undefined
 ): string | undefined => {
   if (selected && remoteClusters.some((c) => c.name === selected)) {

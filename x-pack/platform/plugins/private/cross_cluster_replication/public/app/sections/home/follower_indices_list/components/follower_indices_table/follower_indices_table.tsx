@@ -8,7 +8,11 @@
 import React, { PureComponent } from 'react';
 import { i18n } from '@kbn/i18n';
 import { FormattedMessage } from '@kbn/i18n-react';
-import type { EuiInMemoryTableProps } from '@elastic/eui';
+import type {
+  DefaultItemAction,
+  EuiInMemoryTableProps,
+  EuiSearchBarOnChangeArgs,
+} from '@elastic/eui';
 import {
   EuiHealth,
   EuiButton,
@@ -129,9 +133,9 @@ export class FollowerIndicesTable extends PureComponent<
     };
   }
 
-  onSearch = ({ query }: { query: { text: string } }) => {
+  onSearch = ({ query, queryText }: EuiSearchBarOnChangeArgs) => {
     const { followerIndices } = this.props;
-    const { text } = query;
+    const text = query?.text ?? queryText;
 
     // We cache the filtered indices instead of calculating them inside render() because
     // of https://github.com/elastic/eui/issues/3445.
@@ -150,12 +154,13 @@ export class FollowerIndicesTable extends PureComponent<
     pauseFollowerIndex: (item: FollowerIndexWithPausedStatus) => void;
     resumeFollowerIndex: (name: string) => void;
     unfollowLeaderIndex: (name: string) => void;
-  }) {
+  }): EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['columns'] {
     const { selectFollowerIndex } = this.props;
 
-    const actions = [
+    const actions: Array<DefaultItemAction<FollowerIndexWithPausedStatus>> = [
       /* Pause follower index */
       {
+        type: 'icon',
         name: actionI18nTexts.pause,
         description: actionI18nTexts.pause,
         icon: 'pause',
@@ -165,16 +170,18 @@ export class FollowerIndicesTable extends PureComponent<
       },
       /* Resume follower index */
       {
+        type: 'icon',
         name: actionI18nTexts.resume,
         description: actionI18nTexts.resume,
         icon: 'play',
         onClick: (item: FollowerIndexWithPausedStatus) =>
           actionHandlers.resumeFollowerIndex(item.name),
-        available: (item: FollowerIndexWithPausedStatus) => item.isPaused,
+        available: (item: FollowerIndexWithPausedStatus) => !!item.isPaused,
         'data-test-subj': 'resumeButton',
       },
       /* Edit follower index */
       {
+        type: 'icon',
         name: actionI18nTexts.edit,
         description: actionI18nTexts.edit,
         onClick: (item: FollowerIndexWithPausedStatus) => this.editFollowerIndex(item.name),
@@ -183,6 +190,7 @@ export class FollowerIndicesTable extends PureComponent<
       },
       /* Unfollow leader index */
       {
+        type: 'icon',
         name: actionI18nTexts.unfollow,
         description: actionI18nTexts.unfollow,
         onClick: (item: FollowerIndexWithPausedStatus) =>
@@ -313,7 +321,7 @@ export class FollowerIndicesTable extends PureComponent<
         this.setState({ selectedItems: newSelectedItems }),
     };
 
-    const search = {
+    const search: EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['search'] = {
       toolsLeft: selectedItems.length ? (
         <ContextMenu followerIndices={selectedItems} testSubj="contextMenuButton" />
       ) : undefined,
@@ -352,12 +360,8 @@ export class FollowerIndicesTable extends PureComponent<
                 )}
                 items={filteredIndices}
                 itemId="name"
-                columns={
-                  this.getTableColumns(
-                    actionHandlers
-                  ) as EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['columns']
-                }
-                search={search as EuiInMemoryTableProps<FollowerIndexWithPausedStatus>['search']}
+                columns={this.getTableColumns(actionHandlers)}
+                search={search}
                 pagination={pagination}
                 sorting={sorting}
                 selection={selection}

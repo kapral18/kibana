@@ -146,7 +146,7 @@ export const updateFormErrors =
 export class FollowerIndexForm extends PureComponent<Props, State> {
   cachedAdvancedSettings: Partial<FollowerIndexAdvancedSettings> = {};
 
-  validateIndexName!: DebouncedFunc<(name: string) => Promise<void>>;
+  validateIndexName: DebouncedFunc<(name: string) => Promise<void>>;
 
   constructor(props: Props) {
     super(props);
@@ -220,24 +220,22 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
   };
 
   getFieldsErrors = (newFields: Partial<FollowerIndexFormFields>) => {
-    return Object.keys(newFields).reduce<
-      Record<string, FollowerIndexFieldError | string | undefined>
-    >((errors, field) => {
-      const advancedSettings = getAdvancedSettingsFields(documentationLinks);
-      const validator = getFieldToValidatorMap(advancedSettings)[field];
-      const value = newFields[field as keyof FollowerIndexFormFields];
+    const advancedSettings = getAdvancedSettingsFields(documentationLinks);
+    const validatorMap = getFieldToValidatorMap(advancedSettings);
+    const errors: Record<string, FollowerIndexFieldError | string | undefined> = {};
 
+    for (const [field, value] of Object.entries(newFields)) {
+      const validator = validatorMap[field];
       if (validator) {
-        const error = validator(value as string | number | undefined);
-        errors[field] = error;
+        errors[field] = validator(value);
       }
+    }
 
-      return errors;
-    }, {});
+    return errors;
   };
 
-  onIndexNameChange = (values: Record<string, string | number>) => {
-    const name = String(values.name ?? '');
+  onIndexNameChange = (value: string | number) => {
+    const name = String(value);
     this.onFieldsChange({ name });
 
     const error = indexNameValidator(name);
@@ -374,15 +372,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
       return;
     }
 
-    const { name, ...followerIndex } = this.getFields();
-
-    // Ensure read-only fields never leak into the create/update payload.
-    const {
-      status: _status,
-      shards: _shards,
-      ...saveBody
-    } = followerIndex as FollowerIndexSaveBody & Partial<Pick<FollowerIndex, 'status' | 'shards'>>;
-
+    const { name, ...saveBody } = this.getFields();
     this.props.saveFollowerIndex(name, saveBody);
   };
 
@@ -627,7 +617,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
         }
         disabled={!isNew}
         areErrorsVisible={areErrorsVisible}
-        onValueUpdate={(v) => this.onFieldsChange(v as Partial<FollowerIndexFormFields>)}
+        onValueUpdate={(value) => this.onFieldsChange({ leaderIndex: String(value) })}
         testSubj="leaderIndexInput"
       />
     );
@@ -697,7 +687,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
                   <FormEntryRow
                     key={field}
                     field={field}
-                    value={followerIndex[field as keyof FollowerIndexFormFields] as string | number}
+                    value={followerIndex[field]}
                     defaultValue={defaultValue}
                     error={fieldsErrors[field]}
                     title={
@@ -710,9 +700,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
                     helpText={helpText}
                     type={type}
                     areErrorsVisible={areErrorsVisible}
-                    onValueUpdate={(v) =>
-                      this.onFieldsChange(v as Partial<FollowerIndexFormFields>)
-                    }
+                    onValueUpdate={(value) => this.onFieldsChange({ [field]: value })}
                     testSubj={testSubject}
                   />
                 );
@@ -863,13 +851,7 @@ export class FollowerIndexForm extends PureComponent<Props, State> {
 
   render() {
     const { followerIndex, isRequestVisible } = this.state;
-    const { name, ...followerIndexRequestPayload } = this.getFields();
-    const {
-      status: _status,
-      shards: _shards,
-      ...requestPayload
-    } = followerIndexRequestPayload as FollowerIndexSaveBody &
-      Partial<Pick<FollowerIndex, 'status' | 'shards'>>;
+    const { name, ...requestPayload } = this.getFields();
 
     return (
       <Fragment>

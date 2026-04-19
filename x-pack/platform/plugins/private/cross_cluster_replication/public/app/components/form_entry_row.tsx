@@ -28,11 +28,15 @@ export const updateFields =
     },
   });
 
-type FormEntryError =
-  | ReactElement[]
-  | { message?: ReactNode; alwaysVisible?: boolean }
-  | undefined
-  | null;
+interface StructuredError {
+  message?: ReactNode;
+  alwaysVisible?: boolean;
+}
+
+type FormEntryError = ReactElement[] | StructuredError | undefined | null;
+
+const isStructuredError = (error: FormEntryError | string | undefined): error is StructuredError =>
+  !!error && typeof error === 'object' && !Array.isArray(error);
 
 interface Props {
   /** EuiDescribedFormGroup expects a React element for the title slot. */
@@ -41,9 +45,9 @@ interface Props {
   label?: ReactNode;
   helpText?: ReactNode;
   type?: string;
-  onValueUpdate: (values: Record<string, string | number>) => void;
+  onValueUpdate: (value: string | number) => void;
   field: string;
-  value: string | number;
+  value: string | number | undefined;
   defaultValue?: string | number;
   isLoading?: boolean;
   error?: FormEntryError | string;
@@ -54,7 +58,7 @@ interface Props {
 
 export class FormEntryRow extends PureComponent<Props> {
   onFieldChange = (value: string | number) => {
-    const { field, onValueUpdate, type } = this.props;
+    const { onValueUpdate, type } = this.props;
     const isNumber = type === 'number';
 
     let valueParsed = value;
@@ -63,7 +67,7 @@ export class FormEntryRow extends PureComponent<Props> {
       valueParsed = !!value ? Math.max(0, parseInt(String(value), 10)) : value; // make sure we don't send NaN value or a negative number
     }
 
-    onValueUpdate({ [field]: valueParsed });
+    onValueUpdate(valueParsed);
   };
 
   renderField = (isInvalid: boolean) => {
@@ -109,12 +113,8 @@ export class FormEntryRow extends PureComponent<Props> {
       defaultValue,
     } = this.props;
 
-    const hasError = !!error;
-    const structured =
-      error && typeof error === 'object' && !Array.isArray(error)
-        ? (error as { message?: ReactNode; alwaysVisible?: boolean })
-        : undefined;
-    const isInvalid = hasError && ((structured && structured.alwaysVisible) || areErrorsVisible);
+    const structured = isStructuredError(error) ? error : undefined;
+    const isInvalid = !!error && ((structured && structured.alwaysVisible) || areErrorsVisible);
     const canBeResetToDefault = defaultValue !== undefined;
     const isResetToDefaultVisible = value !== defaultValue;
 
@@ -140,7 +140,7 @@ export class FormEntryRow extends PureComponent<Props> {
         <EuiFormRow
           label={label}
           helpText={fieldHelpText}
-          error={(structured?.message !== undefined ? structured.message : error) as ReactNode}
+          error={isStructuredError(error) ? error.message : error}
           isInvalid={isInvalid}
           fullWidth
         >

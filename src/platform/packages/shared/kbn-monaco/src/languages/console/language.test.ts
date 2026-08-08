@@ -55,6 +55,9 @@ jest.mock('../esql/lib/converters/suggestions', () => ({
 }));
 
 jest.mock('./utils', () => ({
+  // `findRequestLineNumber` owns the backwards request-line scan and its lookback safeguards, which
+  // the lookback tests below exercise for real. Keep the actual implementation.
+  ...jest.requireActual('./utils'),
   checkForTripleQuotesAndEsqlQuery: (
     ...args: Parameters<typeof mockCheckForTripleQuotesAndEsqlQuery>
   ) => mockCheckForTripleQuotesAndEsqlQuery(...args),

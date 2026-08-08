@@ -236,6 +236,46 @@ export const checkForTripleQuotesAndEsqlQuery = (
 };
 
 /**
+ * Safeguards for request-line lookup. We scan backwards from the cursor until we find the nearest
+ * request method line (GET/POST/...), but we cap the amount of work to avoid a potentially large
+ * number of `getLineContent()` calls on very long documents.
+ *
+ * The character cap is not redundant with the line cap: pasted JSON with huge string fields can
+ * hold millions of characters in only a handful of lines, and callers scan the text we return
+ * character by character (see https://github.com/elastic/kibana/pull/251173).
+ */
+const MAX_REQUEST_LINE_LOOKBACK_LINES = 2000;
+const MAX_REQUEST_LINE_LOOKBACK_CHARS = 100_000;
+
+const REQUEST_METHOD_LINE_RE = /^\s*(GET|POST|PUT|DELETE|HEAD|PATCH)\b/i;
+
+/**
+ * Scans backwards from `positionLineNumber` for the nearest request method line
+ * (`GET`/`POST`/...), returning its line number.
+ *
+ * Returns `undefined` when no request line is found within the lookback safeguards, so callers
+ * can fall back instead of acting on a partially scanned buffer.
+ */
+export const findRequestLineNumber = (
+  getLineContent: (lineNumber: number) => string,
+  positionLineNumber: number
+): number | undefined => {
+  for (
+    let lineNumber = positionLineNumber, scannedLines = 0, scannedChars = 0;
+    lineNumber >= 1 &&
+    scannedLines < MAX_REQUEST_LINE_LOOKBACK_LINES &&
+    scannedChars < MAX_REQUEST_LINE_LOOKBACK_CHARS;
+    lineNumber--, scannedLines++
+  ) {
+    const line = getLineContent(lineNumber);
+    scannedChars += line.length + 1;
+    if (REQUEST_METHOD_LINE_RE.test(line)) {
+      return lineNumber;
+    }
+  }
+};
+
+/**
  * This function unescapes chars that are invalid in a Console string.
  */
 export const unescapeInvalidChars = (str: string): string => {

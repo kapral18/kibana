@@ -7,7 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import { checkForTripleQuotesAndEsqlQuery, unescapeInvalidChars } from './autocomplete_utils';
+import {
+  checkForTripleQuotesAndEsqlQuery,
+  findRequestLineNumber,
+  unescapeInvalidChars,
+} from './autocomplete_utils';
 
 describe('autocomplete_utils', () => {
   describe('checkForTripleQuotesAndQueries', () => {
@@ -242,6 +246,49 @@ describe('autocomplete_utils', () => {
       const input = '\\\\\\\\"test\\\\"';
       // \\\\"test\\" becomes \\"test\"
       expect(unescapeInvalidChars(input)).toBe('\\\\"test\\"');
+    });
+  });
+
+  describe('findRequestLineNumber', () => {
+    const fromLines = (lines: string[]) => (lineNumber: number) => lines[lineNumber - 1] ?? '';
+
+    it('returns the cursor line when it is itself the request line', () => {
+      expect(findRequestLineNumber(fromLines(['GET _search']), 1)).toBe(1);
+    });
+
+    it('scans backwards to the nearest request line', () => {
+      const lines = ['POST _query', '{', '\t"script": """', ''];
+      expect(findRequestLineNumber(fromLines(lines), 4)).toBe(1);
+    });
+
+    it('returns the nearest request line when several precede the cursor', () => {
+      const lines = ['GET _search', '{}', 'POST _query', '{', ''];
+      expect(findRequestLineNumber(fromLines(lines), 5)).toBe(3);
+    });
+
+    it('returns undefined when no request line precedes the cursor', () => {
+      expect(findRequestLineNumber(fromLines(['{', '"a": 1', '}']), 3)).toBeUndefined();
+    });
+
+    it('gives up past the line lookback cap instead of scanning the whole buffer', () => {
+      // Request line sits far above the cursor, beyond the 2000-line cap.
+      const lines = ['GET _search', ...new Array(2500).fill('  "filler": 1,')];
+      expect(findRequestLineNumber(fromLines(lines), lines.length)).toBeUndefined();
+    });
+
+    it('gives up past the character lookback cap even when the line count is small', () => {
+      // Regression guard for https://github.com/elastic/kibana/pull/251173: pasted JSON can hold
+      // millions of characters in a handful of lines. Without a character cap, the returned text is
+      // scanned character by character on a keystroke path.
+      const hugeLine = 'x'.repeat(60_000);
+      const lines = ['GET _search', hugeLine, hugeLine, hugeLine];
+      expect(findRequestLineNumber(fromLines(lines), lines.length)).toBeUndefined();
+    });
+
+    it('still finds a nearby request line when the scanned text stays under the caps', () => {
+      const smallLine = 'x'.repeat(1_000);
+      const lines = ['GET _search', smallLine, smallLine];
+      expect(findRequestLineNumber(fromLines(lines), lines.length)).toBe(1);
     });
   });
 });

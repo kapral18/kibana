@@ -78,6 +78,7 @@ describe('Editor actions provider', () => {
       getPosition: jest.fn(),
       getTopForLineNumber: jest.fn(),
       getScrollTop: jest.fn(),
+      trigger: jest.fn(),
       executeEdits: jest.fn(),
       setPosition: jest.fn(),
     } as unknown as jest.Mocked<monaco.editor.IStandaloneCodeEditor>;
@@ -445,6 +446,116 @@ describe('Editor actions provider', () => {
       expect(completionItems?.suggestions.length).toBe(2);
       const endpoints = completionItems?.suggestions.map((suggestion) => suggestion.label);
       expect((endpoints as string[]).sort()).toEqual(['_cat', '_search']);
+    });
+  });
+
+  describe('triggerSuggestions', () => {
+    /*
+     * Regression tests for https://github.com/elastic/kibana/issues/257917
+     *
+     * While a triple-quoted string is still unterminated, the Console parser reports the
+     * request without an `endOffset`. `getRequestEndLineNumber` then falls back to the last
+     * non-empty line, so a cursor on the trailing empty line sits *past* the request's
+     * computed `endLineNumber` and no request matches the cursor. Without a fallback,
+     * `isPositionInsideTripleQuotesAndQuery` reported `insideTripleQuotes: false` and
+     * suggestions were triggered inside a non-query string.
+     */
+    const createModel = (lines: string[]) => {
+      return {
+        getLineCount: () => lines.length,
+        getLineContent: (lineNumber: number) => lines[lineNumber - 1] ?? '',
+        getPositionAt: () => ({ lineNumber: 1, column: 1 }),
+        getValueInRange: ({
+          startLineNumber,
+          startColumn,
+          endLineNumber,
+          endColumn,
+        }: monaco.IRange) => {
+          if (startLineNumber === endLineNumber) {
+            return (lines[startLineNumber - 1] ?? '').slice(startColumn - 1, endColumn - 1);
+          }
+
+          const selectedLines = lines.slice(startLineNumber - 1, endLineNumber);
+          selectedLines[0] = selectedLines[0].slice(startColumn - 1);
+          selectedLines[selectedLines.length - 1] = selectedLines[selectedLines.length - 1].slice(
+            0,
+            endColumn - 1
+          );
+          return selectedLines.join('\n');
+        },
+      } as unknown as jest.Mocked<monaco.editor.ITextModel>;
+    };
+
+    const triggerSuggestions = async () => {
+      (
+        editorActionsProvider as unknown as {
+          triggerSuggestions: () => void;
+        }
+      ).triggerSuggestions();
+      // `triggerSuggestions` is sync but resolves its triple-quote check internally. Yielding
+      // once via `setImmediate` lets that promise chain settle however many `await`s it has,
+      // unlike a fixed number of microtask ticks.
+      await new Promise((resolve) => setImmediate(resolve));
+    };
+
+    // The shape the real parser returns for an unterminated triple-quoted string:
+    // a single request with no `endOffset`.
+    const unterminatedRequest = [{ startOffset: 0, method: 'POST', url: '_query' }];
+
+    const setup = (lines: string[]) => {
+      editor.getPosition.mockReturnValue({
+        lineNumber: lines.length,
+        column: 1,
+      } as monaco.Position);
+      editor.getModel.mockReturnValue(createModel(lines));
+      editor.getSelection.mockReturnValue({
+        startLineNumber: lines.length,
+        endLineNumber: lines.length,
+      } as unknown as monaco.Selection);
+    };
+
+    it('does not trigger suggestions inside non-query triple quotes', async () => {
+      mockGetParsedRequests.mockResolvedValue(unterminatedRequest);
+      setup(['POST _query', '{', '\t"script": """', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('still triggers suggestions inside ES|QL query triple quotes', async () => {
+      mockGetParsedRequests.mockResolvedValue(unterminatedRequest);
+      setup(['POST _query', '{', '\t"query": """', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('does not trigger suggestions inside non-query triple quotes when no request is parsed', async () => {
+      mockGetParsedRequests.mockResolvedValue([]);
+      setup(['POST _query', '{', '\t"script": """', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('still triggers suggestions inside ES|QL query triple quotes when no request is parsed', async () => {
+      mockGetParsedRequests.mockResolvedValue([]);
+      setup(['POST _query', '{', '\t"query": """', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
     });
   });
 

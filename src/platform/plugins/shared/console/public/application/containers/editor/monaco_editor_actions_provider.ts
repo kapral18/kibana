@@ -14,7 +14,10 @@ import { getParsedRequestsProvider, monaco } from '@kbn/monaco';
 import { i18n } from '@kbn/i18n';
 import { XJson } from '@kbn/es-ui-shared-plugin/public';
 import type { ErrorAnnotation } from '@kbn/monaco/src/languages/console/types';
-import { checkForTripleQuotesAndEsqlQuery } from '@kbn/monaco/src/languages/console/utils';
+import {
+  checkForTripleQuotesAndEsqlQuery,
+  findRequestLineNumber,
+} from '@kbn/monaco/src/languages/console/utils';
 import { isQuotaExceededError } from '../../../services/history';
 import { DEFAULT_VARIABLES, KIBANA_API_PREFIX } from '../../../../common/constants';
 import { getStorage, StorageKeys } from '../../../services';
@@ -902,8 +905,38 @@ export class MonacoEditorActionsProvider {
       }
     }
 
+    const requestContentBefore = this.getRequestContentBeforePosition(model, position);
+    if (requestContentBefore) {
+      const { insideTripleQuotes, insideEsqlQuery } =
+        checkForTripleQuotesAndEsqlQuery(requestContentBefore);
+      return {
+        insideTripleQuotes,
+        insideEsqlQuery,
+      };
+    }
+
     // Return false if the position is not inside a request
     return { insideTripleQuotes: false, insideEsqlQuery: false };
+  }
+
+  private getRequestContentBeforePosition(
+    model: monaco.editor.ITextModel,
+    position: monaco.Position
+  ): string | undefined {
+    const requestLineNumber = findRequestLineNumber(
+      (lineNumber) => model.getLineContent(lineNumber),
+      position.lineNumber
+    );
+    if (requestLineNumber === undefined) {
+      return;
+    }
+
+    return model.getValueInRange({
+      startLineNumber: requestLineNumber,
+      startColumn: 1,
+      endLineNumber: position.lineNumber,
+      endColumn: position.column,
+    });
   }
 
   private triggerSuggestions() {

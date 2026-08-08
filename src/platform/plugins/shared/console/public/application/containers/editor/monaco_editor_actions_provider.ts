@@ -9,7 +9,7 @@
 
 import type { CSSProperties, Dispatch } from 'react';
 import { debounce, range } from 'lodash';
-import type { ConsoleParsedRequestsProvider } from '@kbn/monaco';
+import type { ConsoleParsedRequestsProvider, ParsedRequest } from '@kbn/monaco';
 import { getParsedRequestsProvider, monaco } from '@kbn/monaco';
 import { i18n } from '@kbn/i18n';
 import { XJson } from '@kbn/es-ui-shared-plugin/public';
@@ -17,6 +17,8 @@ import type { ErrorAnnotation } from '@kbn/monaco/src/languages/console/types';
 import {
   checkForTripleQuotesAndEsqlQuery,
   findRequestLineNumber,
+  isInsideTripleQuotedJsonValue,
+  isRequestLineWithUrl,
 } from '@kbn/monaco/src/languages/console/utils';
 import { isQuotaExceededError } from '../../../services/history';
 import { DEFAULT_VARIABLES, KIBANA_API_PREFIX } from '../../../../common/constants';
@@ -57,6 +59,8 @@ const TRIGGER_SUGGESTIONS_ACTION_LABEL = 'Trigger suggestions';
 const TRIGGER_SUGGESTIONS_HANDLER_ID = 'editor.action.triggerSuggest';
 const DEBOUNCE_HIGHLIGHT_WAIT_MS = 200;
 const DEBOUNCE_AUTOCOMPLETE_WAIT_MS = 500;
+const MAX_PARSED_REQUESTS_TO_INSPECT = 2000;
+const MAX_PARSED_REQUEST_CHARS_TO_INSPECT = 100_000;
 const { collapseLiteralStrings } = XJson;
 
 export class MonacoEditorActionsProvider {
@@ -190,7 +194,9 @@ export class MonacoEditorActionsProvider {
     }
   }
 
-  private async getSelectedParsedRequests(): Promise<AdjustedParsedRequest[]> {
+  private async getSelectedParsedRequests(
+    parsedRequests?: ParsedRequest[]
+  ): Promise<AdjustedParsedRequest[]> {
     const model = this.editor.getModel();
 
     if (!model) {
@@ -202,24 +208,25 @@ export class MonacoEditorActionsProvider {
       return Promise.resolve([]);
     }
     const { startLineNumber, endLineNumber } = selection;
-    return this.getRequestsBetweenLines(model, startLineNumber, endLineNumber);
+    return this.getRequestsBetweenLines(model, startLineNumber, endLineNumber, parsedRequests);
   }
 
   private async getRequestsBetweenLines(
     model: monaco.editor.ITextModel,
     startLineNumber: number,
-    endLineNumber: number
+    endLineNumber: number,
+    parsedRequests?: ParsedRequest[]
   ): Promise<AdjustedParsedRequest[]> {
     if (!model) {
       return [];
     }
-    const parsedRequests = await this.parsedRequestsProvider.getRequests();
+    const requests = parsedRequests ?? (await this.parsedRequestsProvider.getRequests());
     const selectedRequests: AdjustedParsedRequest[] = [];
-    for (const [index, parsedRequest] of parsedRequests.entries()) {
+    for (const [index, parsedRequest] of requests.entries()) {
       const requestStartLineNumber = getRequestStartLineNumber(parsedRequest, model);
       const requestEndLineNumber = getRequestEndLineNumber({
         parsedRequest,
-        nextRequest: parsedRequests.at(index + 1),
+        nextRequest: requests.at(index + 1),
         model,
         startLineNumber,
       });
@@ -878,16 +885,29 @@ export class MonacoEditorActionsProvider {
     model: monaco.editor.ITextModel,
     position: monaco.Position
   ): Promise<{ insideTripleQuotes: boolean; insideEsqlQuery: boolean }> {
-    const selectedRequests = await this.getSelectedParsedRequests();
+    const parsedRequests = await this.parsedRequestsProvider.getRequests();
+    const selectedRequests = await this.getSelectedParsedRequests(parsedRequests);
+    const fallbackRequestStartPosition = this.getFallbackRequestStartPosition(
+      parsedRequests,
+      model,
+      position.lineNumber,
+      position.column
+    );
 
     for (const request of selectedRequests) {
       if (
         request.startLineNumber <= position.lineNumber &&
         request.endLineNumber >= position.lineNumber
       ) {
+        const selectedRequestStartPosition = model.getPositionAt(request.startOffset);
+        const requestStartPosition =
+          fallbackRequestStartPosition !== undefined &&
+          model.getOffsetAt(fallbackRequestStartPosition) < request.startOffset
+            ? fallbackRequestStartPosition
+            : selectedRequestStartPosition;
         const requestContentBefore = model.getValueInRange({
-          startLineNumber: request.startLineNumber,
-          startColumn: 1,
+          startLineNumber: requestStartPosition.lineNumber,
+          startColumn: requestStartPosition.column,
           endLineNumber: position.lineNumber,
           endColumn: position.column,
         });
@@ -905,7 +925,11 @@ export class MonacoEditorActionsProvider {
       }
     }
 
-    const requestContentBefore = this.getRequestContentBeforePosition(model, position);
+    const requestContentBefore = this.getRequestContentBeforePosition(
+      model,
+      position,
+      fallbackRequestStartPosition
+    );
     if (requestContentBefore) {
       const { insideTripleQuotes, insideEsqlQuery } =
         checkForTripleQuotesAndEsqlQuery(requestContentBefore);
@@ -919,13 +943,106 @@ export class MonacoEditorActionsProvider {
     return { insideTripleQuotes: false, insideEsqlQuery: false };
   }
 
+  private getFallbackRequestStartPosition(
+    parsedRequests: ParsedRequest[],
+    model: monaco.editor.ITextModel,
+    positionLineNumber: number,
+    positionColumn = model.getLineContent(positionLineNumber).length + 1
+  ): monaco.IPosition | undefined {
+    let fallbackRequestStartPosition: monaco.IPosition | undefined;
+    let inspectedChars = 0;
+    const positionOffset = model.getOffsetAt({
+      lineNumber: positionLineNumber,
+      column: positionColumn,
+    });
+    let lowerIndex = 0;
+    let upperIndex = parsedRequests.length - 1;
+    let lastRequestIndex = -1;
+    while (lowerIndex <= upperIndex) {
+      const middleIndex = Math.floor((lowerIndex + upperIndex) / 2);
+      if (parsedRequests[middleIndex].startOffset <= positionOffset) {
+        lastRequestIndex = middleIndex;
+        lowerIndex = middleIndex + 1;
+      } else {
+        upperIndex = middleIndex - 1;
+      }
+    }
+
+    for (
+      let index = lastRequestIndex, inspectedRequests = 0;
+      index >= 0 && inspectedRequests < MAX_PARSED_REQUESTS_TO_INSPECT;
+      index--, inspectedRequests++
+    ) {
+      const request = parsedRequests[index];
+      const requestStartPosition = model.getPositionAt(request.startOffset);
+      const { lineNumber, column } = requestStartPosition;
+      if (lineNumber > positionLineNumber) {
+        continue;
+      }
+      const previousRequest = parsedRequests[index - 1];
+      if (
+        column > 1 &&
+        previousRequest !== undefined &&
+        model.getPositionAt(previousRequest.endOffset ?? previousRequest.startOffset).lineNumber ===
+          lineNumber
+      ) {
+        continue;
+      }
+      const line = model.getLineContent(lineNumber).slice(column - 1);
+      inspectedChars += line.length + 1;
+      if (inspectedChars > MAX_PARSED_REQUEST_CHARS_TO_INSPECT) {
+        break;
+      }
+      if (!isRequestLineWithUrl(line)) {
+        continue;
+      }
+
+      const fallbackRangeLength = positionOffset - request.startOffset;
+      if (fallbackRangeLength > MAX_PARSED_REQUEST_CHARS_TO_INSPECT) {
+        break;
+      }
+      if (request.endOffset === undefined) {
+        fallbackRequestStartPosition ??= requestStartPosition;
+        continue;
+      }
+      const requestEndOffset = Math.min(request.endOffset + 1, positionOffset);
+      const requestLength = requestEndOffset - request.startOffset;
+      inspectedChars += requestLength;
+      if (inspectedChars > MAX_PARSED_REQUEST_CHARS_TO_INSPECT) {
+        break;
+      }
+      fallbackRequestStartPosition ??= requestStartPosition;
+      const requestEndPosition = model.getPositionAt(requestEndOffset);
+      const requestContent = model.getValueInRange({
+        startLineNumber: lineNumber,
+        startColumn: column,
+        endLineNumber: requestEndPosition.lineNumber,
+        endColumn: requestEndPosition.column,
+      });
+      if (isInsideTripleQuotedJsonValue(requestContent)) {
+        return requestStartPosition;
+      }
+    }
+    return fallbackRequestStartPosition;
+  }
+
   private getRequestContentBeforePosition(
     model: monaco.editor.ITextModel,
-    position: monaco.Position
+    position: monaco.Position,
+    rangeStartPosition?: monaco.IPosition
   ): string | undefined {
+    if (rangeStartPosition) {
+      return model.getValueInRange({
+        startLineNumber: rangeStartPosition.lineNumber,
+        startColumn: rangeStartPosition.column,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      });
+    }
     const requestLineNumber = findRequestLineNumber(
       (lineNumber) => model.getLineContent(lineNumber),
-      position.lineNumber
+      position.lineNumber,
+      { direction: 'document' }
     );
     if (requestLineNumber === undefined) {
       return;

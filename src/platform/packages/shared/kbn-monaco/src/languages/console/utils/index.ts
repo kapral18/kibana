@@ -10,5 +10,7 @@
 export {
   checkForTripleQuotesAndEsqlQuery,
   findRequestLineNumber,
+  isInsideTripleQuotedJsonValue,
+  isRequestLineWithUrl,
   unescapeInvalidChars,
 } from './autocomplete_utils';

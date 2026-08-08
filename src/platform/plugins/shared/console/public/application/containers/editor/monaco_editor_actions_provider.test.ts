@@ -54,6 +54,7 @@ jest.mock('../../hooks', () => ({
 
 import { MonacoEditorActionsProvider } from './monaco_editor_actions_provider';
 import type { monaco } from '@kbn/monaco';
+import { createParser } from '@kbn/monaco/src/languages/console/parser';
 import { sendRequest } from '../../hooks';
 import { serviceContextMock } from '../../contexts/services_context.mock';
 import { _test as kbTest } from '../../../lib/kb';
@@ -461,16 +462,24 @@ describe('Editor actions provider', () => {
      * suggestions were triggered inside a non-query string.
      */
     const createModel = (lines: string[]) => {
-      return {
-        getLineCount: () => lines.length,
-        getLineContent: (lineNumber: number) => lines[lineNumber - 1] ?? '',
-        getPositionAt: () => ({ lineNumber: 1, column: 1 }),
-        getValueInRange: ({
-          startLineNumber,
-          startColumn,
-          endLineNumber,
-          endColumn,
-        }: monaco.IRange) => {
+      const getPositionAt = jest.fn((offset: number) => {
+        let remainingOffset = offset;
+        for (const [index, line] of lines.entries()) {
+          if (remainingOffset <= line.length) {
+            return { lineNumber: index + 1, column: remainingOffset + 1 };
+          }
+          remainingOffset -= line.length + 1;
+        }
+        return { lineNumber: lines.length, column: lines.at(-1)?.length ?? 1 };
+      });
+      const getOffsetAt = jest.fn(({ lineNumber, column }: monaco.IPosition) => {
+        const precedingLinesLength = lines
+          .slice(0, lineNumber - 1)
+          .reduce((length, line) => length + line.length + 1, 0);
+        return precedingLinesLength + column - 1;
+      });
+      const getValueInRange = jest.fn(
+        ({ startLineNumber, startColumn, endLineNumber, endColumn }: monaco.IRange) => {
           if (startLineNumber === endLineNumber) {
             return (lines[startLineNumber - 1] ?? '').slice(startColumn - 1, endColumn - 1);
           }
@@ -482,7 +491,14 @@ describe('Editor actions provider', () => {
             endColumn - 1
           );
           return selectedLines.join('\n');
-        },
+        }
+      );
+      return {
+        getLineCount: () => lines.length,
+        getLineContent: (lineNumber: number) => lines[lineNumber - 1] ?? '',
+        getOffsetAt,
+        getPositionAt,
+        getValueInRange,
       } as unknown as jest.Mocked<monaco.editor.ITextModel>;
     };
 
@@ -500,27 +516,31 @@ describe('Editor actions provider', () => {
 
     // The shape the real parser returns for an unterminated triple-quoted string:
     // a single request with no `endOffset`.
-    const unterminatedRequest = [{ startOffset: 0, method: 'POST', url: '_query' }];
+    const unterminatedRequest = [{ startOffset: 0 }];
 
-    const setup = (lines: string[]) => {
+    const setup = (lines: string[], positionLineNumber = lines.length, positionColumn = 1) => {
       editor.getPosition.mockReturnValue({
-        lineNumber: lines.length,
-        column: 1,
+        lineNumber: positionLineNumber,
+        column: positionColumn,
       } as monaco.Position);
-      editor.getModel.mockReturnValue(createModel(lines));
+      const model = createModel(lines);
+      editor.getModel.mockReturnValue(model);
       editor.getSelection.mockReturnValue({
-        startLineNumber: lines.length,
-        endLineNumber: lines.length,
+        startLineNumber: positionLineNumber,
+        endLineNumber: positionLineNumber,
       } as unknown as monaco.Selection);
+      return model;
     };
 
     it('does not trigger suggestions inside non-query triple quotes', async () => {
       mockGetParsedRequests.mockResolvedValue(unterminatedRequest);
       setup(['POST _query', '{', '\t"script": """', '']);
+      mockGetParsedRequests.mockClear();
 
       await triggerSuggestions();
 
       expect(editor.trigger).not.toHaveBeenCalled();
+      expect(mockGetParsedRequests).toHaveBeenCalledTimes(1);
     });
 
     it('still triggers suggestions inside ES|QL query triple quotes', async () => {
@@ -543,6 +563,471 @@ describe('Editor actions provider', () => {
       await triggerSuggestions();
 
       expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('does not mistake request-like triple-quoted content for a request when none is parsed', async () => {
+      mockGetParsedRequests.mockResolvedValue([]);
+      setup(['POST _query', '{', '\t"script": """', 'GET /not-a-request', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('does not mistake parser-recovered triple-quoted content for a request line', async () => {
+      const lines = ['POST _query', '{', '\t"script": """', 'GET /not-a-request', ''];
+      const recoveredRequestOffset = lines.slice(0, 3).join('\n').length + 1;
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: recoveredRequestOffset - 2 },
+        {
+          startOffset: recoveredRequestOffset,
+          endOffset: lines.join('\n').length,
+        },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('does not trust a selected parser-recovered request inside triple-quoted content', async () => {
+      const lines = ['POST _search', '{"script": """', 'GET /not-a-request'];
+      const parsedRequests = createParser()(lines.join('\n'))?.requests ?? [];
+      mockGetParsedRequests.mockResolvedValue(parsedRequests);
+      setup(lines, 3, 5);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        lines: ['GET/foo', '{"x":"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 16 },
+          { startOffset: 17, endOffset: 28 },
+        ],
+      },
+      {
+        lines: ['GET\u00a0/foo', '{"x":"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 17 },
+          { startOffset: 18, endOffset: 29 },
+        ],
+      },
+      {
+        lines: ['\u00a0GET /foo', '{"x":"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 0 },
+          { startOffset: 1, endOffset: 17 },
+          { startOffset: 19, endOffset: 30 },
+        ],
+      },
+      {
+        lines: ['GET /foo', '{"x"} : """', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 20 },
+          { startOffset: 21, endOffset: 32 },
+        ],
+      },
+    ])(
+      'does not anchor a valid request to malformed request content: $lines',
+      async ({ lines, requests }) => {
+        mockGetParsedRequests.mockResolvedValue(requests);
+        setup(lines);
+
+        await triggerSuggestions();
+
+        expect(editor.trigger).toHaveBeenCalledWith(
+          'Trigger suggestions',
+          'editor.action.triggerSuggest',
+          {}
+        );
+      }
+    );
+
+    it('checks nearby parser recovery before an oversized earlier request', async () => {
+      const oversizedRequestLine = `GET /${'x'.repeat(100_000)}`;
+      const lines = [oversizedRequestLine, 'POST _query', '{', '  "script": """', 'GET '];
+      const currentRequestOffset = oversizedRequestLine.length + 1;
+      const recoveredRequestOffset = lines.slice(0, 4).join('\n').length + 1;
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: oversizedRequestLine.length },
+        { startOffset: currentRequestOffset, endOffset: recoveredRequestOffset - 2 },
+        { startOffset: recoveredRequestOffset },
+      ]);
+      setup(lines, 5, 5);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('ignores recovered request content after the cursor when applying bounds', async () => {
+      const lines = [
+        'POST _query',
+        '{"script":"""',
+        'GET /not-a-request',
+        '',
+        `{"field":"${'x'.repeat(100_001)}"}`,
+      ];
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: 24 },
+        { startOffset: 26, endOffset: 100_059 },
+      ]);
+      setup(lines, 4);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('anchors a request that follows an inline block comment', async () => {
+      const lines = ['/* c */ POST _query', '{', '  "script": """', 'GET /not-a-request', ''];
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 8, endOffset: 36 },
+        { startOffset: 38, endOffset: 56 },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('preserves ES|QL suggestions after an inline block comment', async () => {
+      const lines = ['/* c */ POST _query', '{', '  "query": """', 'GET /not-a-request', ''];
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 8, endOffset: 35 },
+        { startOffset: 37, endOffset: 55 },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('preserves ES|QL suggestions in a selected inline-comment request', async () => {
+      const lines = ['/* c */ POST _query', '{', '  "query": """'];
+      mockGetParsedRequests.mockResolvedValue([{ startOffset: 8 }]);
+      setup(lines, 3, lines[2].length + 1);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('rejects a same-line recovered request after malformed JSON', async () => {
+      const lines = ['GET /foo', '{"x"} POST _query', '{"query": """'];
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: 13 },
+        { startOffset: 15 },
+      ]);
+      setup(lines, 3, lines[2].length + 1);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('triggers suggestions after a completed triple quote containing a request-like line', async () => {
+      const lines = ['POST _query', '{', '\t"script": """', 'GET /not-a-request', '"""', '}', ''];
+      mockGetParsedRequests.mockResolvedValue([
+        {
+          startOffset: 0,
+          endOffset: lines.slice(0, -1).join('\n').length,
+          method: 'POST',
+          url: '_query',
+        },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('ignores triple quotes in comments before the current request', async () => {
+      const lines = ['GET _search', '{}', '# """', 'GET _search', ''];
+      const secondRequestOffset = lines.slice(0, 3).join('\n').length + 1;
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: lines[0].length + lines[1].length + 1 },
+        {
+          startOffset: secondRequestOffset,
+          endOffset: lines.slice(0, -1).join('\n').length,
+        },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('does not treat request-like text inside a block comment as the request start', async () => {
+      const lines = ['/*', 'GET /not-a-request', '"""', '*/', 'GET _search', ''];
+      const requestOffset = lines.slice(0, 4).join('\n').length + 1;
+      mockGetParsedRequests.mockResolvedValue([
+        {
+          startOffset: requestOffset,
+          endOffset: lines.slice(0, -1).join('\n').length,
+        },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('handles an escaped-backslash string before the current triple-quoted request', async () => {
+      mockGetParsedRequests.mockResolvedValue([]);
+      setup(['GET _search', '{"path":"\\\\"}', 'POST _query', '{', '\t"script": """', '']);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        lines: ['"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 3 },
+          { startOffset: 4, endOffset: 15 },
+        ],
+      },
+      {
+        lines: ['GET', '"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 7 },
+          { startOffset: 8, endOffset: 19 },
+        ],
+      },
+      {
+        lines: ['GET/foo', '"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 11 },
+          { startOffset: 12, endOffset: 23 },
+        ],
+      },
+      {
+        lines: ['GET /foo', '"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 8 },
+          { startOffset: 9, endOffset: 12 },
+          { startOffset: 13, endOffset: 24 },
+        ],
+      },
+      {
+        lines: ['GET /foo', '{', '"""', 'GET _search', ''],
+        requests: [
+          { startOffset: 0, endOffset: 13 },
+          { startOffset: 15, endOffset: 26 },
+        ],
+      },
+    ])('ignores malformed parser artifacts before a parsed request: $lines', async (fixture) => {
+      mockGetParsedRequests.mockResolvedValue(fixture.requests);
+      setup(fixture.lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).toHaveBeenCalledWith(
+        'Trigger suggestions',
+        'editor.action.triggerSuggest',
+        {}
+      );
+    });
+
+    it('keeps a comment-separated triple-quoted value anchored to its request', async () => {
+      const lines = [
+        'POST _query',
+        '{',
+        '  "script":',
+        '  # value comment',
+        '  """',
+        'GET /not-a-request',
+        '',
+      ];
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: 48 },
+        { startOffset: 50, endOffset: 68 },
+      ]);
+      setup(lines);
+
+      await triggerSuggestions();
+
+      expect(editor.trigger).not.toHaveBeenCalled();
+    });
+
+    it('caps malformed parsed-request inspection', () => {
+      const lines = new Array(2501).fill('"""');
+      const model = createModel(lines);
+      const parsedRequests = lines.map((_, index) => ({ startOffset: index * 4 }));
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toBeUndefined();
+      expect(model.getPositionAt).toHaveBeenCalledTimes(2000);
+    });
+
+    it('caps parsed-request inspection by source characters', () => {
+      const lines = ['GET /one', 'x'.repeat(100_001)];
+      const model = createModel(lines);
+      const parsedRequests = [{ startOffset: 0 }, { startOffset: lines[0].length + 1 }];
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toBeUndefined();
+      expect(model.getPositionAt).toHaveBeenCalledTimes(1);
+    });
+
+    it('caps cumulative parsed-request materialization', () => {
+      const lines = [
+        `GET /${'one'.repeat(16_667)}`,
+        `GET /${'two'.repeat(16_667)}`,
+        `GET /${'three'.repeat(3_333)}`,
+      ];
+      const model = createModel(lines);
+      const secondStartOffset = lines[0].length + 1;
+      const thirdStartOffset = secondStartOffset + lines[1].length + 1;
+      const parsedRequests = [
+        { startOffset: 0, endOffset: lines[0].length },
+        { startOffset: secondStartOffset, endOffset: secondStartOffset + lines[1].length },
+        { startOffset: thirdStartOffset, endOffset: thirdStartOffset + lines[2].length },
+      ];
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number; endOffset: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toEqual({ lineNumber: 3, column: 1 });
+      expect(model.getValueInRange).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not return an oversized unterminated request as the fallback start', () => {
+      const lines = ['GET /foo', 'x'.repeat(100_001)];
+      const model = createModel(lines);
+      const parsedRequests = [{ startOffset: 0 }];
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toBeUndefined();
+      expect(model.getValueInRange).not.toHaveBeenCalled();
+    });
+
+    it('excludes an inline comment prefix from parsed request materialization', () => {
+      const prefix = `/*${'x'.repeat(100_000)}*/ `;
+      const lines = [`${prefix}GET /foo`, '{"field": true}'];
+      const model = createModel(lines);
+      const parsedRequests = [{ startOffset: prefix.length, endOffset: lines.join('\n').length }];
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number; endOffset: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toEqual({ lineNumber: 1, column: prefix.length + 1 });
+      expect(model.getValueInRange).toHaveBeenCalledWith(
+        expect.objectContaining({ startLineNumber: 1, startColumn: prefix.length + 1 })
+      );
+    });
+
+    it('continues past a parsed request without an end offset', () => {
+      const lines = ['POST _query', '{"script":"""', 'POST _query', '{'];
+      const model = createModel(lines);
+      const parsedRequests = [{ startOffset: 0, endOffset: 24 }, { startOffset: 26 }];
+
+      const result = (
+        editorActionsProvider as unknown as {
+          getFallbackRequestStartPosition: (
+            requests: Array<{ startOffset: number; endOffset?: number }>,
+            textModel: monaco.editor.ITextModel,
+            positionLineNumber: number
+          ) => monaco.IPosition | undefined;
+        }
+      ).getFallbackRequestStartPosition(parsedRequests, model, lines.length);
+
+      expect(result).toEqual({ lineNumber: 1, column: 1 });
+    });
+
+    it('stops inspecting parsed requests after passing the cursor', async () => {
+      const lines = ['"""', 'GET _search', '', ...new Array(2500).fill('GET _search')];
+      let requestOffset = lines.slice(0, 3).join('\n').length + 1;
+      const laterRequests = new Array(2500).fill(undefined).map(() => {
+        const request = { startOffset: requestOffset, endOffset: requestOffset + 11 };
+        requestOffset += 12;
+        return request;
+      });
+      mockGetParsedRequests.mockResolvedValue([
+        { startOffset: 0, endOffset: lines[0].length },
+        { startOffset: lines[0].length + 1, endOffset: lines.slice(0, 2).join('\n').length },
+        ...laterRequests,
+      ]);
+      const model = setup(lines, 3);
+
+      await triggerSuggestions();
+
+      expect(model.getOffsetAt).toHaveBeenCalledTimes(1);
+      expect(model.getPositionAt).toHaveBeenCalledTimes(9);
     });
 
     it('still triggers suggestions inside ES|QL query triple quotes when no request is parsed', async () => {

@@ -10,6 +10,7 @@
 import {
   checkForTripleQuotesAndEsqlQuery,
   findRequestLineNumber,
+  isInsideTripleQuotedJsonValue,
   unescapeInvalidChars,
 } from './autocomplete_utils';
 
@@ -211,6 +212,74 @@ describe('autocomplete_utils', () => {
     });
   });
 
+  it('closes a double-quoted string after an even number of backslashes', () => {
+    const request = [
+      'GET _search',
+      '{"path":"\\\\"}',
+      'POST _query',
+      '{',
+      '  "script": """',
+      '',
+    ].join('\n');
+    expect(checkForTripleQuotesAndEsqlQuery(request).insideTripleQuotes).toBe(true);
+  });
+
+  it('keeps a double-quoted string open after an escaped quote', () => {
+    const request = String.raw`POST _query
+{
+  "query": "FROM logs | WHERE field == \"value`;
+    expect(checkForTripleQuotesAndEsqlQuery(request).insideEsqlQuery).toBe(true);
+  });
+
+  it.each(['# """ GET _search', '// """ GET _search', '/* """\nGET _search\n*/'])(
+    'ignores quote and request-like text inside Console comments: %s',
+    (comment) => {
+      const request = ['GET _search', '{}', comment, 'GET _search', ''].join('\n');
+      expect(checkForTripleQuotesAndEsqlQuery(request)).toEqual({
+        insideTripleQuotes: false,
+        insideEsqlQuery: false,
+        esqlQueryIndex: -1,
+      });
+    }
+  );
+
+  it.each(['# """', '// """', '/* """ */'])(
+    'does not treat comment markers inside triple-quoted content as comments: %s',
+    (content) => {
+      const request = ['POST _query', '{', `  "script": """value ${content}`, '}', ''].join('\n');
+      expect(checkForTripleQuotesAndEsqlQuery(request).insideTripleQuotes).toBe(false);
+    }
+  );
+
+  it.each([
+    'POST _query\n{\n  "script": """',
+    'POST _query\n{\n  "script":\n  # comment\n  """',
+    'POST _query\n{\n  "script": /* comment */ """',
+    'POST _query\n["""',
+    'POST _query\n[// comment\n"""',
+    'POST _query\n["value", """',
+  ])('recognizes an open triple quote in a JSON value: %s', (request) => {
+    expect(isInsideTripleQuotedJsonValue(request)).toBe(true);
+  });
+
+  it.each([
+    'GET /foo\n"""',
+    'GET /foo\n{\n"""',
+    'GET /foo\n{"field":\nGET _search\n"""',
+    'GET /foo\n[\nGET _search\n, """',
+    'GET /foo\n{"field":"[", """',
+    'GET /foo\n[]\n, """',
+    'GET /foo\n{"field":"value" """',
+    'GET /foo\n["""value""" """',
+  ])('rejects an open triple quote outside a JSON value: %s', (request) => {
+    expect(isInsideTripleQuotedJsonValue(request)).toBe(false);
+  });
+
+  it('does not retain container state for oversized fallback input', () => {
+    const request = `POST _search\n${'['.repeat(100_001)}"""`;
+    expect(isInsideTripleQuotedJsonValue(request)).toBe(false);
+  });
+
   describe('unescapeInvalidChars', () => {
     it('should return the original string if there are no escape sequences', () => {
       const input = 'simple string';
@@ -264,6 +333,32 @@ describe('autocomplete_utils', () => {
     it('returns the nearest request line when several precede the cursor', () => {
       const lines = ['GET _search', '{}', 'POST _query', '{', ''];
       expect(findRequestLineNumber(fromLines(lines), 5)).toBe(3);
+    });
+
+    it('can return the document start after fully scanning a range with a request line', () => {
+      const lines = ['# comment', 'POST _query', '{', '"script": """', 'GET /not-a-request', ''];
+      expect(findRequestLineNumber(fromLines(lines), 6, { direction: 'document' })).toBe(1);
+    });
+
+    it('does not return the document start from a partially scanned range', () => {
+      const lines = ['GET _search', ...new Array(2500).fill('  "filler": 1,')];
+      expect(
+        findRequestLineNumber(fromLines(lines), lines.length, { direction: 'document' })
+      ).toBeUndefined();
+    });
+
+    it('does not return the document start when the final scanned line exceeds the character cap', () => {
+      const lines = ['x'.repeat(150_000), 'POST _query', '{', '"query": """', 'GET /inside-string'];
+      expect(
+        findRequestLineNumber(fromLines(lines), lines.length, { direction: 'document' })
+      ).toBeUndefined();
+    });
+
+    it('does not return the document start when the fully scanned range has no request line', () => {
+      const lines = ['# comment', '{', '"field": true', '}'];
+      expect(
+        findRequestLineNumber(fromLines(lines), lines.length, { direction: 'document' })
+      ).toBeUndefined();
     });
 
     it('returns undefined when no request line precedes the cursor', () => {

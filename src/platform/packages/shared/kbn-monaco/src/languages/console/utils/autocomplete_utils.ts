@@ -22,6 +22,8 @@ const TRIPLE_QUOTES = '"""';
 const QUERY_KEY = '"query"';
 const ESQL_QUERY_REQUEST_LINE_RE = /^post\s+\/?_query(?:\/async)?(?:\s|\?|$)/i;
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'PATCH'] as const;
+const MAX_REQUEST_LINE_LOOKBACK_LINES = 2000;
+const MAX_REQUEST_LINE_LOOKBACK_CHARS = 100_000;
 
 const ASCII = {
   A_UPPER: 65,
@@ -65,6 +67,14 @@ const isStartOfLine = (text: string, index: number): boolean => {
   }
   const previousChar = text[index - 1];
   return previousChar === '\n';
+};
+
+const isEscaped = (text: string, index: number): boolean => {
+  let precedingBackslashes = 0;
+  for (let previousIndex = index - 1; text[previousIndex] === '\\'; previousIndex--) {
+    precedingBackslashes++;
+  }
+  return precedingBackslashes % 2 === 1;
 };
 
 /**
@@ -164,18 +174,23 @@ const scanRequestLineFrom = (
   return { nextIndex, isEsqlQueryRequest };
 };
 
-export const checkForTripleQuotesAndEsqlQuery = (
-  text: string
+const analyzeTripleQuotesAndEsqlQuery = (
+  text: string,
+  { trackJsonValue = false }: { trackJsonValue?: boolean } = {}
 ): {
   insideTripleQuotes: boolean;
   insideEsqlQuery: boolean;
   esqlQueryIndex: number;
+  insideTripleQuotedJsonValue: boolean;
 } => {
   // Quote tracking for the JSON body:
   // - inDoubleQuoteString: between unescaped `" ... "`
   // - inTripleQuoteString: between `""" ... """` (only toggled when not already in double quotes)
   let inDoubleQuoteString = false;
   let inTripleQuoteString = false;
+  let tripleQuoteIsJsonValue = false;
+  const jsonContainers: Array<'object' | 'array'> | undefined = trackJsonValue ? [] : undefined;
+  let lastSignificantJsonChar: string | undefined;
 
   // Tracks whether the *current* string (double or triple) is the value for `"query"`.
   let inQueryValueString = false;
@@ -192,8 +207,34 @@ export const checkForTripleQuotesAndEsqlQuery = (
       const requestLineScan = scanRequestLineFrom(text, index);
       if (requestLineScan) {
         inEsqlQueryRequest = requestLineScan.isEsqlQueryRequest;
+        if (jsonContainers) {
+          jsonContainers.length = 0;
+          lastSignificantJsonChar = undefined;
+        }
         index = requestLineScan.nextIndex;
         continue;
+      }
+    }
+
+    // Console comments can contain quote-like text that must not affect string state.
+    if (!inDoubleQuoteString && !inTripleQuoteString) {
+      const currentChar = text[index];
+      if (currentChar === '#') {
+        const newlineIndex = text.indexOf('\n', index);
+        index = newlineIndex === -1 ? text.length : newlineIndex + 1;
+        continue;
+      }
+      if (currentChar === '/') {
+        if (text[index + 1] === '/') {
+          const newlineIndex = text.indexOf('\n', index);
+          index = newlineIndex === -1 ? text.length : newlineIndex + 1;
+          continue;
+        }
+        if (text[index + 1] === '*') {
+          const commentEndIndex = text.indexOf('*/', index + 2);
+          index = commentEndIndex === -1 ? text.length : commentEndIndex + 2;
+          continue;
+        }
       }
     }
 
@@ -201,9 +242,18 @@ export const checkForTripleQuotesAndEsqlQuery = (
     if (!inDoubleQuoteString && text.startsWith(TRIPLE_QUOTES, index)) {
       inTripleQuoteString = !inTripleQuoteString;
       if (inTripleQuoteString) {
+        if (jsonContainers) {
+          tripleQuoteIsJsonValue =
+            (jsonContainers.at(-1) === 'object' && lastSignificantJsonChar === ':') ||
+            (jsonContainers.at(-1) === 'array' &&
+              (lastSignificantJsonChar === '[' || lastSignificantJsonChar === ','));
+        }
         esqlQueryStartIndex = getQueryValueStartIndex(text, index, 3);
         inQueryValueString = esqlQueryStartIndex !== -1;
       } else {
+        if (jsonContainers) {
+          lastSignificantJsonChar = '"';
+        }
         inQueryValueString = false;
         esqlQueryStartIndex = -1;
       }
@@ -212,17 +262,33 @@ export const checkForTripleQuotesAndEsqlQuery = (
     }
 
     // Standard JSON string quotes (unescaped only, and only when not in triple quotes).
-    if (!inTripleQuoteString && text[index] === '"' && text[index - 1] !== '\\') {
+    if (!inTripleQuoteString && text[index] === '"' && !isEscaped(text, index)) {
       inDoubleQuoteString = !inDoubleQuoteString;
       if (inDoubleQuoteString) {
         esqlQueryStartIndex = getQueryValueStartIndex(text, index, 1);
         inQueryValueString = esqlQueryStartIndex !== -1;
       } else {
+        if (jsonContainers) {
+          lastSignificantJsonChar = '"';
+        }
         inQueryValueString = false;
         esqlQueryStartIndex = -1;
       }
       index++;
       continue;
+    }
+
+    if (jsonContainers && !inDoubleQuoteString && !inTripleQuoteString) {
+      if (text[index] === '{') {
+        jsonContainers.push('object');
+      } else if (text[index] === '[') {
+        jsonContainers.push('array');
+      } else if (text[index] === '}' || text[index] === ']') {
+        jsonContainers.pop();
+      }
+      if (!/\s/.test(text[index])) {
+        lastSignificantJsonChar = text[index];
+      }
     }
 
     index++;
@@ -232,8 +298,25 @@ export const checkForTripleQuotesAndEsqlQuery = (
     insideTripleQuotes: inTripleQuoteString,
     insideEsqlQuery: inEsqlQueryRequest && inQueryValueString,
     esqlQueryIndex: inEsqlQueryRequest ? esqlQueryStartIndex : -1,
+    insideTripleQuotedJsonValue:
+      jsonContainers !== undefined && inTripleQuoteString && tripleQuoteIsJsonValue,
   };
 };
+
+export const checkForTripleQuotesAndEsqlQuery = (
+  text: string
+): {
+  insideTripleQuotes: boolean;
+  insideEsqlQuery: boolean;
+  esqlQueryIndex: number;
+} => {
+  const { insideTripleQuotedJsonValue, ...result } = analyzeTripleQuotesAndEsqlQuery(text);
+  return result;
+};
+
+export const isInsideTripleQuotedJsonValue = (text: string): boolean =>
+  text.length <= MAX_REQUEST_LINE_LOOKBACK_CHARS &&
+  analyzeTripleQuotesAndEsqlQuery(text, { trackJsonValue: true }).insideTripleQuotedJsonValue;
 
 /**
  * Safeguards for request-line lookup. We scan backwards from the cursor until we find the nearest
@@ -244,35 +327,59 @@ export const checkForTripleQuotesAndEsqlQuery = (
  * hold millions of characters in only a handful of lines, and callers scan the text we return
  * character by character (see https://github.com/elastic/kibana/pull/251173).
  */
-const MAX_REQUEST_LINE_LOOKBACK_LINES = 2000;
-const MAX_REQUEST_LINE_LOOKBACK_CHARS = 100_000;
-
 const REQUEST_METHOD_LINE_RE = /^\s*(GET|POST|PUT|DELETE|HEAD|PATCH)\b/i;
+const REQUEST_LINE_WITH_URL_RE = /^[ \t]*(GET|POST|PUT|DELETE|HEAD|PATCH)[ \t]+\S/i;
+
+const isRequestMethodLine = (line: string): boolean => REQUEST_METHOD_LINE_RE.test(line);
+export const isRequestLineWithUrl = (line: string): boolean => REQUEST_LINE_WITH_URL_RE.test(line);
 
 /**
- * Scans backwards from `positionLineNumber` for the nearest request method line
- * (`GET`/`POST`/...), returning its line number.
+ * Scans backwards from `positionLineNumber` for a request method line
+ * (`GET`/`POST`/...), returning its line number. The default returns the nearest match.
+ * The `document` direction returns the range start only after the whole requested range is scanned
+ * and a request line is found, so classifiers receive context around untrusted request-like text.
  *
  * Returns `undefined` when no request line is found within the lookback safeguards, so callers
  * can fall back instead of acting on a partially scanned buffer.
  */
 export const findRequestLineNumber = (
   getLineContent: (lineNumber: number) => string,
-  positionLineNumber: number
+  positionLineNumber: number,
+  {
+    direction = 'nearest',
+    rangeStartLineNumber = 1,
+  }: {
+    direction?: 'nearest' | 'document';
+    rangeStartLineNumber?: number;
+  } = {}
 ): number | undefined => {
+  let foundRequestLine = false;
+  let lineNumber = positionLineNumber;
+  let scannedLines = 0;
+  let scannedChars = 0;
   for (
-    let lineNumber = positionLineNumber, scannedLines = 0, scannedChars = 0;
-    lineNumber >= 1 &&
+    ;
+    lineNumber >= rangeStartLineNumber &&
     scannedLines < MAX_REQUEST_LINE_LOOKBACK_LINES &&
     scannedChars < MAX_REQUEST_LINE_LOOKBACK_CHARS;
     lineNumber--, scannedLines++
   ) {
     const line = getLineContent(lineNumber);
     scannedChars += line.length + 1;
-    if (REQUEST_METHOD_LINE_RE.test(line)) {
-      return lineNumber;
+    if (scannedChars > MAX_REQUEST_LINE_LOOKBACK_CHARS) {
+      return undefined;
+    }
+    if (isRequestMethodLine(line)) {
+      if (direction === 'nearest') {
+        return lineNumber;
+      }
+      foundRequestLine = true;
     }
   }
+
+  return direction === 'document' && lineNumber < rangeStartLineNumber && foundRequestLine
+    ? rangeStartLineNumber
+    : undefined;
 };
 
 /**

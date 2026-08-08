@@ -88,6 +88,9 @@ describe('Editor actions provider', () => {
       getLineMaxColumn: () => 10,
       getPositionAt: () => ({ lineNumber: 1 }),
       getLineContent: () => 'GET _search',
+      getLineCount: () => 1,
+      getOffsetAt: () => 0,
+      getValueInRange: () => 'GET _search',
     } as unknown as monaco.editor.ITextModel);
     editor.getSelection.mockReturnValue({
       startLineNumber: 1,
@@ -297,6 +300,7 @@ describe('Editor actions provider', () => {
           lineNumber: 1,
         };
       },
+      getOffsetAt: () => 0,
       getLineCount: () => 1,
       getLineContent: () => 'GET ',
       getValueInRange: () => 'GET ',
@@ -493,12 +497,18 @@ describe('Editor actions provider', () => {
           return selectedLines.join('\n');
         }
       );
+      const getWordUntilPosition = jest.fn(({ column }: monaco.IPosition) => ({
+        word: '',
+        startColumn: column,
+        endColumn: column,
+      }));
       return {
         getLineCount: () => lines.length,
         getLineContent: (lineNumber: number) => lines[lineNumber - 1] ?? '',
         getOffsetAt,
         getPositionAt,
         getValueInRange,
+        getWordUntilPosition,
       } as unknown as jest.Mocked<monaco.editor.ITextModel>;
     };
 
@@ -1028,6 +1038,38 @@ describe('Editor actions provider', () => {
 
       expect(model.getOffsetAt).toHaveBeenCalledTimes(1);
       expect(model.getPositionAt).toHaveBeenCalledTimes(9);
+    });
+
+    describe('provideCompletionItems (manual/trigger-character invocations)', () => {
+      const provideCompletionItems = (
+        model: monaco.editor.ITextModel,
+        position: monaco.IPosition
+      ) =>
+        editorActionsProvider.provideCompletionItems(
+          model,
+          position as monaco.Position,
+          {} as monaco.languages.CompletionContext
+        );
+
+      it('returns no completion items inside non-query triple quotes', async () => {
+        mockGetParsedRequests.mockResolvedValue([{ startOffset: 0 }]);
+        const model = setup(['POST _query', '{', '  "script": """', '']);
+
+        const { suggestions } = await provideCompletionItems(model, { lineNumber: 4, column: 1 });
+
+        expect(suggestions).toHaveLength(0);
+      });
+
+      it('still returns method completion items on an empty line outside triple quotes', async () => {
+        mockGetParsedRequests.mockResolvedValue([{ startOffset: 0, endOffset: 14 }]);
+        const model = setup(['GET _search', '{}', '']);
+
+        const { suggestions } = await provideCompletionItems(model, { lineNumber: 3, column: 1 });
+
+        expect(suggestions.map(({ label }) => label)).toEqual(
+          expect.arrayContaining(['GET', 'POST'])
+        );
+      });
     });
 
     it('still triggers suggestions inside ES|QL query triple quotes when no request is parsed', async () => {

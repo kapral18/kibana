@@ -633,6 +633,19 @@ export class MonacoEditorActionsProvider {
     position: monaco.Position,
     context: monaco.languages.CompletionContext
   ): Promise<monaco.languages.CompletionList> {
+    // A triple-quoted string holds raw content (e.g. a Painless script), so Console has nothing
+    // to suggest inside one. `triggerSuggestions` already suppresses its own auto-trigger there,
+    // but this provider is also invoked directly (manual Ctrl+Space, Monaco trigger characters),
+    // so the same guard must apply here. ES|QL query values are handled by the language provider
+    // before it delegates to this one.
+    const { insideTripleQuotes, insideEsqlQuery } = await this.isPositionInsideTripleQuotesAndQuery(
+      model,
+      position
+    );
+    if (insideTripleQuotes && !insideEsqlQuery) {
+      return { suggestions: [] };
+    }
+
     // determine autocomplete type
     const autocompleteType = await this.getAutocompleteType(model, position);
     if (!autocompleteType) {

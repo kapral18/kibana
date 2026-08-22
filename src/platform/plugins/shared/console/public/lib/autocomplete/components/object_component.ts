@@ -72,12 +72,6 @@ export class ObjectComponent extends SharedComponent {
       }
     });
 
-    // try to link to GLOBAL rules
-    const globalRules = context.globalComponentResolver(token, false);
-    if (globalRules) {
-      result.next.push(...globalRules);
-    }
-
     if (result.next.length) {
       return result;
     }
@@ -87,6 +81,16 @@ export class ObjectComponent extends SharedComponent {
         result.next.push(...asArray(componentResult.next));
       }
     });
+
+    if (result.next.length) {
+      return result;
+    }
+
+    // try to link to GLOBAL rules
+    const globalRules = context.globalComponentResolver(token, false);
+    if (globalRules) {
+      result.next.push(...globalRules);
+    }
 
     return result;
   }

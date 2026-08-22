@@ -166,6 +166,31 @@ describe('console parser', () => {
     expect(requests).toEqual([{ startOffset: 0, endOffset: 30 }]);
   });
 
+  it('284395 repro 1: SHOULD leave the request end unset after an inline triple quote and later syntax error', () => {
+    const input = 'POST _query\n{\n  "query": """ FROM my-index | """,\n\n}';
+    const { requests } = parser(input)!;
+
+    expect(requests).toEqual([{ startOffset: 0 }]);
+  });
+
+  it('284395 repro 2: SHOULD leave the request end unset after a multiline triple quote and later syntax error', () => {
+    const input = 'POST _query\n{\n  "script": """\n  some content\n  """,\n  "\n}';
+    const { requests } = parser(input)!;
+
+    expect(requests).toEqual([{ startOffset: 0 }]);
+  });
+
+  it('SHOULD recover the next request after a syntax error following a triple-quoted value', () => {
+    const input = 'POST _query\n{\n  "script": """foo""",\n}\n\nGET _search';
+    const { requests, errors } = parser(input)!;
+
+    expect(errors).toEqual([{ text: 'Bad string', offset: 38 }]);
+    expect(requests).toEqual([
+      { startOffset: 0, endOffset: 37 },
+      { startOffset: 40, endOffset: 51 },
+    ]);
+  });
+
   it('emits duplicate-key error and continues parsing next request', () => {
     const input = 'GET _search\n{ "a": 1, "a": 2 }\n\nPOST _test';
     const { requests, errors } = parser(input)!;

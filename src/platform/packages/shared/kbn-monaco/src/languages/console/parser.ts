@@ -101,7 +101,9 @@ export const createParser = (): ConsoleParser => {
     if (i < 0) {
       error(errorMessage || "Expected '" + upTo + "'");
     }
-    reset(i + upTo.length);
+    const newAt = i + upTo.length;
+    ch = text.charAt(newAt);
+    at = newAt + 1;
     return text.substring(currentAt, i);
   };
   const peek = function (offset: number) {
